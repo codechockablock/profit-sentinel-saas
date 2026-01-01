@@ -2,98 +2,96 @@
 'use client'
 
 import { useChat } from '@ai-sdk/react'
-
-// Define types once at the top
-interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content?: string
-}
-
-interface ChatHook {
-  messages: ChatMessage[]
-  input?: string
-  isLoading?: boolean
-  handleSubmit?: (e: React.FormEvent<HTMLFormElement>) => void
-  handleInputChange?: (e: React.ChangeEvent<HTMLInputElement>) => void
-}
+import { useState } from 'react'
 
 export default function GrokChat() {
-  const chat = useChat({
-    api: '/api/grok',
-    onError: (error: any) => {
-      console.error('Grok API error:', error)
-    },
-  } as any) as unknown as ChatHook
+  const [localInput, setLocalInput] = useState('')
 
-  const isLoading = !!chat.isLoading
+  const {
+    messages,
+    isLoading,
+    error,
+    sendMessage,
+    setInput, // Optional: sync with hook if it provides it
+  } = useChat({
+    api: '/api/grok', // Required for your custom route
+  })
 
-  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    chat.handleSubmit?.(e)
+    if (!localInput.trim()) return
+
+    sendMessage(localInput)
+    setLocalInput('')
+    // Optional sync
+    if (setInput) setInput('')
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center p-8 text-center">
+        <p className="text-red-500">Grok unavailable – check console</p>
+      </div>
+    )
   }
 
   return (
-    <div className="flex flex-col h-96 bg-gray-50 border-t">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {chat.messages.length === 0 && (
-          <p className="text-center text-gray-500 py-8">
-            Ask Grok anything — e.g. "create a daily summary automation" or "summarize this channel"
+    <div className="flex flex-col h-96 bg-transparent">
+      <div className="flex-1 overflow-y-auto p-8 space-y-6">
+        {messages.length === 0 && (
+          <p className="text-center text-gray-500 dark:text-gray-400 text-lg py-12">
+            Ask Grok anything...
           </p>
         )}
 
-        {chat.messages.map((m) => (
+        {messages.map((m) => (
           <div
             key={m.id}
             className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] px-4 py-3 rounded-2xl ${
+              className={`max-w-lg px-8 py-5 rounded-3xl shadow-xl ${
                 m.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white shadow-sm border'
+                  ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white'
+                  : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800'
               }`}
             >
-              {m.content || ''}
+              <p className="text-lg leading-relaxed">{m.content || ''}</p>
             </div>
           </div>
         ))}
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white shadow-sm px-4 py-3 rounded-2xl">
-              <span className="text-gray-500">Grok is thinking...</span>
+            <div className="px-8 py-5 rounded-3xl bg-white dark:bg-gray-900 shadow-xl border border-gray-200 dark:border-gray-800">
+              <span className="text-gray-500 animate-pulse">Grok is thinking...</span>
             </div>
           </div>
         )}
       </div>
 
-      <form onSubmit={handleFormSubmit} className="p-4 border-t bg-white">
-        <div className="flex gap-2">
+      <form onSubmit={handleSubmit} className="p-6 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-t border-gray-200 dark:border-gray-800">
+        <div className="flex gap-4">
           <input
-            value={chat.input || ''}
-            onChange={chat.handleInputChange}
+            value={localInput}
+            onChange={(e) => {
+              setLocalInput(e.target.value)
+              if (setInput) setInput(e.target.value)
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
-                const form = e.currentTarget.form
-                if (form) {
-                  if ((form as HTMLFormElement).requestSubmit) {
-                    (form as HTMLFormElement).requestSubmit()
-                  } else {
-                    (form as HTMLFormElement).submit()
-                  }
-                }
+                handleSubmit(e as any)
               }
             }}
-            placeholder="Ask Grok anything..."
-            className="flex-1 px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Message Grok..."
+            className="flex-1 px-8 py-5 rounded-full bg-gray-100 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-blue-500/30 text-lg"
             disabled={isLoading}
           />
           <button
             type="submit"
-            disabled={isLoading || !chat.input?.trim()}
-            className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition"
+            disabled={isLoading || !localInput.trim()}
+            className="px-10 py-5 bg-gradient-to-br from-blue-600 to-purple-600 text-white font-semibold rounded-full hover:shadow-2xl disabled:opacity-50 transition"
           >
             Send
           </button>

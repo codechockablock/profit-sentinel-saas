@@ -3,66 +3,60 @@
 
 import { useState } from 'react'
 import GrokChat from './grok-chat'
-import AutomationModal from './automation-modal' // We'll add this soon
+import { useTheme } from 'next-themes'
 
 export default function Sidebar() {
   const [showGrok, setShowGrok] = useState(true)
-  const [showAutomationModal, setShowAutomationModal] = useState(false)
+  const { theme, setTheme, systemTheme } = useTheme()
+
+  const currentTheme = theme === 'system' ? systemTheme : theme
 
   return (
-    <div className="w-80 border-r bg-white flex flex-col h-full">
+    <div className="w-80 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 flex flex-col h-full">
       {/* Header */}
-      <div className="p-6 border-b">
-        <h1 className="text-2xl font-bold text-blue-600">MySaaS</h1>
-        <p className="text-sm text-gray-500 mt-1">Default Workspace</p>
+      <div className="p-8 border-b border-gray-200 dark:border-gray-800">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">MySaaS</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Default Workspace</p>
       </div>
 
-      {/* Channels + New Automation Button */}
-      <div className="flex-1 p-4 overflow-y-auto">
-        <h3 className="font-semibold text-gray-700 mb-3">Channels</h3>
-        <ul className="space-y-1 mb-8">
-          <li className="px-4 py-2 rounded-lg bg-blue-100 font-medium"># general</li>
-          <li className="px-4 py-2 rounded-lg hover:bg-gray-100 cursor-pointer"># random</li>
-          <li className="px-4 py-2 rounded-lg hover:bg-gray-100 cursor-pointer"># ideas</li>
+      {/* Channels */}
+      <div className="flex-1 p-6 overflow-y-auto">
+        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
+          Channels
+        </h3>
+        <ul className="space-y-2">
+          <li className="px-5 py-3 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
+            # general
+          </li>
+          <li className="px-5 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer font-medium text-gray-700 dark:text-gray-300">
+            # random
+          </li>
+          <li className="px-5 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer font-medium text-gray-700 dark:text-gray-300">
+            # ideas
+          </li>
         </ul>
-
-        {/* New Automation Button */}
-        <button
-          onClick={() => setShowAutomationModal(true)}
-          className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition shadow-sm"
-        >
-          + New Automation
-        </button>
       </div>
 
-      {/* Grok Assistant Toggle */}
-      <div className="border-t">
+      {/* Bottom Controls */}
+      <div className="border-t border-gray-200 dark:border-gray-800 p-4 space-y-2">
+        {/* Dark Mode Toggle */}
+        <button
+          onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
+          className="w-full px-5 py-4 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-between font-medium text-gray-700 dark:text-gray-300 transition"
+        >
+          <span>{currentTheme === 'dark' ? 'Light Mode ☀️' : 'Dark Mode 🌙'}</span>
+        </button>
+
+        {/* Grok Assistant Toggle */}
         <button
           onClick={() => setShowGrok(!showGrok)}
-          className="w-full px-4 py-3 text-left font-medium bg-gray-50 hover:bg-gray-100 flex justify-between items-center"
+          className="w-full px-5 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium flex items-center justify-between hover:opacity-90 transition"
         >
-          Grok Assistant {showGrok ? '▼' : '▲'}
+          <span>Grok Assistant</span>
+          <span>{showGrok ? '−' : '+'}</span>
         </button>
         {showGrok && <GrokChat />}
       </div>
-
-      {/* Automation Modal (temporary placeholder until we build it) */}
-      {showAutomationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-2xl shadow-2xl">
-            <h2 className="text-3xl font-bold mb-4">Coming Soon!</h2>
-            <p className="text-gray-600 mb-6">
-              Grok-powered no-code automation builder is next.
-            </p>
-            <button
-              onClick={() => setShowAutomationModal(false)}
-              className="px-8 py-4 bg-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-300"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

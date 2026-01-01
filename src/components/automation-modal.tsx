@@ -27,7 +27,7 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
         <form onSubmit={handleSubmit} className="space-y-6">
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e: { target: { value: any } }) => setDescription(e.target.value)}
             placeholder='e.g. "Every morning at 9AM, send me a summary of new leads from the CRM"'
             className="w-full h-40 px-5 py-4 rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none resize-none text-lg"
             required
