@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY app/main.py .
 
-RUN pip install --no-cache-dir fastapi uvicorn
+RUN pip install fastapi uvicorn
 
 EXPOSE 8000
 
