@@ -1,16 +1,16 @@
 # Terraform
-.terraform/*
+.terraform/
 .terraform.lock.hcl
 
-# State files
+# State
 *.tfstate
 *.tfstate.*
 
-# Vars with secrets
+# Vars
 *.tfvars
 
 # Plans
-*tfplan*
+*.tfplan
 
 # Local
 .DS_Store
