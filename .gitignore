@@ -1,16 +1,7 @@
-# Terraform
 .terraform/
 .terraform.lock.hcl
-
-# State
 *.tfstate
 *.tfstate.*
-
-# Vars
 *.tfvars
-
-# Plans
 *.tfplan
-
-# Local
 .DS_Store
