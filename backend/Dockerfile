@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY app/main.py .
 
-RUN pip install fastapi uvicorn
+RUN pip install fastapi uvicorn python-multipart  # <-- Add python-multipart here
 
 EXPOSE 8000
 
