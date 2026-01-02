@@ -28,6 +28,11 @@ module "rds" {
   ecs_sg_id       = module.ecs.ecs_sg_id  # ECS must output this
 }
 
+module "ecr" {
+  source      = "../../modules/ecr"
+  name_prefix = "profitsentinel-dev"
+}
+
 module "s3" {
   source      = "../../modules/s3"
   name_prefix = "profitsentinel-dev"
