@@ -14,7 +14,7 @@ def health():
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    # Placeholder—later S3 + analysis
+    # Placeholder for S3 upload + analysis
     contents = await file.read()
     return {"filename": file.filename, "size": len(contents), "status": "uploaded"}
 
