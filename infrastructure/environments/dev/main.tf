@@ -37,3 +37,23 @@ module "s3" {
   source      = "../../modules/s3"
   name_prefix = "profitsentinel-dev"
 }
+
+output "alb_dns_name" {
+  value       = module.alb.alb_dns_name
+  description = "ALB DNS for domain pointing"
+}
+
+output "repository_url" {
+  value       = module.ecr.repository_url
+  description = "ECR repo URL for Docker push"
+}
+
+output "db_endpoint" {
+  value       = module.rds.cluster_endpoint
+  description = "RDS Aurora endpoint"
+}
+
+output "s3_bucket_name" {
+  value       = module.s3.bucket_name
+  description = "S3 uploads bucket"
+}
