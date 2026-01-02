@@ -52,7 +52,7 @@ resource "aws_rds_cluster" "aurora" {
   cluster_identifier          = "${var.name_prefix}-cluster"
   engine                      = "aurora-postgresql"
   engine_mode                 = "provisioned"
-  engine_version              = "15.5"  # Latest compatible
+  engine_version              = "15"  # Latest compatible
   database_name               = "profitsentinel"
   master_username             = "adminuser"
   manage_master_user_password = true  # Uses Secrets Manager automatically
