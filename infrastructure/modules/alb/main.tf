@@ -10,6 +10,10 @@ variable "public_subnets" {
   type = list(string)
 }
 
+variable "certificate_arn" {
+  type = string
+}
+
 resource "aws_lb" "main" {
   name               = "${var.name_prefix}-alb"
   internal           = false
@@ -32,13 +36,17 @@ resource "aws_lb_target_group" "api" {
   target_type = "ip"
 
   health_check {
-    path                = "/health"  # We'll add in FastAPI
+    path                = "/health"  # FastAPI health endpoint we'll add
     protocol            = "HTTP"
     matcher             = "200"
     interval            = 30
     timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name = "${var.name_prefix}-tg"
   }
 }
 
@@ -47,7 +55,7 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-2016-08"
-  certificate_arn   = "arn:aws:acm:us-east-1:133608785306:certificate/6c016bb3-b1f6-4928-b233-c5c690d4fbce"  # Your cert ARN
+  certificate_arn   = var.certificate_arn
 
   default_action {
     type             = "forward"
