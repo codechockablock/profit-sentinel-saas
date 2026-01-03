@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY app/main.py .
 
-RUN pip install fastapi uvicorn python-multipart boto3 pandas openpyxl
+RUN pip install fastapi uvicorn python-multipart pandas openpyxl boto3
 
 EXPOSE 8000
 
