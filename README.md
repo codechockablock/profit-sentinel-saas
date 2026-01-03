@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Profit Sentinel
 
-## Getting Started
+**Your AI Profit Sentinel – Vigilant Protection for Retail Margins**
 
-First, run the development server:
+Profit Sentinel is a powerful SaaS tool designed to uncover hidden profit leaks in your POS data while providing actionable inventory management tools. Simply upload your exports, and get instant forensic insights: unrecorded COGS, negative inventory, true margins, category/vendor breakdowns, and smart recommendations to fix and prevent issues.
 
+Built for independent retailers (hardware, lumber, garden centers, auto parts, and more)—a lightweight, non-disruptive add-on to your existing POS system (RockSolid, Spruce, Paladin, Square, and others).
+
+## Why Profit Sentinel?
+
+Retail margins are thin (typically 3–5%), and silent leaks from skipped receiving, negatives, or unrecorded purchases can cost tens or hundreds of thousands annually. Most POS tools assume clean data—Profit Sentinel not only exposes the truth but helps you manage inventory smarter to protect and grow profits.
+
+- **Forensic Leak Detection**: Find $100k+ hidden shrink others miss.
+- **Smart Inventory Management**: Reorder alerts, dead stock optimization, cycle counting guidance, vendor scorecards.
+- **AI-Powered Insights**: "Ask Sentinel" chat for natural language queries and recommendations.
+- **Privacy-Focused**: Secure AWS infrastructure with encryption everywhere.
+- **No Disruption**: Works alongside your current POS—no migration needed.
+
+## Features
+
+### Current
+- POS/payroll export upload (CSV/Excel) → instant diagnostic reports.
+- True margin correction and profit leak quantification.
+- Category, vendor, and customer cross-insights.
+- Multi-location roll-ups for chains.
+
+### Coming Soon
+- **Smart Reorder & Low-Stock Alerts**: Dynamic reorder points based on sales velocity and leak-adjusted stock.
+- **Dead/Slow-Moving Stock Optimizer**: Identify capital-tied items with markdown/clearance recommendations.
+- **Cycle Counting & Receiving Assistant**: Guided tools to fix root causes of leaks.
+- **Vendor Scorecard**: Performance tracking and negotiation insights.
+- **Inventory Health Scorecard**: Overall score with peer benchmarks.
+- Seamless POS integrations (RockSolid, Spruce, Square).
+- Predictive forecasting and scenario modeling.
+- Accounting exports (corrected margins to QuickBooks/Xero).
+- Training modules for staff.
+- "Sentinel Council" – hierarchical AI debate for bias-free decisions.
+
+## Data Privacy & Security
+
+Your data is sensitive—we treat it that way.
+
+- **Encryption**: All data at rest (S3/RDS encrypted) and in transit (HTTPS).
+- **Isolation**: Multi-tenant design with row-level security—no mixing of customer data.
+- **AWS Best Practices**: Private networking, least-privilege access, no public exposure.
+- **Future Enhancements**: Local/on-device processing options for maximum privacy.
+
+No data is sold or shared. Profit Sentinel guards your profits—and your trust.
+
+## Quick Start (Local Development)
+
+### Prerequisites
+- AWS account (with infra applied)
+- Docker
+- Node.js (for future frontend)
+
+### Run Backend Locally
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+cd backend
+docker build -t profit-sentinel-api .
+docker run -p 8000:8000 profit-sentinel-api
