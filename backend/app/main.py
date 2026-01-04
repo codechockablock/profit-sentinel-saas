@@ -6,7 +6,6 @@ import io
 import boto3
 from botocore.exceptions import ClientError
 import os
-import re
 
 app = FastAPI(title="Profit Sentinel")
 
@@ -21,9 +20,6 @@ def root():
 def health():
     return {"status": "healthy"}
 
-def clean_column(name: str) -> str:
-    return re.sub(r'[^a-z0-9]', '', name.lower())
-
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(('.csv', '.xlsx', '.xls')):
@@ -33,7 +29,7 @@ async def upload_file(file: UploadFile = File(...)):
 
     try:
         if file.filename.lower().endswith('.csv'):
-            df = pd.read_csv(io.BytesIO(contents), dtype=str)
+            df = pd.read_csv(io.BytesIO(contents), dtype=str, keep_default_na=False)
         else:
             df = pd.read_excel(io.BytesIO(contents), dtype=str)
     except Exception as e:
@@ -42,55 +38,78 @@ async def upload_file(file: UploadFile = File(...)):
     if df.empty:
         raise HTTPException(status_code=400, detail="File is empty")
 
-    cleaned_map = {col: clean_column(col) for col in df.columns}
+    # Ultra-aggressive column matching
+    col_lower = {col: col.strip().lower().replace('$', '').replace('.', '').replace(' ', '') for col in df.columns}
 
-    # Flexible mapping for this file
-    column_map = {
-        'quantity': next((col for col, clean in cleaned_map.items() if 'qtydifference' in clean or 'qtydiff' in clean or 'difference' in clean or 'inventoriedqty' in clean or 'invento' in clean or 'onhand' in clean), None),
-        'cost': next((col for col, clean in cleaned_map.items() if 'cost' in clean), None),
-        'sales': next((col for col, clean in cleaned_map.items() if 'retail' in clean or 'sold' in clean), None),  # Use Retail as proxy for sales value
-        'category': next((col for col, clean in cleaned_map.items() if 'cat' in clean or 'category' in clean or 'dpt' in clean), None),
-        'vendor': next((col for col, clean in cleaned_map.items() if 'vendor' in clean), None),
-    }
+    # Map required columns
+    quantity_col = None
+    for orig, clean in col_lower.items():
+        if 'qty' in clean or 'quantity' in clean or 'onhand' in clean or 'diff' in clean:
+            quantity_col = orig
+            break
 
-    missing = [k for k, v in column_map.items() if v is None and k in ['quantity', 'cost']]
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Missing required columns: {missing}. Cleaned columns: {sorted(cleaned_map.values())}"
-        )
+    cost_col = None
+    for orig, clean in col_lower.items():
+        if 'cost' in clean or 'avgcost' in clean or 'stdcost' in clean:
+            cost_col = orig
+            break
 
-    rename_dict = {v: k for k, v in column_map.items() if v is not None}
-    df = df.rename(columns=rename_dict)
+    sales_col = None
+    for orig, clean in col_lower.items():
+        if 'sales' in clean or 'sold' in clean:
+            sales_col = orig
+            break
 
+    if not all([quantity_col, cost_col, sales_col]):
+        return JSONResponse(content={
+            "detail": "Could not map required columns",
+            "found_columns": list(df.columns),
+            "mapped": {"quantity": quantity_col, "cost": cost_col, "sales": sales_col}
+        })
+
+    # Rename for analysis
+    df = df.rename(columns={
+        quantity_col: "quantity",
+        cost_col: "cost",
+        sales_col: "sales"
+    })
+
+    # Convert to numeric
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
     df['cost'] = pd.to_numeric(df['cost'], errors='coerce').fillna(0)
+    df['sales'] = pd.to_numeric(df['sales'], errors='coerce').fillna(0)
 
-    negative_qty = df[df['quantity'] < 0].copy()
-    negative_qty['abs_quantity'] = negative_qty['quantity'].abs()
-    negative_qty['hidden_cogs'] = negative_qty['abs_quantity'] * negative_qty['cost']
-    estimated_hidden_cogs = negative_qty['hidden_cogs'].sum()
+    # Leak analysis
+    negative = df[df['quantity'] < 0].copy()
+    negative['abs_qty'] = negative['quantity'].abs()
+    negative['hidden_cogs'] = negative['abs_qty'] * negative['cost']
+    hidden_cogs_total = negative['hidden_cogs'].sum()
 
-    total_cost = df['cost'].sum()
-    reported_cogs = (df['quantity'] * df['cost']).clip(lower=0).sum()
-    true_cogs = reported_cogs + estimated_hidden_cogs
+    total_sales = df['sales'].sum()
+    reported_cogs = max(0, (df['quantity'] * df['cost']).sum())
+    true_cogs = reported_cogs + hidden_cogs_total
+    reported_margin = (total_sales - reported_cogs) / total_sales if total_sales else 0
+    true_margin = (total_sales - true_cogs) / total_sales if total_sales else 0
 
-    analysis_results = {
+    result = {
         "filename": file.filename,
-        "rows_processed": len(df),
-        "estimated_hidden_cogs": float(estimated_hidden_cogs),
-        "negative_inventory_items": int(len(negative_qty)),
-        "top_problem_items": negative_qty.sort_values('hidden_cogs', ascending=False).head(10)[['sku', 'descriptionfull', 'hidden_cogs']].to_dict('records') if 'sku' in df.columns else []
+        "rows": len(df),
+        "negative_items": int(len(negative)),
+        "estimated_hidden_cogs": round(float(hidden_cogs_total), 2),
+        "reported_margin_pct": round(reported_margin * 100, 2),
+        "true_margin_pct": round(true_margin * 100, 2),
+        "margin_impact_pct": round((reported_margin - true_margin) * 100, 2)
     }
 
+    # Optional S3 upload
     if S3_CLIENT:
         try:
             S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=f"uploads/{file.filename}", Body=contents)
-            analysis_results["s3_status"] = "uploaded successfully"
-        except ClientError as e:
-            analysis_results["s3_status"] = f"upload failed: {str(e)}"
+            result["s3_status"] = "saved"
+        except:
+            result["s3_status"] = "save failed"
 
-    return JSONResponse(content=analysis_results)
+    return JSONResponse(content=result)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
