@@ -72,7 +72,7 @@ resource "aws_ecs_task_definition" "api" {
   container_definitions = jsonencode([
     {
       name      = "api"
-      image     = "PLACEHOLDER_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/profitsentinel-dev-api:v8" # ECR URL
+      image     = "PLACEHOLDER_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/profitsentinel-dev-api:latest" # ECR URL
       essential = true
       portMappings = [
         {
