@@ -16,8 +16,7 @@ BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "profitsentinel-dev-uploads")
 
 @app.get("/")
 def root():
-    return {"message": "Profit Sentinel is live! 🚀 Uncover hidden profit leaks in your POS data."}
-
+    return {"message": "NEW DEPLOY TEST - LIVE v10! 🚀 Profit Sentinel backend running."}
 @app.get("/health")
 def health():
     return {"status": "healthy"}
