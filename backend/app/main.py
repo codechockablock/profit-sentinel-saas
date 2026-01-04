@@ -6,11 +6,10 @@ import io
 import boto3
 from botocore.exceptions import ClientError
 import os
-from typing import Dict, List
+import re  # For extra cleaning
 
 app = FastAPI(title="Profit Sentinel")
 
-# AWS S3 config (production); fallback for local dev
 S3_CLIENT = boto3.client('s3') if os.getenv("AWS_DEFAULT_REGION") else None
 BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "profitsentinel-dev-uploads")
 
@@ -22,15 +21,17 @@ def root():
 def health():
     return {"status": "healthy"}
 
+def clean_column(name: str) -> str:
+    """Remove punctuation/spaces for robust matching"""
+    return re.sub(r'[^a-z0-9]', '', name.lower())
+
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(('.csv', '.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Invalid file type—CSV or Excel only")
 
-    # Read file into bytes
     contents = await file.read()
 
-    # Parse with pandas
     try:
         if file.filename.lower().endswith('.csv'):
             df = pd.read_csv(io.BytesIO(contents))
@@ -42,30 +43,30 @@ async def upload_file(file: UploadFile = File(...)):
     if df.empty:
         raise HTTPException(status_code=400, detail="File is empty")
 
-    # Normalize column names for flexible matching
-    df.columns = df.columns.str.strip().str.lower()
+    # Clean columns for matching
+    cleaned_map = {col: clean_column(col) for col in df.columns}
 
-    # Flexible column mapping
+    # Flexible mapping
     column_map = {
-        'quantity': next((c for c in df.columns if 'qty' in c), None),
-        'cost': next((c for c in df.columns if 'cost' in c), None),
-        'sales': next((c for c in df.columns if 'sales' in c or 'sold' in c), None),
-        'category': next((c for c in df.columns if 'cat' in c or 'category' in c or 'dept' in c), None),
-        'vendor': next((c for c in df.columns if 'vendor' in c or 'supplier' in c), None),
+        'quantity': next((col for col, clean in cleaned_map.items() if 'qty' in clean), None),
+        'cost': next((col for col, clean in cleaned_map.items() if 'cost' in clean), None),
+        'sales': next((col for col, clean in cleaned_map.items() if 'sales' in clean or 'sold' in clean), None),
+        'category': next((col for col, clean in cleaned_map.items() if 'cat' in clean or 'category' in clean or 'dept' in clean), None),
+        'vendor': next((col for col, clean in cleaned_map.items() if 'vendor' in clean or 'supplier' in clean), None),
     }
 
     missing = [k for k, v in column_map.items() if v is None and k in ['quantity', 'cost', 'sales']]
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Missing required columns for analysis: {missing}. Found columns: {list(df.columns)}"
+            detail=f"Missing required columns: {missing}. Found (cleaned): {list(cleaned_map.values())}"
         )
 
-    # Rename mapped columns for consistent analysis
+    # Rename to standard
     rename_dict = {v: k for k, v in column_map.items() if v is not None}
     df = df.rename(columns=rename_dict)
 
-    # Core Leak Analysis
+    # Analysis (same as before)
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
     negative_qty = df[df['quantity'] < 0].copy()
     negative_qty['abs_quantity'] = negative_qty['quantity'].abs()
@@ -82,9 +83,8 @@ async def upload_file(file: UploadFile = File(...)):
     true_margin = (total_sales - true_cogs) / total_sales if total_sales else 0
     margin_adjustment = reported_margin - true_margin
 
-    # Top offenders
-    top_categories: Dict[str, float] = {}
-    top_vendors: Dict[str, float] = {}
+    top_categories = {}
+    top_vendors = {}
     if 'category' in df.columns:
         cat_leaks = negative_qty.groupby('category')['hidden_cogs'].sum().sort_values(ascending=False).head(10)
         top_categories = cat_leaks.to_dict()
@@ -92,7 +92,6 @@ async def upload_file(file: UploadFile = File(...)):
         ven_leaks = negative_qty.groupby('vendor')['hidden_cogs'].sum().sort_values(ascending=False).head(10)
         top_vendors = ven_leaks.to_dict()
 
-    # Results
     analysis_results = {
         "filename": file.filename,
         "rows_processed": len(df),
@@ -108,14 +107,9 @@ async def upload_file(file: UploadFile = File(...)):
         }
     }
 
-    # Upload to S3 for history
     if S3_CLIENT:
         try:
-            S3_CLIENT.put_object(
-                Bucket=BUCKET_NAME,
-                Key=f"uploads/{file.filename}",
-                Body=contents
-            )
+            S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=f"uploads/{file.filename}", Body=contents)
             analysis_results["s3_status"] = "uploaded successfully"
         except ClientError as e:
             analysis_results["s3_status"] = f"upload failed: {str(e)}"
