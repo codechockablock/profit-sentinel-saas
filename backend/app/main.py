@@ -6,13 +6,13 @@ import io
 import boto3
 from botocore.exceptions import ClientError
 import os
-from typing import Optional
+from typing import Dict, List
 
 app = FastAPI(title="Profit Sentinel")
 
 # AWS S3 config (production); fallback for local dev
 S3_CLIENT = boto3.client('s3') if os.getenv("AWS_DEFAULT_REGION") else None
-BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "profitsentinel-dev-uploads")  # Set in env/Terraform
+BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "profitsentinel-dev-uploads")
 
 @app.get("/")
 def root():
@@ -42,45 +42,54 @@ async def upload_file(file: UploadFile = File(...)):
     if df.empty:
         raise HTTPException(status_code=400, detail="File is empty")
 
-    # Normalize common column names (case-insensitive, flexible)
+    # Normalize column names for flexible matching
     df.columns = df.columns.str.strip().str.lower()
-    required_cols = ['quantity', 'cost', 'sales']  # Core for leaks
-    missing = [col for col in required_cols if col not in df.columns]
-    if missing:
-        raise HTTPException(status_code=400, detail=f"Missing required columns: {missing}. Found: {list(df.columns)}")
 
-    # Optional columns for richer insights
-    category_col = next((c for c in ['category', 'dept', 'department'] if c in df.columns), None)
-    vendor_col = next((c for c in ['vendor', 'supplier'] if c in df.columns), None)
+    # Flexible column mapping
+    column_map = {
+        'quantity': next((c for c in df.columns if 'qty' in c), None),
+        'cost': next((c for c in df.columns if 'cost' in c), None),
+        'sales': next((c for c in df.columns if 'sales' in c or 'sold' in c), None),
+        'category': next((c for c in df.columns if 'cat' in c or 'category' in c or 'dept' in c), None),
+        'vendor': next((c for c in df.columns if 'vendor' in c or 'supplier' in c), None),
+    }
+
+    missing = [k for k, v in column_map.items() if v is None and k in ['quantity', 'cost', 'sales']]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required columns for analysis: {missing}. Found columns: {list(df.columns)}"
+        )
+
+    # Rename mapped columns for consistent analysis
+    rename_dict = {v: k for k, v in column_map.items() if v is not None}
+    df = df.rename(columns=rename_dict)
 
     # Core Leak Analysis
-    # 1. Negative inventory detection
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
     negative_qty = df[df['quantity'] < 0].copy()
     negative_qty['abs_quantity'] = negative_qty['quantity'].abs()
 
-    # 2. Hidden/unrecorded COGS = negatives * cost
     df['cost'] = pd.to_numeric(df['cost'], errors='coerce').fillna(0)
     negative_qty['hidden_cogs'] = negative_qty['abs_quantity'] * negative_qty['cost']
     estimated_hidden_cogs = negative_qty['hidden_cogs'].sum()
 
-    # 3. True margin adjustment (simplified—assumes sales column is gross sales)
     df['sales'] = pd.to_numeric(df['sales'], errors='coerce').fillna(0)
     total_sales = df['sales'].sum()
-    reported_cogs = (df['quantity'] * df['cost']).clip(lower=0).sum()  # Positive only
+    reported_cogs = (df['quantity'] * df['cost']).clip(lower=0).sum()
     true_cogs = reported_cogs + estimated_hidden_cogs
     reported_margin = (total_sales - reported_cogs) / total_sales if total_sales else 0
     true_margin = (total_sales - true_cogs) / total_sales if total_sales else 0
     margin_adjustment = reported_margin - true_margin
 
-    # 4. Top offenders (categories/vendors)
-    top_categories = []
-    top_vendors = []
-    if category_col:
-        cat_leaks = negative_qty.groupby(category_col)['hidden_cogs'].sum().sort_values(ascending=False).head(10)
+    # Top offenders
+    top_categories: Dict[str, float] = {}
+    top_vendors: Dict[str, float] = {}
+    if 'category' in df.columns:
+        cat_leaks = negative_qty.groupby('category')['hidden_cogs'].sum().sort_values(ascending=False).head(10)
         top_categories = cat_leaks.to_dict()
-    if vendor_col:
-        ven_leaks = negative_qty.groupby(vendor_col)['hidden_cogs'].sum().sort_values(ascending=False).head(10)
+    if 'vendor' in df.columns:
+        ven_leaks = negative_qty.groupby('vendor')['hidden_cogs'].sum().sort_values(ascending=False).head(10)
         top_vendors = ven_leaks.to_dict()
 
     # Results
