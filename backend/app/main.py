@@ -6,7 +6,7 @@ import io
 import boto3
 from botocore.exceptions import ClientError
 import os
-import re  # For extra cleaning
+import re
 
 app = FastAPI(title="Profit Sentinel")
 
@@ -22,7 +22,7 @@ def health():
     return {"status": "healthy"}
 
 def clean_column(name: str) -> str:
-    """Remove punctuation/spaces for robust matching"""
+    """Remove punctuation/spaces/special chars for robust matching"""
     return re.sub(r'[^a-z0-9]', '', name.lower())
 
 @app.post("/upload")
@@ -46,27 +46,95 @@ async def upload_file(file: UploadFile = File(...)):
     # Clean columns for matching
     cleaned_map = {col: clean_column(col) for col in df.columns}
 
-    # Flexible mapping
-    column_map = {
-        'quantity': next((col for col, clean in cleaned_map.items() if 'qty' in clean), None),
-        'cost': next((col for col, clean in cleaned_map.items() if 'cost' in clean), None),
-        'sales': next((col for col, clean in cleaned_map.items() if 'sales' in clean or 'sold' in clean), None),
-        'category': next((col for col, clean in cleaned_map.items() if 'cat' in clean or 'category' in clean or 'dept' in clean), None),
-        'vendor': next((col for col, clean in cleaned_map.items() if 'vendor' in clean or 'supplier' in clean), None),
-    }
+    # === ADAPTIVE COLUMN MAPPING ===
 
-    missing = [k for k, v in column_map.items() if v is None and k in ['quantity', 'cost', 'sales']]
+    # All quantity-related candidates
+    qty_candidates = [col for col, clean in cleaned_map.items() if 'qty' in clean]
+
+    # Prefer current/on-hand stock column first (common in full inventory exports)
+    quantity_col = next((
+        col for col in qty_candidates
+        if 'onhand' in cleaned_map[col] or 'hand' in cleaned_map[col] or 'current' in cleaned_map[col]
+    ), None)
+
+    # If preferred has no negatives (likely a shrink/offender report), fall back to the qty column with the most negatives
+    if quantity_col:
+        temp_qty = pd.to_numeric(df[quantity_col], errors='coerce').fillna(0)
+        if (temp_qty < 0).sum() == 0 or temp_qty.sum() >= 0:
+            fallback_candidates = [c for c in qty_candidates if c != quantity_col]
+            if fallback_candidates:
+                neg_sums = {}
+                for c in fallback_candidates:
+                    series = pd.to_numeric(df[c], errors='coerce').fillna(0)
+                    neg_sums[c] = series.sum()
+                if any(v < 0 for v in neg_sums.values()):
+                    quantity_col = min(neg_sums, key=neg_sums.get)
+
+    # Fallback if still none: broadest qty match
+    if not quantity_col:
+        quantity_col = next((col for col, clean in cleaned_map.items() if 'qty' in clean), None)
+
+    # Cost: strongly prefer average cost (best for ongoing leak valuation), then standard, then any cost
+    cost_col = next((col for col, clean in cleaned_map.items() if 'avg' in clean and 'cost' in clean), None)
+    if not cost_col:
+        cost_col = next((col for col, clean in cleaned_map.items() if ('std' in clean or 'standard' in clean) and 'cost' in clean), None)
+    if not cost_col:
+        cost_col = next((col for col, clean in cleaned_map.items() if 'cost' in clean), None)
+
+    # Sales: strongly prefer dollar-prefixed/suffixed revenue columns, then common names
+    sales_col = next((
+        col for col in df.columns
+        if '$' in col and ('sold' in cleaned_map[col] or 'sales' in cleaned_map[col] or 'revenue' in cleaned_map[col])
+    ), None)
+    if not sales_col:
+        sales_col = next((
+            col for col, clean in cleaned_map.items()
+            if 'sales' in clean or 'sold' in clean or 'revenue' in clean
+        ), None)
+
+    # Category: broad matching
+    category_col = next((
+        col for col, clean in cleaned_map.items()
+        if 'cat' in clean or 'dept' in clean or 'dpt' in clean or 'category' in clean or 'department' in clean
+    ), None)
+
+    # Vendor: broad matching including manufacturer
+    vendor_col = next((
+        col for col, clean in cleaned_map.items()
+        if 'vendor' in clean or 'supplier' in clean or 'mfgr' in clean or 'manufacturer' in clean
+    ), None)
+
+    # Required columns check with helpful debug
+    required_mapping = {
+        'quantity': quantity_col,
+        'cost': cost_col,
+        'sales': sales_col
+    }
+    missing = [k for k, v in required_mapping.items() if v is None]
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Missing required columns: {missing}. Found (cleaned): {list(cleaned_map.values())}"
+            detail=(
+                f"Auto-mapping failed for required columns: {missing}. "
+                f"Qty candidates found: {qty_candidates}. "
+                f"Sample original columns: {list(df.columns)[:20]}... "
+                f"Cleaned columns: {sorted(cleaned_map.values())}"
+            )
         )
 
-    # Rename to standard
-    rename_dict = {v: k for k, v in column_map.items() if v is not None}
+    # Rename mapped columns to standard names
+    rename_dict = {
+        v: k for k, v in {
+            'quantity': quantity_col,
+            'cost': cost_col,
+            'sales': sales_col,
+            'category': category_col,
+            'vendor': vendor_col
+        }.items() if v is not None
+    }
     df = df.rename(columns=rename_dict)
 
-    # Analysis (same as before)
+    # === ANALYSIS ===
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
     negative_qty = df[df['quantity'] < 0].copy()
     negative_qty['abs_quantity'] = negative_qty['quantity'].abs()
@@ -85,10 +153,10 @@ async def upload_file(file: UploadFile = File(...)):
 
     top_categories = {}
     top_vendors = {}
-    if 'category' in df.columns:
+    if 'category' in df.columns and len(negative_qty) > 0:
         cat_leaks = negative_qty.groupby('category')['hidden_cogs'].sum().sort_values(ascending=False).head(10)
         top_categories = cat_leaks.to_dict()
-    if 'vendor' in df.columns:
+    if 'vendor' in df.columns and len(negative_qty) > 0:
         ven_leaks = negative_qty.groupby('vendor')['hidden_cogs'].sum().sort_values(ascending=False).head(10)
         top_vendors = ven_leaks.to_dict()
 
