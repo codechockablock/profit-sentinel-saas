@@ -9,6 +9,16 @@ import os
 
 app = FastAPI(title="Profit Sentinel")
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all for dev/beta — change to your Vercel URL later for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 S3_CLIENT = boto3.client('s3') if os.getenv("AWS_DEFAULT_REGION") else None
 BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "profitsentinel-dev-uploads")
 
