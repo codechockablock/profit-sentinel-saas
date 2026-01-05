@@ -1,19 +1,18 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import pandas as pd
 import io
 import boto3
-from botocore.exceptions import ClientError
 import os
 
 app = FastAPI(title="Profit Sentinel")
 
-from fastapi.middleware.cors import CORSMiddleware
-
+# CORS middleware — allows Vercel landing page to call the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all for dev/beta — change to your Vercel URL later for production
+    allow_origins=["*"],  # Change to your Vercel domain later for production security
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,20 +38,18 @@ async def upload_file(file: UploadFile = File(...)):
 
     try:
         if file.filename.lower().endswith('.csv'):
-            # Try utf-8 first, fallback to latin1 (common for POS CSVs)
-            try:
-                df = pd.read_csv(io.BytesIO(contents), dtype=str, keep_default_na=False, encoding='utf-8')
-            except UnicodeDecodeError:
-                df = pd.read_csv(io.BytesIO(contents), dtype=str, keep_default_na=False, encoding='latin1')
+            # Force latin1 encoding — it reads ANY byte without error (perfect for messy POS CSVs)
+            df = pd.read_csv(io.BytesIO(contents), dtype=str, keep_default_na=False, encoding='latin1')
         else:
-            # Excel is binary — safe
+            # Excel files are binary — always safe
             df = pd.read_excel(io.BytesIO(contents), dtype=str)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error reading file: {str(e)}")
+
     if df.empty:
         raise HTTPException(status_code=400, detail="File is empty")
 
-    # Ultra-aggressive column matching (great!)
+    # Ultra-aggressive column matching
     col_lower = {col: col.strip().lower().replace('$', '').replace('.', '').replace(' ', '') for col in df.columns}
 
     quantity_col = next((orig for orig, clean in col_lower.items() if 'qty' in clean or 'quantity' in clean or 'onhand' in clean or 'diff' in clean), None)
@@ -108,7 +105,10 @@ async def upload_file(file: UploadFile = File(...)):
         try:
             S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=f"uploads/{file.filename}", Body=contents)
             result["s3_status"] = "saved"
-        except Exception as e:  # Better to catch and log
+        except Exception as e:
             result["s3_status"] = f"save failed: {str(e)}"
 
     return JSONResponse(content=result)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
