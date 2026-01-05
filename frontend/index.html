@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #065f46, #064e3b); }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <header class="gradient-bg text-white py-20">
+        <div class="container mx-auto px-6 text-center">
+            <h1 class="text-5xl font-bold mb-4">Profit Sentinel</h1>
+            <p class="text-2xl mb-8">Your AI Profit Guardian – Uncover Hidden Leaks in Your Retail Margins</p>
+            <p class="text-xl max-w-3xl mx-auto">Upload your POS export and discover $10k–$100k+ in silent profit leaks from negative inventory, skipped receiving, and unrecorded COGS.</p>
+        </div>
+    </header>
+
+    <section class="py-16 bg-white">
+        <div class="container mx-auto px-6 text-center">
+            <h2 class="text-4xl font-bold mb-8">Get Your Free Profit Leak Report</h2>
+            <p class="text-lg mb-12 max-w-2xl mx-auto">Simply upload your CSV or Excel export. No signup required for beta – instant forensic insights.</p>
+            
+            <div class="max-w-2xl mx-auto bg-gray-100 p-8 rounded-lg shadow-lg">
+                <form id="uploadForm" class="space-y-6">
+                    <div>
+                        <label for="file" class="block text-left text-lg font-medium mb-2">Upload POS Export</label>
+                        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" required class="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label for="email" class="block text-left text-lg font-medium mb-2">Email (to send your report)</label>
+                        <input type="email" id="email" name="email" required class="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500" placeholder="you@store.com">
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-600 text-white font-bold py-4 px-8 rounded-md hover:bg-emerald-700 transition">
+                        Analyze My Profits – Free Beta
+                    </button>
+                </form>
+                
+                <div id="status" class="mt-6 text-lg"></div>
+                <div id="result" class="mt-8 hidden"></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-16 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-12">Why Retailers Love Profit Sentinel</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white p-8 rounded-lg shadow">
+                    <h3 class="text-2xl font-bold mb-4">Forensic Leak Detection</h3>
+                    <p>Find hidden shrink others miss – negative inventory, unrecorded COGS, skipped receiving.</p>
+                </div>
+                <div class="bg-white p-8 rounded-lg shadow">
+                    <h3 class="text-2xl font-bold mb-4">True Margin Insights</h3>
+                    <p>See your real margins vs. reported – often 2–5% lower due to silent leaks.</p>
+                </div>
+                <div class="bg-white p-8 rounded-lg shadow">
+                    <h3 class="text-2xl font-bold mb-4">No Disruption</h3>
+                    <p>Works alongside your existing POS – lightweight add-on for independent retailers.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="bg-gray-900 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2026 Profit Sentinel. Guarding your margins.</p>
+        </div>
+    </footer>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const status = document.getElementById('status');
+        const result = document.getElementById('result');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            status.textContent = 'Uploading and analyzing...';
+            status.className = 'mt-6 text-lg text-blue-600';
+
+            const formData = new FormData();
+            formData.append('file', document.getElementById('file').files[0]);
+
+            try {
+                const response = await fetch('https://profitsentinel.com/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    status.textContent = 'Analysis complete!';
+                    status.className = 'mt-6 text-lg text-green-600';
+                    result.classList.remove('hidden');
+                    result.innerHTML = `
+                        <h3 class="text-2xl font-bold mb-4">Your Profit Leak Report</h3>
+                        <pre class="bg-gray-800 text-white p-6 rounded-lg overflow-auto text-left">${JSON.stringify(data, null, 2)}</pre>
+                        <p class="mt-4">We'll email you a full report shortly.</p>
+                    `;
+                } else {
+                    status.textContent = 'Error: ' + (data.detail || 'Unknown');
+                    status.className = 'mt-6 text-lg text-red-600';
+                }
+            } catch (err) {
+                status.textContent = 'Upload failed – try again';
+                status.className = 'mt-6 text-lg text-red-600';
+            }
+        });
+    </script>
+</body>
+</html>
