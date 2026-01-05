@@ -39,12 +39,16 @@ async def upload_file(file: UploadFile = File(...)):
 
     try:
         if file.filename.lower().endswith('.csv'):
-            df = pd.read_csv(io.BytesIO(contents), dtype=str, keep_default_na=False)
+            # Try utf-8 first, fallback to latin1 (common for POS CSVs)
+            try:
+                df = pd.read_csv(io.BytesIO(contents), dtype=str, keep_default_na=False, encoding='utf-8')
+            except UnicodeDecodeError:
+                df = pd.read_csv(io.BytesIO(contents), dtype=str, keep_default_na=False, encoding='latin1')
         else:
+            # Excel is binary — safe
             df = pd.read_excel(io.BytesIO(contents), dtype=str)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error reading file: {str(e)}")
-
     if df.empty:
         raise HTTPException(status_code=400, detail="File is empty")
 
