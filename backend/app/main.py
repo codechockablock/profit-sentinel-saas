@@ -38,48 +38,38 @@ async def upload_file(file: UploadFile = File(...)):
     if df.empty:
         raise HTTPException(status_code=400, detail="File is empty")
 
-    # Ultra-aggressive column matching
+    # Ultra-aggressive column matching (great!)
     col_lower = {col: col.strip().lower().replace('$', '').replace('.', '').replace(' ', '') for col in df.columns}
 
-    # Map required columns
-    quantity_col = None
-    for orig, clean in col_lower.items():
-        if 'qty' in clean or 'quantity' in clean or 'onhand' in clean or 'diff' in clean:
-            quantity_col = orig
-            break
+    quantity_col = next((orig for orig, clean in col_lower.items() if 'qty' in clean or 'quantity' in clean or 'onhand' in clean or 'diff' in clean), None)
+    cost_col = next((orig for orig, clean in col_lower.items() if 'cost' in clean or 'avgcost' in clean or 'stdcost' in clean), None)
+    sales_col = next((orig for orig, clean in col_lower.items() if 'sales' in clean or 'sold' in clean), None)
 
-    cost_col = None
-    for orig, clean in col_lower.items():
-        if 'cost' in clean or 'avgcost' in clean or 'stdcost' in clean:
-            cost_col = orig
-            break
-
-    sales_col = None
-    for orig, clean in col_lower.items():
-        if 'sales' in clean or 'sold' in clean:
-            sales_col = orig
-            break
+    result = {
+        "filename": file.filename,
+        "rows": len(df),
+        "found_columns": list(df.columns),
+        "mapped": {"quantity": quantity_col, "cost": cost_col, "sales": sales_col},
+    }
 
     if not all([quantity_col, cost_col, sales_col]):
-        return JSONResponse(content={
-            "detail": "Could not map required columns",
-            "found_columns": list(df.columns),
-            "mapped": {"quantity": quantity_col, "cost": cost_col, "sales": sales_col}
+        result.update({
+            "status": "partial_failure",
+            "detail": "Could not map all required columns—analysis skipped"
         })
+        return JSONResponse(content=result)
 
-    # Rename for analysis
+    # Rename and analyze only if mapped
     df = df.rename(columns={
         quantity_col: "quantity",
         cost_col: "cost",
         sales_col: "sales"
     })
 
-    # Convert to numeric
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
     df['cost'] = pd.to_numeric(df['cost'], errors='coerce').fillna(0)
     df['sales'] = pd.to_numeric(df['sales'], errors='coerce').fillna(0)
 
-    # Leak analysis
     negative = df[df['quantity'] < 0].copy()
     negative['abs_qty'] = negative['quantity'].abs()
     negative['hidden_cogs'] = negative['abs_qty'] * negative['cost']
@@ -91,25 +81,20 @@ async def upload_file(file: UploadFile = File(...)):
     reported_margin = (total_sales - reported_cogs) / total_sales if total_sales else 0
     true_margin = (total_sales - true_cogs) / total_sales if total_sales else 0
 
-    result = {
-        "filename": file.filename,
-        "rows": len(df),
+    result.update({
+        "status": "success",
         "negative_items": int(len(negative)),
         "estimated_hidden_cogs": round(float(hidden_cogs_total), 2),
         "reported_margin_pct": round(reported_margin * 100, 2),
         "true_margin_pct": round(true_margin * 100, 2),
-        "margin_impact_pct": round((reported_margin - true_margin) * 100, 2)
-    }
+        "margin_impact_pct": round((reported_margin - true_margin) * 100, 2),
+    })
 
-    # Optional S3 upload
     if S3_CLIENT:
         try:
             S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=f"uploads/{file.filename}", Body=contents)
             result["s3_status"] = "saved"
-        except:
-            result["s3_status"] = "save failed"
+        except Exception as e:  # Better to catch and log
+            result["s3_status"] = f"save failed: {str(e)}"
 
     return JSONResponse(content=result)
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
