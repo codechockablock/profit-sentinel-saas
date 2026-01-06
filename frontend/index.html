@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         .gradient-bg { background: linear-gradient(135deg, #065f46, #064e3b); }
@@ -72,6 +74,24 @@
         </div>
     </footer>
 
+    <!-- Supabase Client Initialization -->
+    <script>
+        // Supabase client (hardcoded for static HTML — anon key is safe to expose)
+        const supabaseUrl = 'https://kbjiejqotrjsdeuxhtcx.supabase.co'
+        const supabaseAnonKey = 'sb_publishable_gocACZSOQvdZ6XV1qiu28A_W19nqgYc'
+
+        const { createClient } = supabase
+        const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+
+        // Test session on load (check console)
+        async function checkSession() {
+            const { data: { session } } = await supabaseClient.auth.getSession()
+            console.log('Current Supabase session:', session)
+        }
+        checkSession()
+    </script>
+
+    <!-- Upload Form Script (with pretty results) -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -136,33 +156,7 @@
                             </div>
                             ` : ''}
 
-                            ${data.top_negative_items && data.top_negative_items.length > 0 ? `
-                            <div class="bg-purple-50 p-8 rounded-xl shadow-lg mb-8">
-                                <h4 class="text-2xl font-bold mb-4 text-purple-700">Top Negative Items</h4>
-                                <div class="overflow-x-auto">
-                                    <table class="min-w-full bg-white rounded-lg">
-                                        <thead class="bg-purple-100">
-                                            <tr>
-                                                <th class="py-3 px-4 text-left">SKU/Description</th>
-                                                <th class="py-3 px-4 text-right">Negative Qty</th>
-                                                <th class="py-3 px-4 text-right">Cost Impact</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${data.top_negative_items.map(item => `
-                                            <tr class="border-b">
-                                                <td class="py-3 px-4">${item.Description || item.SKU || 'Unknown'}</td>
-                                                <td class="py-3 px-4 text-right">${Number(item.quantity || 0).toLocaleString()}</td>
-                                                <td class="py-3 px-4 text-right">$${Number(item.hidden_cogs || 0).toLocaleString()}</td>
-                                            </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            ` : ''}
-
-                            <p class="mt-12 text-center text-gray-600">File processed: ${data.filename} (${Number(data.rows || 0).toLocaleString()} rows) • S3: ${data.s3_status}</p>
+                            <p class="mt-12 text-center text-gray-600">File processed: ${data.filename} (${Number(data.rows || 0).toLocaleString()} rows) • S3: ${data.s3_status || 'N/A'}</p>
                         </div>
                     `;
                 } else {
