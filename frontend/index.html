@@ -86,7 +86,7 @@
             formData.append('file', document.getElementById('file').files[0]);
 
             try {
-                const response = await fetch('https://api.profitsentinel.com/upload', {
+                const response = await fetch('https://profitsentinel.com/upload', {
                     method: 'POST',
                     body: formData
                 });
@@ -98,15 +98,79 @@
                     status.className = 'mt-6 text-lg text-green-600';
                     result.classList.remove('hidden');
                     result.innerHTML = `
-                        <h3 class="text-2xl font-bold mb-4">Your Profit Leak Report</h3>
-                        <pre class="bg-gray-800 text-white p-6 rounded-lg overflow-auto text-left">${JSON.stringify(data, null, 2)}</pre>
-                        <p class="mt-4">We'll email you a full report shortly.</p>
+                        <div class="max-w-4xl mx-auto">
+                            <h3 class="text-3xl font-bold mb-6 text-emerald-700">Your Profit Leak Report for ${data.filename || 'your file'}</h3>
+
+                            <div class="grid md:grid-cols-3 gap-6 mb-12">
+                                <div class="bg-red-50 p-6 rounded-xl shadow-lg">
+                                    <p class="text-lg font-semibold text-red-700">Estimated Hidden Leak</p>
+                                    <p class="text-4xl font-bold text-red-800">$${Number(data.estimated_hidden_cogs || 0).toLocaleString()}</p>
+                                    <p class="text-sm text-gray-600 mt-2">${Number(data.negative_items || 0).toLocaleString()} negative items</p>
+                                </div>
+                                <div class="bg-blue-50 p-6 rounded-xl shadow-lg">
+                                    <p class="text-lg font-semibold text-blue-700">Reported Margin</p>
+                                    <p class="text-4xl font-bold text-blue-800">${data.reported_margin_pct || 0}%</p>
+                                </div>
+                                <div class="bg-emerald-50 p-6 rounded-xl shadow-lg">
+                                    <p class="text-lg font-semibold text-emerald-700">True Margin (After Leaks)</p>
+                                    <p class="text-4xl font-bold text-emerald-800">${data.true_margin_pct || 0}%</p>
+                                    <p class="text-sm text-gray-600 mt-2">${data.margin_impact_pct || 0}% impact</p>
+                                </div>
+                            </div>
+
+                            ${data.summary ? `
+                            <div class="bg-white p-8 rounded-xl shadow-lg mb-8">
+                                <h4 class="text-2xl font-bold mb-4">Summary</h4>
+                                <ul class="space-y-3">
+                                    ${data.summary.map(line => `<li class="text-lg flex items-start"><span class="mr-3">•</span>${line}</li>`).join('')}
+                                </ul>
+                            </div>
+                            ` : ''}
+
+                            ${data.recommendations ? `
+                            <div class="bg-amber-50 p-8 rounded-xl shadow-lg">
+                                <h4 class="text-2xl font-bold mb-4 text-amber-700">Next Steps & Recommendations</h4>
+                                <ol class="space-y-3 list-decimal list-inside">
+                                    ${data.recommendations.map(rec => `<li class="text-lg">${rec}</li>`).join('')}
+                                </ol>
+                            </div>
+                            ` : ''}
+
+                            ${data.top_negative_items && data.top_negative_items.length > 0 ? `
+                            <div class="bg-purple-50 p-8 rounded-xl shadow-lg mb-8">
+                                <h4 class="text-2xl font-bold mb-4 text-purple-700">Top Negative Items</h4>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full bg-white rounded-lg">
+                                        <thead class="bg-purple-100">
+                                            <tr>
+                                                <th class="py-3 px-4 text-left">SKU/Description</th>
+                                                <th class="py-3 px-4 text-right">Negative Qty</th>
+                                                <th class="py-3 px-4 text-right">Cost Impact</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${data.top_negative_items.map(item => `
+                                            <tr class="border-b">
+                                                <td class="py-3 px-4">${item.Description || item.SKU || 'Unknown'}</td>
+                                                <td class="py-3 px-4 text-right">${Number(item.quantity || 0).toLocaleString()}</td>
+                                                <td class="py-3 px-4 text-right">$${Number(item.hidden_cogs || 0).toLocaleString()}</td>
+                                            </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            ` : ''}
+
+                            <p class="mt-12 text-center text-gray-600">File processed: ${data.filename} (${Number(data.rows || 0).toLocaleString()} rows) • S3: ${data.s3_status}</p>
+                        </div>
                     `;
                 } else {
-                    status.textContent = 'Error: ' + (data.detail || 'Unknown');
+                    status.textContent = 'Error: ' + (data.detail || 'Unknown error');
                     status.className = 'mt-6 text-lg text-red-600';
                 }
             } catch (err) {
+                console.error(err);
                 status.textContent = 'Upload failed – try again';
                 status.className = 'mt-6 text-lg text-red-600';
             }
