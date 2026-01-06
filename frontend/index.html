@@ -83,7 +83,7 @@
         const { createClient } = supabase
         const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
 
-        // Test session on load (check console)
+        // Test session on load (check browser console for log)
         async function checkSession() {
             const { data: { session } } = await supabaseClient.auth.getSession()
             console.log('Current Supabase session:', session)
@@ -91,7 +91,7 @@
         checkSession()
     </script>
 
-    <!-- Upload Form Script (with pretty results) -->
+    <!-- Upload Form Script with Pretty Results Display -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -153,6 +153,32 @@
                                 <ol class="space-y-3 list-decimal list-inside">
                                     ${data.recommendations.map(rec => `<li class="text-lg">${rec}</li>`).join('')}
                                 </ol>
+                            </div>
+                            ` : ''}
+
+                            ${data.top_negative_items && data.top_negative_items.length > 0 ? `
+                            <div class="bg-purple-50 p-8 rounded-xl shadow-lg mb-8">
+                                <h4 class="text-2xl font-bold mb-4 text-purple-700">Top Negative Items</h4>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full bg-white rounded-lg">
+                                        <thead class="bg-purple-100">
+                                            <tr>
+                                                <th class="py-3 px-4 text-left">SKU/Description</th>
+                                                <th class="py-3 px-4 text-right">Negative Qty</th>
+                                                <th class="py-3 px-4 text-right">Cost Impact</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${data.top_negative_items.map(item => `
+                                            <tr class="border-b">
+                                                <td class="py-3 px-4">${item.Description || item.SKU || 'Unknown'}</td>
+                                                <td class="py-3 px-4 text-right">${Number(item.quantity || 0).toLocaleString()}</td>
+                                                <td class="py-3 px-4 text-right">$${Number(item.hidden_cogs || 0).toLocaleString()}</td>
+                                            </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                             ` : ''}
 
