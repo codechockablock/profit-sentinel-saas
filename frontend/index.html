@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
-    <!-- Re-added Tailwind CDN to restore full styling/layout (removes the "completely changed" broken appearance) -->
-    <!-- The production warning is harmless for a simple landing page — many sites use it for quick setups -->
+    <!-- Tailwind CDN (harmless warning for simple page) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Supabase JS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -14,7 +13,7 @@
         .gradient-bg { background: linear-gradient(135deg, #065f46, #064e3b); }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- Optional favicon to fix any 404 in logs -->
+    <!-- Favicon to avoid 404 -->
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -80,22 +79,20 @@
 
     <!-- Supabase Client Initialization -->
     <script>
-        // Supabase client (hardcoded for static HTML — anon key is safe to expose)
-        const supabaseUrl = 'https://kbjiejqotrjsdeuxhtcx.supabase.co'
-        const supabaseAnonKey = 'sb_publishable_gocACZSOQvdZ6XV1qiu28A_W19nqgYc'
+        const supabaseUrl = 'https://kbjiejqotrjsdeuxhtcx.supabase.co';
+        const supabaseAnonKey = 'sb_publishable_gocACZSOQvdZ6XV1qiu28A_W19nqgYc';
 
-        const { createClient } = supabase
-        const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+        const { createClient } = supabase;
+        const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
-        // Test session on load
         async function checkSession() {
-            const { data: { session } } = await supabaseClient.auth.getSession()
-            console.log('Current Supabase session:', session)
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            console.log('Current Supabase session:', session);
         }
-        checkSession()
+        checkSession();
     </script>
 
-    <!-- Upload Form Script -->
+    <!-- Upload Form Script (Fixed & Complete) -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -114,9 +111,7 @@
             }
 
             try {
-                // TEMPORARY DIRECT URL FIX: Points straight to your live Vercel backend
-                // This bypasses any proxy/rewrite issues and uses Vercel's solid HTTPS (no TLS errors)
-                // Your backend CORS allows this (from previous changes)
+                // Direct to your live backend (worked for one file; Vercel HTTPS is solid)
                 const response = await fetch('https://profit-sentinel-saas-backend.vercel.app/upload', {
                     method: 'POST',
                     body: formData
@@ -135,7 +130,7 @@
                             <div class="grid md:grid-cols-3 gap-6 mb-12">
                                 <div class="bg-red-50 p-6 rounded-xl shadow-lg">
                                     <p class="text-lg font-semibold text-red-700">Estimated Hidden Leak</p>
-                                    <p class="text-4xl font-bold text-red-800">$${Number(data.estimated_hidden_cogs || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+                                    <p class="text-4xl font-bold text-red-800">$${Number(data.estimated_hidden_cogs || 0).toLocaleString()}</p>
                                     <p class="text-sm text-gray-600 mt-2">${Number(data.negative_items || 0).toLocaleString()} negative items</p>
                                 </div>
                                 <div class="bg-blue-50 p-6 rounded-xl shadow-lg">
@@ -149,19 +144,9 @@
                                 </div>
                             </div>
 
-                            ${data.summary ? `
-                            <div class="bg-white p-8 rounded-xl shadow-lg mb-8">
-                                <h4 class="text-2xl font-bold mb-4">Summary</h4>
-                                <p class="text-lg">${data.summary}</p>
-                            </div>
-                            ` : ''}
+                            ${data.summary ? `<div class="bg-white p-8 rounded-xl shadow-lg mb-8"><h4 class="text-2xl font-bold mb-4">Summary</h4><p class="text-lg">${data.summary}</p></div>` : ''}
 
-                            ${data.recommendation ? `
-                            <div class="bg-amber-50 p-8 rounded-xl shadow-lg">
-                                <h4 class="text-2xl font-bold mb-4 text-amber-700">Recommendation</h4>
-                                <p class="text-lg">${data.recommendation}</p>
-                            </div>
-                            ` : ''}
+                            ${data.recommendation ? `<div class="bg-amber-50 p-8 rounded-xl shadow-lg mb-8"><h4 class="text-2xl font-bold mb-4 text-amber-700">Recommendation</h4><p class="text-lg">${data.recommendation}</p></div>` : ''}
 
                             <p class="mt-12 text-center text-gray-600">File processed: ${data.filename} (${Number(data.rows || 0).toLocaleString()} rows) • S3: ${data.s3_status || 'N/A'}</p>
                         </div>
@@ -172,7 +157,7 @@
                 }
             } catch (err) {
                 console.error(err);
-                status.textContent = 'Upload failed – check file/network and try again';
+                status.textContent = 'Upload failed – try a different browser/network or smaller file';
                 status.className = 'mt-6 text-lg text-red-600';
             }
         });
