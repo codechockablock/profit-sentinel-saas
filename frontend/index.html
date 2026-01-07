@@ -4,13 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
+    <!-- Tailwind CDN (harmless warning for simple page) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         .gradient-bg { background: linear-gradient(135deg, #065f46, #064e3b); }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Favicon to avoid 404 -->
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -89,7 +92,7 @@
         checkSession();
     </script>
 
-    <!-- Upload Form Script (Using HTTPS on ALB) -->
+    <!-- Upload Form Script (Final Version - HTTPS ALB, Better Errors, Size Check) -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -100,8 +103,9 @@
             const fileInput = document.getElementById('file');
             const file = fileInput.files[0];
             
+            // Client-side size warning (helps avoid long timeouts)
             if (file && file.size > 50 * 1024 * 1024) {
-                status.textContent = 'File too large (>50 MB) – may take time or fail on network.';
+                status.textContent = 'File too large (>50 MB) – try splitting or faster network.';
                 status.className = 'mt-6 text-lg text-orange-600';
                 return;
             }
@@ -117,53 +121,54 @@
             }
 
             try {
-                // HTTPS on your ALB DNS - cert attached, no mixed content, no cert error
+                // HTTPS on your ALB (cert attached - secure, no mixed content)
+                // Test health first: https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/health
                 const response = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/upload', {
                     method: 'POST',
                     body: formData
                 });
 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error ${response.status}: ${errorText || 'Unknown'}`);
+                }
+
                 const data = await response.json();
 
-                if (response.ok) {
-                    status.textContent = 'Analysis complete!';
-                    status.className = 'mt-6 text-lg text-green-600';
-                    result.classList.remove('hidden');
-                    result.innerHTML = `
-                        <div class="max-w-4xl mx-auto">
-                            <h3 class="text-3xl font-bold mb-6 text-emerald-700">Your Profit Leak Report for ${data.filename || 'your file'}</h3>
+                status.textContent = 'Analysis complete!';
+                status.className = 'mt-6 text-lg text-green-600';
+                result.classList.remove('hidden');
+                result.innerHTML = `
+                    <div class="max-w-4xl mx-auto">
+                        <h3 class="text-3xl font-bold mb-6 text-emerald-700">Your Profit Leak Report for ${data.filename || 'your file'}</h3>
 
-                            <div class="grid md:grid-cols-3 gap-6 mb-12">
-                                <div class="bg-red-50 p-6 rounded-xl shadow-lg">
-                                    <p class="text-lg font-semibold text-red-700">Estimated Hidden Leak</p>
-                                    <p class="text-4xl font-bold text-red-800">$${Number(data.estimated_hidden_cogs || 0).toLocaleString()}</p>
-                                    <p class="text-sm text-gray-600 mt-2">${Number(data.negative_items || 0).toLocaleString()} negative items</p>
-                                </div>
-                                <div class="bg-blue-50 p-6 rounded-xl shadow-lg">
-                                    <p class="text-lg font-semibold text-blue-700">Reported Margin</p>
-                                    <p class="text-4xl font-bold text-blue-800">${(data.reported_margin_pct || 0).toFixed(1)}%</p>
-                                </div>
-                                <div class="bg-emerald-50 p-6 rounded-xl shadow-lg">
-                                    <p class="text-lg font-semibold text-emerald-700">True Margin (After Leaks)</p>
-                                    <p class="text-4xl font-bold text-emerald-800">${(data.true_margin_pct || 0).toFixed(1)}%</p>
-                                    <p class="text-sm text-gray-600 mt-2">${(data.margin_impact_pct || 0).toFixed(1)}% impact</p>
-                                </div>
+                        <div class="grid md:grid-cols-3 gap-6 mb-12">
+                            <div class="bg-red-50 p-6 rounded-xl shadow-lg">
+                                <p class="text-lg font-semibold text-red-700">Estimated Hidden Leak</p>
+                                <p class="text-4xl font-bold text-red-800">$${Number(data.estimated_hidden_cogs || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+                                <p class="text-sm text-gray-600 mt-2">${Number(data.negative_items || 0).toLocaleString()} negative items</p>
                             </div>
-
-                            ${data.summary ? `<div class="bg-white p-8 rounded-xl shadow-lg mb-8"><h4 class="text-2xl font-bold mb-4">Summary</h4><p class="text-lg">${data.summary}</p></div>` : ''}
-
-                            ${data.recommendation ? `<div class="bg-amber-50 p-8 rounded-xl shadow-lg mb-8"><h4 class="text-2xl font-bold mb-4 text-amber-700">Recommendation</h4><p class="text-lg">${data.recommendation}</p></div>` : ''}
-
-                            <p class="mt-12 text-center text-gray-600">File processed: ${data.filename} (${Number(data.rows || 0).toLocaleString()} rows) • S3: ${data.s3_status || 'N/A'}</p>
+                            <div class="bg-blue-50 p-6 rounded-xl shadow-lg">
+                                <p class="text-lg font-semibold text-blue-700">Reported Margin</p>
+                                <p class="text-4xl font-bold text-blue-800">${(data.reported_margin_pct || 0).toFixed(1)}%</p>
+                            </div>
+                            <div class="bg-emerald-50 p-6 rounded-xl shadow-lg">
+                                <p class="text-lg font-semibold text-emerald-700">True Margin (After Leaks)</p>
+                                <p class="text-4xl font-bold text-emerald-800">${(data.true_margin_pct || 0).toFixed(1)}%</p>
+                                <p class="text-sm text-gray-600 mt-2">${(data.margin_impact_pct || 0).toFixed(1)}% impact</p>
+                            </div>
                         </div>
-                    `;
-                } else {
-                    status.textContent = 'Error: ' + (data.detail || 'Unknown error');
-                    status.className = 'mt-6 text-lg text-red-600';
-                }
+
+                        ${data.summary ? `<div class="bg-white p-8 rounded-xl shadow-lg mb-8"><h4 class="text-2xl font-bold mb-4">Summary</h4><p class="text-lg">${data.summary}</p></div>` : ''}
+
+                        ${data.recommendation ? `<div class="bg-amber-50 p-8 rounded-xl shadow-lg mb-8"><h4 class="text-2xl font-bold mb-4 text-amber-700">Recommendation</h4><p class="text-lg">${data.recommendation}</p></div>` : ''}
+
+                        <p class="mt-12 text-center text-gray-600">File processed: ${data.filename} (${Number(data.rows || 0).toLocaleString()} rows) • S3: ${data.s3_status || 'N/A'}</p>
+                    </div>
+                `;
             } catch (err) {
                 console.error(err);
-                status.textContent = 'Upload failed – check network or try health URL.';
+                status.textContent = 'Upload failed – check file size, network, or backend health.';
                 status.className = 'mt-6 text-lg text-red-600';
             }
         });
