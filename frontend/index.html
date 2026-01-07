@@ -10,10 +10,11 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
         .gradient-bg { background: linear-gradient(135deg, #065f46, #10b981); }
-        #progressContainer { display: none; width: 100%; background: #f0fdf4; border-radius: 12px; overflow: hidden; margin-top: 1rem; height: 12px; }
-        #progressBar { height: 100%; background: #10b981; width: 0%; transition: width 0.3s ease; }
         .card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
         .card-hover:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0,0,0,0.15); }
+        .file-progress { margin-top: 0.5rem; }
+        .progress-bar { height: 8px; background: #10b981; width: 0%; transition: width 0.3s ease; border-radius: 4px; }
+        .progress-bg { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -37,7 +38,7 @@
     <section id="upload" class="py-24 bg-white">
         <div class="container mx-auto px-6 text-center max-w-4xl">
             <h2 class="text-5xl font-bold mb-8 text-gray-800">Get Your Free Profit Leak Report</h2>
-            <p class="text-xl mb-12 text-gray-600">Upload your POS export (CSV or Excel) — instant forensic analysis. No signup required for beta.</p>
+            <p class="text-xl mb-12 text-gray-600">Upload one or more POS exports (CSV or Excel) — instant forensic analysis. No signup required for beta.</p>
             
             <div class="bg-gradient-to-br from-gray-50 to-gray-100 p-12 rounded-3xl shadow-2xl">
                 <!-- Optional Login -->
@@ -54,8 +55,8 @@
 
                 <form id="uploadForm" class="space-y-8">
                     <div>
-                        <label for="file" class="block text-left text-2xl font-semibold mb-4 text-gray-800">Upload POS Export</label>
-                        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" required class="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition">
+                        <label for="file" class="block text-left text-2xl font-semibold mb-4 text-gray-800">Upload POS Exports (multiple allowed)</label>
+                        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" multiple class="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition">
                     </div>
                     <div>
                         <label for="email" class="block text-left text-2xl font-semibold mb-4 text-gray-800">Email (to send your report)</label>
@@ -67,9 +68,7 @@
                 </form>
                 
                 <div id="status" class="mt-10 text-2xl font-medium"></div>
-                <div id="progressContainer">
-                    <div id="progressBar"></div>
-                </div>
+                <div id="uploadProgress" class="mt-8 space-y-4"></div>
                 <div id="result" class="mt-12 hidden"></div>
             </div>
         </div>
@@ -152,142 +151,181 @@
         updateAuthUI();
     </script>
 
-    <!-- Upload Form Script (Reliable + Progress + Premium Results) -->
+    <!-- Upload Form Script (S3 Presigned URLs - Multi-File + Progress Per File + Pretty Results) -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
+        const uploadProgress = document.getElementById('uploadProgress');
         const result = document.getElementById('result');
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const file = document.getElementById('file').files[0];
+            const files = document.getElementById('file').files;
             
-            if (!file) {
-                status.textContent = 'Please select a file.';
+            if (files.length === 0) {
+                status.textContent = 'Please select at least one file.';
                 status.className = 'mt-6 text-lg text-orange-600';
                 return;
             }
 
-            if (file.size > 100 * 1024 * 1024) {
-                status.textContent = 'File too large (>100 MB) – try splitting.';
-                status.className = 'mt-6 text-lg text-orange-600';
-                return;
-            }
-
-            status.textContent = 'Uploading...';
+            status.textContent = 'Generating secure upload links...';
             status.className = 'mt-6 text-lg text-blue-600';
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
+            uploadProgress.innerHTML = '';
             result.classList.add('hidden');
 
             const formData = new FormData();
-            formData.append('file', file);
+            for (let file of files) {
+                formData.append('filenames', file.name);
+            }
             const emailValue = document.getElementById('email').value.trim();
             if (emailValue) formData.append('email', emailValue);
 
+            // Send JWT if logged in
             const { data: { session } } = await supabaseClient.auth.getSession();
             const headers = {};
             if (session) {
                 headers['Authorization'] = `Bearer ${session.access_token}`;
             }
 
-            const uploadWithRetry = async (attempts = 5) => {
-                for (let attempt = 1; attempt <= attempts; attempt++) {
-                    status.textContent = attempt > 1 ? `Retrying (${attempt}/${attempts})...` : 'Uploading...';
+            try {
+                const presignRes = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/presign', {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
 
+                if (!presignRes.ok) {
+                    const err = await presignRes.text();
+                    throw new Error(`Presign failed: ${err}`);
+                }
+
+                const { presigned } = await presignRes.json();
+
+                if (presigned.length !== files.length) throw new Error('Mismatch in presigned URLs');
+
+                status.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''} to secure storage...`;
+
+                // Create progress bars per file
+                uploadProgress.innerHTML = '';
+                const progressBars = [];
+                presigned.forEach((p, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'file-progress';
+                    div.innerHTML = `
+                        <p class="text-sm text-gray-600 mb-1">${files[i].name} (${(files[i].size / 1024 / 1024).toFixed(1)} MB)</p>
+                        <div class="progress-bg">
+                            <div class="progress-bar" id="bar-${i}"></div>
+                        </div>
+                    `;
+                    uploadProgress.appendChild(div);
+                    progressBars.push(document.getElementById(`bar-${i}`));
+                });
+
+                // Upload each file directly to S3
+                const uploadPromises = presigned.map(async (p, i) => {
+                    const file = files[i];
                     const xhr = new XMLHttpRequest();
 
-                    const promise = new Promise((resolve, reject) => {
+                    return new Promise((resolve, reject) => {
                         xhr.upload.addEventListener('progress', (e) => {
                             if (e.lengthComputable) {
                                 const percent = (e.loaded / e.total) * 100;
-                                progressBar.style.width = percent + '%';
+                                progressBars[i].style.width = percent + '%';
                             }
                         });
 
                         xhr.addEventListener('load', () => {
-                            if (xhr.status === 200) {
-                                resolve(xhr.responseText);
+                            if (xhr.status === 204 || xhr.status === 200) {
+                                progressBars[i].style.width = '100%';
+                                resolve(p.key);
                             } else {
-                                reject(new Error(`Server error ${xhr.status}`));
+                                reject(new Error(`Upload failed for ${file.name}`));
                             }
                         });
 
-                        xhr.addEventListener('error', () => reject(new Error('Network error')));
-                        xhr.addEventListener('timeout', () => reject(new Error('Timeout')));
+                        xhr.addEventListener('error', () => reject(new Error(`Network error for ${file.name}`)));
 
-                        xhr.open('POST', 'https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/upload');
-                        for (const key in headers) {
-                            xhr.setRequestHeader(key, headers[key]);
-                        }
-                        xhr.send(formData);
+                        xhr.open('POST', p.url.url);
+                        const uploadForm = new FormData();
+                        Object.keys(p.url.fields).forEach(key => {
+                            uploadForm.append(key, p.url.fields[key]);
+                        });
+                        uploadForm.append('file', file);
+                        xhr.send(uploadForm);
                     });
+                });
 
-                    try {
-                        const responseText = await promise;
-                        const data = JSON.parse(responseText);
+                const keys = await Promise.all(uploadPromises);
 
-                        progressBar.style.width = '100%';
-                        setTimeout(() => progressContainer.style.display = 'none', 1000);
-                        status.textContent = 'Analysis complete! 🚀';
-                        status.className = 'mt-6 text-lg text-green-600';
-                        result.classList.remove('hidden');
-                        result.innerHTML = `
-                            <div class="max-w-6xl mx-auto bg-white p-16 rounded-3xl shadow-2xl border-2 border-emerald-300">
-                                <h2 class="text-5xl font-extrabold text-center mb-12 text-emerald-800">Profit Leak Report: ${data.filename || 'Your File'}</h2>
+                status.textContent = 'Analyzing files...';
 
-                                <div class="grid md:grid-cols-3 gap-12 mb-16">
-                                    <div class="bg-gradient-to-br from-red-100 to-red-200 p-12 rounded-3xl text-center shadow-2xl card-hover">
-                                        <p class="text-2xl font-bold text-red-800 mb-6">Estimated Hidden Leak</p>
-                                        <p class="text-7xl font-extrabold text-red-900">$${Number(data.estimated_hidden_cogs || 0).toLocaleString()}</p>
-                                        <p class="text-xl text-red-700 mt-6">${Number(data.negative_items || 0).toLocaleString()} negative items found</p>
-                                    </div>
-                                    <div class="bg-gradient-to-br from-amber-100 to-amber-200 p-12 rounded-3xl text-center shadow-2xl card-hover">
-                                        <p class="text-2xl font-bold text-amber-800 mb-6">Reported Margin</p>
-                                        <p class="text-7xl font-extrabold text-amber-900">${(data.reported_margin_pct || 0).toFixed(1)}%</p>
-                                    </div>
-                                    <div class="bg-gradient-to-br from-emerald-100 to-emerald-200 p-12 rounded-3xl text-center shadow-2xl card-hover">
-                                        <p class="text-2xl font-bold text-emerald-800 mb-6">True Margin (After Leaks)</p>
-                                        <p class="text-7xl font-extrabold text-emerald-900">${(data.true_margin_pct || 0).toFixed(1)}%</p>
-                                        <p class="text-xl text-emerald-700 mt-6">${(data.margin_impact_pct || 0).toFixed(1)}% impact from leaks</p>
-                                    </div>
-                                </div>
+                // Trigger analysis
+                const analyzeForm = new FormData();
+                keys.forEach(key => analyzeForm.append('keys', key));
+                if (emailValue) analyzeForm.append('email', emailValue);
 
-                                ${data.summary ? `
-                                <div class="bg-gradient-to-r from-gray-50 to-gray-100 p-12 rounded-3xl mb-12 shadow-xl">
-                                    <h3 class="text-3xl font-bold mb-8 text-gray-800">Executive Summary</h3>
-                                    <p class="text-2xl leading-relaxed text-gray-700">${data.summary}</p>
-                                </div>
-                                ` : ''}
+                const analyzeRes = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/analyze', {
+                    method: 'POST',
+                    headers: headers,
+                    body: analyzeForm
+                });
 
-                                ${data.recommendation ? `
-                                <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-12 rounded-3xl shadow-xl">
-                                    <h3 class="text-3xl font-bold mb-8 text-blue-800">Recommendations</h3>
-                                    <p class="text-2xl leading-relaxed text-blue-700">${data.recommendation}</p>
-                                </div>
-                                ` : ''}
-
-                                <p class="mt-16 text-center text-gray-500 text-lg">
-                                    Processed ${Number(data.rows || 0).toLocaleString()} rows • File saved to S3: ${data.s3_status || 'Success'}
-                                </p>
-                            </div>
-                        `;
-                        return;
-                    } catch (err) {
-                        console.warn(`Attempt ${attempt} failed:`, err);
-                        if (attempt === attempts) {
-                            status.textContent = 'Upload failed after retries – try faster network.';
-                            status.className = 'mt-6 text-lg text-red-600';
-                            progressContainer.style.display = 'none';
-                        }
-                        await new Promise(r => setTimeout(r, 3000));
-                    }
+                if (!analyzeRes.ok) {
+                    const err = await analyzeRes.text();
+                    throw new Error(`Analysis failed: ${err}`);
                 }
-            };
 
-            await uploadWithRetry();
+                const data = await analyzeRes.json();
+
+                uploadProgress.innerHTML = '';
+                status.textContent = 'Analysis complete! 🚀';
+                status.className = 'mt-6 text-lg text-green-600';
+                result.classList.remove('hidden');
+
+                const results = Array.isArray(data.results) ? data.results : [data];
+
+                let html = '<div class="max-w-6xl mx-auto bg-white p-16 rounded-3xl shadow-2xl border-2 border-emerald-300">';
+                html += `<h2 class="text-5xl font-extrabold text-center mb-12 text-emerald-800">Profit Leak Report${results.length > 1 ? 's' : ''} (${results.length} file${results.length > 1 ? 's' : ''})</h2>`;
+
+                results.forEach((res, index) => {
+                    html += `
+                        <div class="mb-16 p-10 bg-gray-50 rounded-3xl shadow-inner">
+                            <h3 class="text-3xl font-bold mb-8 text-emerald-700">File ${index + 1}: ${res.filename || 'Unknown'}</h3>
+
+                            <div class="grid md:grid-cols-3 gap-10 mb-10">
+                                <div class="bg-gradient-to-br from-red-100 to-red-200 p-10 rounded-3xl text-center shadow-2xl card-hover">
+                                    <p class="text-2xl font-bold text-red-800 mb-6">Estimated Hidden Leak</p>
+                                    <p class="text-6xl font-extrabold text-red-900">$${Number(res.estimated_hidden_cogs || 0).toLocaleString()}</p>
+                                    <p class="text-xl text-red-700 mt-6">${Number(res.negative_items || 0).toLocaleString()} negative items</p>
+                                </div>
+                                <div class="bg-gradient-to-br from-amber-100 to-amber-200 p-10 rounded-3xl text-center shadow-2xl card-hover">
+                                    <p class="text-2xl font-bold text-amber-800 mb-6">Reported Margin</p>
+                                    <p class="text-6xl font-extrabold text-amber-900">${(res.reported_margin_pct || 0).toFixed(1)}%</p>
+                                </div>
+                                <div class="bg-gradient-to-br from-emerald-100 to-emerald-200 p-10 rounded-3xl text-center shadow-2xl card-hover">
+                                    <p class="text-2xl font-bold text-emerald-800 mb-6">True Margin (After Leaks)</p>
+                                    <p class="text-6xl font-extrabold text-emerald-900">${(res.true_margin_pct || 0).toFixed(1)}%</p>
+                                    <p class="text-xl text-emerald-700 mt-6">${(res.margin_impact_pct || 0).toFixed(1)}% impact</p>
+                                </div>
+                            </div>
+
+                            ${res.summary ? `<div class="bg-white p-10 rounded-3xl mb-10 shadow"><p class="text-xl leading-relaxed">${res.summary}</p></div>` : ''}
+
+                            ${res.recommendation ? `<div class="bg-blue-50 p-10 rounded-3xl"><p class="text-xl leading-relaxed">${res.recommendation}</p></div>` : ''}
+
+                            <p class="text-center text-gray-500 mt-8">Processed ${Number(res.rows || 0).toLocaleString()} rows • S3: ${res.s3_status || 'Success'}</p>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+                result.innerHTML = html;
+            } catch (err) {
+                console.error(err);
+                status.textContent = 'Upload failed – check network or file.';
+                status.className = 'mt-6 text-lg text-red-600';
+                uploadProgress.innerHTML = '';
+            }
         });
     </script>
 </body>
