@@ -42,8 +42,8 @@
 
                 <form id="uploadForm" class="space-y-6">
                     <div>
-                        <label for="file" class="block text-left text-lg font-medium mb-2">Upload POS Export</label>
-                        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" required class="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500">
+                        <label for="file" class="block text-left text-lg font-medium mb-2">Upload POS Exports (multiple allowed)</label>
+                        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" multiple class="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500">
                     </div>
                     <div>
                         <label for="email" class="block text-left text-lg font-medium mb-2">Email (to send your report)</label>
@@ -128,7 +128,7 @@
         updateAuthUI();
     </script>
 
-    <!-- Upload Form Script (With Auto-Retry for Reliability) -->
+    <!-- Upload Form Script (Multiple Files + Auto-Retry + Prettier Results) -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -136,10 +136,19 @@
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const file = document.getElementById('file').files[0];
+            const files = document.getElementById('file').files;
             
-            if (file && file.size > 50 * 1024 * 1024) {
-                status.textContent = 'File too large (>50 MB) – try splitting.';
+            if (files.length === 0) {
+                status.textContent = 'Please select at least one file.';
+                status.className = 'mt-6 text-lg text-orange-600';
+                return;
+            }
+
+            // Check total size (optional limit)
+            let totalSize = 0;
+            for (let file of files) totalSize += file.size;
+            if (totalSize > 100 * 1024 * 1024) { // 100MB total
+                status.textContent = 'Total files too large (>100 MB) – try fewer/splitting.';
                 status.className = 'mt-6 text-lg text-orange-600';
                 return;
             }
@@ -148,7 +157,9 @@
             status.className = 'mt-6 text-lg text-blue-600';
 
             const formData = new FormData();
-            formData.append('file', file);
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);  // 'files' plural for backend List[UploadFile]
+            }
             const emailValue = document.getElementById('email').value.trim();
             if (emailValue) formData.append('email', emailValue);
 
@@ -191,49 +202,49 @@
 
                 const data = await response.json();
 
+                // Handle single or multi-file response (backend returns list or single)
+                const results = Array.isArray(data.results) ? data.results : [data];
+
                 status.textContent = 'Analysis complete! 🚀';
                 status.className = 'mt-6 text-lg text-green-600';
                 result.classList.remove('hidden');
-                result.innerHTML = `
-                    <div class="max-w-5xl mx-auto bg-white p-10 rounded-2xl shadow-2xl border border-emerald-200">
-                        <h2 class="text-4xl font-bold text-center mb-8 text-emerald-800">Profit Leak Report: ${data.filename || 'Your File'}</h2>
 
-                        <div class="grid md:grid-cols-3 gap-8 mb-12">
-                            <div class="bg-red-100 p-8 rounded-2xl text-center shadow-lg">
-                                <p class="text-xl font-semibold text-red-800 mb-4">Estimated Hidden Leak</p>
-                                <p class="text-5xl font-bold text-red-900">$${Number(data.estimated_hidden_cogs || 0).toLocaleString()}</p>
-                                <p class="text-lg text-red-700 mt-4">${Number(data.negative_items || 0).toLocaleString()} negative items found</p>
+                let html = '<div class="max-w-5xl mx-auto bg-white p-10 rounded-2xl shadow-2xl border border-emerald-200">';
+                html += `<h2 class="text-4xl font-bold text-center mb-8 text-emerald-800">Profit Leak Report${results.length > 1 ? 's' : ''} (${results.length} file${results.length > 1 ? 's' : ''})</h2>`;
+
+                results.forEach((res, index) => {
+                    html += `
+                        <div class="mb-12 p-6 bg-gray-50 rounded-xl">
+                            <h3 class="text-2xl font-bold mb-6 text-emerald-700">File ${index + 1}: ${res.filename || 'Unknown'}</h3>
+
+                            <div class="grid md:grid-cols-3 gap-8 mb-8">
+                                <div class="bg-red-100 p-6 rounded-xl text-center shadow">
+                                    <p class="text-lg font-semibold text-red-800 mb-2">Estimated Hidden Leak</p>
+                                    <p class="text-4xl font-bold text-red-900">$${Number(res.estimated_hidden_cogs || 0).toLocaleString()}</p>
+                                    <p class="text-base text-red-700 mt-2">${Number(res.negative_items || 0).toLocaleString()} negative items</p>
+                                </div>
+                                <div class="bg-amber-100 p-6 rounded-xl text-center shadow">
+                                    <p class="text-lg font-semibold text-amber-800 mb-2">Reported Margin</p>
+                                    <p class="text-4xl font-bold text-amber-900">${(res.reported_margin_pct || 0).toFixed(1)}%</p>
+                                </div>
+                                <div class="bg-emerald-100 p-6 rounded-xl text-center shadow">
+                                    <p class="text-lg font-semibold text-emerald-800 mb-2">True Margin (After Leaks)</p>
+                                    <p class="text-4xl font-bold text-emerald-900">${(res.true_margin_pct || 0).toFixed(1)}%</p>
+                                    <p class="text-base text-emerald-700 mt-2">${(res.margin_impact_pct || 0).toFixed(1)}% impact</p>
+                                </div>
                             </div>
-                            <div class="bg-amber-100 p-8 rounded-2xl text-center shadow-lg">
-                                <p class="text-xl font-semibold text-amber-800 mb-4">Reported Margin</p>
-                                <p class="text-5xl font-bold text-amber-900">${(data.reported_margin_pct || 0).toFixed(1)}%</p>
-                            </div>
-                            <div class="bg-emerald-100 p-8 rounded-2xl text-center shadow-lg">
-                                <p class="text-xl font-semibold text-emerald-800 mb-4">True Margin (After Leaks)</p>
-                                <p class="text-5xl font-bold text-emerald-900">${(data.true_margin_pct || 0).toFixed(1)}%</p>
-                                <p class="text-lg text-emerald-700 mt-4">${(data.margin_impact_pct || 0).toFixed(1)}% impact from leaks</p>
-                            </div>
-                        </div>
 
-                        ${data.summary ? `
-                        <div class="bg-gray-50 p-8 rounded-2xl mb-8 shadow-inner">
-                            <h3 class="text-2xl font-bold mb-4 text-gray-800">Executive Summary</h3>
-                            <p class="text-lg leading-relaxed text-gray-700">${data.summary}</p>
-                        </div>
-                        ` : ''}
+                            ${res.summary ? `<div class="bg-white p-6 rounded-xl mb-6"><p class="text-lg">${res.summary}</p></div>` : ''}
 
-                        ${data.recommendation ? `
-                        <div class="bg-blue-50 p-8 rounded-2xl shadow-inner">
-                            <h3 class="text-2xl font-bold mb-4 text-blue-800">Recommendations</h3>
-                            <p class="text-lg leading-relaxed text-blue-700">${data.recommendation}</p>
-                        </div>
-                        ` : ''}
+                            ${res.recommendation ? `<div class="bg-blue-50 p-6 rounded-xl"><p class="text-lg">${res.recommendation}</p></div>` : ''}
 
-                        <p class="mt-12 text-center text-gray-500 text-sm">
-                            Processed ${Number(data.rows || 0).toLocaleString()} rows • File saved to S3: ${data.s3_status || 'Success'}
-                        </p>
-                    </div>
-                `;
+                            <p class="text-sm text-gray-500">Processed ${Number(res.rows || 0).toLocaleString()} rows • S3: ${res.s3_status || 'N/A'}</p>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+                result.innerHTML = html;
             } catch (err) {
                 console.error(err);
                 status.textContent = 'Upload failed after retries – try faster network.';
