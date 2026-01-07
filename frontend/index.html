@@ -1,61 +1,107 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/heroicons@2.1.1/outline.js"></script> <!-- For icons -->
 
     <style>
-        @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-        body { font-family: 'Inter', sans-serif; }
-        .gradient-bg { background: linear-gradient(135deg, #065f46, #10b981); }
-        .card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-        .card-hover:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0,0,0,0.15); }
-        .file-progress { margin-top: 0.5rem; }
-        .progress-bg { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
-        .progress-bar { height: 100%; background: #10b981; width: 0%; transition: width 0.3s ease; }
-        .animate-fade-in { animation: fadeIn 0.8s ease-out; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(to bottom, #f8fafc, #e2e8f0);
+            min-height: 100vh;
+        }
+
+        .hero-gradient {
+            background: linear-gradient(135deg, #064e3b 0%, #059669 50%, #10b981 100%);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            transition: all 0.4s ease;
+        }
+
+        .result-card:hover {
+            transform: translateY(-12px) scale(1.02);
+            box-shadow: 0 30px 60px rgba(16, 185, 129, 0.15);
+        }
+
+        .glow-text {
+            text-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(40px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in-up {
+            animation: fadeInUp 0.8s ease-out forwards;
+        }
+
+        .logo-glow {
+            filter: drop-shadow(0 0 30px rgba(16, 185, 129, 0.6));
+        }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤑</text></svg>">
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="text-gray-800">
 
-    <section id="upload" class="py-24 bg-white">
-        <div class="container mx-auto px-6 text-center max-w-4xl">
-            <h2 class="text-5xl font-bold mb-8 text-gray-800">Get Your Free Profit Leak Report</h2>
-            <p class="text-xl mb-12 text-gray-600">Upload one or more POS exports (CSV or Excel) — instant forensic analysis. No signup required for beta.</p>
-            
-            <div class="bg-gradient-to-br from-gray-50 to-gray-100 p-12 rounded-3xl shadow-2xl">
+    <!-- Hero Header with Logo -->
+    <header class="hero-gradient text-white py-16 md:py-24">
+        <div class="container mx-auto px-6 text-center">
+            <img src="YOUR_LOGO_URL_HERE.png" alt="Profit Sentinel Logo" class="mx-auto w-64 md:w-80 logo-glow mb-8">
+            <!-- Replace YOUR_LOGO_URL_HERE.png with your hosted logo URL (upload to S3 or Vercel) -->
+            <h1 class="text-5xl md:text-7xl font-black glow-text mb-6">Profit Sentinel</h1>
+            <p class="text-xl md:text-2xl opacity-90 max-w-3xl mx-auto">Instant forensic analysis of your POS exports. Uncover hidden profit leaks — no signup required.</p>
+        </div>
+    </header>
 
-                <form id="uploadForm" class="space-y-8">
+    <!-- Upload Section -->
+    <section id="upload" class="py-20 -mt-10 relative z-10">
+        <div class="container mx-auto px-6 max-w-4xl">
+            <div class="glass-card p-12 rounded-3xl">
+                <form id="uploadForm" class="space-y-10">
                     <div>
-                        <label for="file" class="block text-left text-2xl font-semibold mb-4 text-gray-800">Upload POS Exports (multiple allowed)</label>
-                        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" multiple class="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition">
+                        <label for="file" class="block text-3xl font-bold mb-6 text-gray-800">Upload POS Exports</label>
+                        <p class="text-lg text-gray-600 mb-6">Multiple CSV or Excel files allowed. Instant analysis.</p>
+                        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" multiple class="w-full px-8 py-6 text-lg bg-white border-2 border-gray-300 rounded-2xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition">
                     </div>
                     <div>
-                        <label for="email" class="block text-left text-2xl font-semibold mb-4 text-gray-800">Email (to send your report)</label>
-                        <input type="email" id="email" name="email" class="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition" placeholder="you@store.com">
+                        <label for="email" class="block text-3xl font-bold mb-6 text-gray-800">Email for Report</label>
+                        <input type="email" id="email" name="email" class="w-full px-8 py-6 text-lg bg-white border-2 border-gray-300 rounded-2xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition" placeholder="you@yourstore.com (optional)">
                     </div>
-                    <button type="submit" class="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold text-2xl py-6 rounded-2xl hover:from-emerald-700 hover:to-emerald-800 transition transform hover:scale-105 shadow-2xl">
-                        Analyze My Profits – Free Beta
+                    <button type="submit" class="w-full hero-gradient text-white font-black text-3xl py-8 rounded-3xl hover:opacity-90 transition transform hover:scale-105 shadow-2xl">
+                        Analyze My Profits — Free Beta
                     </button>
                 </form>
-                
-                <div id="status" class="mt-10 text-2xl font-medium text-emerald-600"></div>
-                <div id="uploadProgress" class="mt-8 space-y-4"></div>
-                <div id="result" class="mt-12 hidden"></div>
+
+                <div id="status" class="mt-12 text-3xl font-bold text-center"></div>
+                <div id="uploadProgress" class="mt-10 space-y-6"></div>
+                <div id="result" class="mt-16 hidden"></div>
             </div>
         </div>
     </section>
 
-    <!-- Initialize Supabase Client -->
+    <!-- Supabase Init -->
     <script>
         const { createClient } = supabase;
         const supabaseClient = createClient(
@@ -64,226 +110,176 @@
         );
     </script>
 
-    <!-- Upload & Analysis Script with Pretty Results -->
-<!-- Upload & Analysis Script with Pretty Results -->
-<script>
-    const form = document.getElementById('uploadForm');
-    const status = document.getElementById('status');
-    const uploadProgress = document.getElementById('uploadProgress');
-    const result = document.getElementById('result');
+    <!-- Main Script with Ultra-Premium Results -->
+    <script>
+        const form = document.getElementById('uploadForm');
+        const status = document.getElementById('status');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const result = document.getElementById('result');
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const files = document.getElementById('file').files;
-        
-        if (files.length === 0) {
-            status.textContent = 'Please select at least one file.';
-            return;
-        }
-
-        status.textContent = 'Generating secure upload links...';
-        uploadProgress.innerHTML = '';
-        result.classList.add('hidden');
-
-        const formData = new FormData();
-        for (let file of files) {
-            formData.append('filenames', file.name);
-        }
-        const emailValue = document.getElementById('email').value.trim();
-        if (emailValue) formData.append('email', emailValue);
-
-        let headers = {};
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) {
-                headers['Authorization'] = `Bearer ${session.access_token}`;
-            }
-        } catch (err) {
-            console.warn('No auth session (normal for beta)', err);
-        }
-
-        try {
-            // === 1. Get presigned URLs ===
-            const presignRes = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/presign', {
-                method: 'POST',
-                headers: headers,
-                body: formData
-            });
-
-            if (!presignRes.ok) {
-                const errorText = await presignRes.text();
-                throw new Error(`Failed to get upload links: ${presignRes.status} ${errorText}`);
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const files = document.getElementById('file').files;
+            if (files.length === 0) {
+                status.textContent = 'Please select at least one file.';
+                status.className = 'text-red-600';
+                return;
             }
 
-            const { presigned } = await presignRes.json();
-
-            // === 2. Upload files with progress bars ===
-            status.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`;
-
+            status.textContent = 'Generating secure upload links...';
+            status.className = 'text-emerald-600';
             uploadProgress.innerHTML = '';
-            const progressBars = [];
-            presigned.forEach((p, i) => {
-                const div = document.createElement('div');
-                div.className = 'file-progress';
-                div.innerHTML = `
-                    <p class="text-sm text-gray-600 mb-1">${files[i].name} (${(files[i].size / 1024 / 1024).toFixed(1)} MB)</p>
-                    <div class="progress-bg">
-                        <div class="progress-bar" id="bar-${i}"></div>
+            result.classList.add('hidden');
+
+            const formData = new FormData();
+            for (let file of files) formData.append('filenames', file.name);
+            const emailValue = document.getElementById('email').value.trim();
+            if (emailValue) formData.append('email', emailValue);
+
+            let headers = {};
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
+            } catch (err) {}
+
+            try {
+                const presignRes = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/presign', {
+                    method: 'POST', headers, body: formData
+                });
+                if (!presignRes.ok) throw new Error(await presignRes.text());
+                const { presigned } = await presignRes.json();
+
+                status.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`;
+                uploadProgress.innerHTML = '';
+                const progressBars = [];
+                presigned.forEach((p, i) => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <p class="text-lg font-medium text-gray-700 mb-2">${files[i].name} <span class="text-sm text-gray-500">(${(files[i].size / 1024 / 1024).toFixed(1)} MB)</span></p>
+                        <div class="h-3 bg-gray-200 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all duration-300" id="bar-${i}"></div>
+                        </div>
+                    `;
+                    uploadProgress.appendChild(div);
+                    progressBars.push(document.getElementById(`bar-${i}`));
+                });
+
+                const uploadPromises = presigned.map(async (p, i) => {
+                    const file = files[i];
+                    const xhr = new XMLHttpRequest();
+                    return new Promise((resolve, reject) => {
+                        xhr.upload.addEventListener('progress', e => {
+                            if (e.lengthComputable) progressBars[i].style.width = (e.loaded / e.total) * 100 + '%';
+                        });
+                        xhr.addEventListener('load', () => xhr.status >= 200 && xhr.status < 300 ? resolve(p.key) : reject());
+                        xhr.addEventListener('error', reject);
+                        xhr.open('POST', p.url.url);
+                        const uf = new FormData();
+                        Object.keys(p.url.fields).forEach(k => uf.append(k, p.url.fields[k]));
+                        uf.append('file', file);
+                        xhr.send(uf);
+                    });
+                });
+
+                await Promise.all(uploadPromises);
+
+                status.textContent = 'Analyzing your inventory...';
+
+                const analyzeForm = new FormData();
+                presigned.forEach(p => analyzeForm.append('keys', p.key));
+                if (emailValue) analyzeForm.append('email', emailValue);
+
+                const analyzeRes = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/analyze', {
+                    method: 'POST', headers, body: analyzeForm
+                });
+                if (!analyzeRes.ok) throw new Error(await analyzeRes.text());
+                const data = await analyzeRes.json();
+
+                uploadProgress.innerHTML = '';
+                status.innerHTML = '<div class="text-4xl font-black text-emerald-600 glow-text">Analysis Complete 🚀</div>';
+
+                // Premium Results
+                let totalHidden = 0, totalNegative = 0, maxImpact = 0;
+                data.results.forEach(r => {
+                    if (r.status === "success") {
+                        totalHidden += r.estimated_hidden_cogs || 0;
+                        totalNegative += r.negative_items || 0;
+                        maxImpact = Math.max(maxImpact, r.margin_impact_pct || 0);
+                    }
+                });
+
+                result.innerHTML = `
+                    <div class="mt-20">
+                        <div class="hero-gradient text-white p-12 md:p-20 rounded-3xl shadow-2xl text-center mb-20">
+                            <h2 class="text-5xl md:text-6xl font-black mb-8 glow-text">Your Profit Leak Report</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-10 max-w-5xl mx-auto">
+                                <div class="bg-white/10 backdrop-blur rounded-2xl p-8">
+                                    <p class="text-emerald-100 text-xl mb-4">Files Analyzed</p>
+                                    <p class="text-6xl font-black">${data.results.length}</p>
+                                </div>
+                                <div class="bg-white/10 backdrop-blur rounded-2xl p-8">
+                                    <p class="text-emerald-100 text-xl mb-4">Hidden COGS</p>
+                                    <p class="text-6xl font-black $${totalHidden > 0 ? 'text-yellow-300' : ''}">$${totalHidden.toLocaleString()}</p>
+                                </div>
+                                <div class="bg-white/10 backdrop-blur rounded-2xl p-8">
+                                    <p class="text-emerald-100 text-xl mb-4">Negative Items</p>
+                                    <p class="text-6xl font-black ${totalNegative > 0 ? 'text-red-300' : 'text-emerald-200'}">${totalNegative}</p>
+                                </div>
+                                <div class="bg-white/10 backdrop-blur rounded-2xl p-8">
+                                    <p class="text-emerald-100 text-xl mb-4">Max Impact</p>
+                                    <p class="text-6xl font-black ${maxImpact > 5 ? 'text-orange-300' : ''}">${maxImpact.toFixed(1)}%</p>
+                                </div>
+                            </div>
+                            <p class="mt-12 text-3xl font-medium">
+                                ${totalHidden > 0 || totalNegative > 0 ? '🔴 Profit leaks detected — act now!' : '🟢 Your inventory is pristine. Excellent work!'}
+                            </p>
+                        </div>
+
+                        <div class="grid gap-12 md:grid-cols-2 lg:grid-cols-3">
+                            ${data.results.map((file, idx) => `
+                                <div class="result-card rounded-3xl p-10 opacity-0 animate-fade-in-up" style="animation-delay: ${idx * 0.15}s">
+                                    <h3 class="text-2xl font-bold mb-4 text-gray-800 truncate">${file.filename || 'Unknown File'}</h3>
+                                    <p class="text-gray-600 mb-8">${(file.rows || 0).toLocaleString()} rows analyzed</p>
+                                    ${file.status === 'success' ? `
+                                        <div class="space-y-8">
+                                            <div class="flex justify-between items-end">
+                                                <span class="text-lg text-gray-600">Negative Items</span>
+                                                <span class="text-5xl font-black ${file.negative_items > 0 ? 'text-red-600' : 'text-emerald-600'}">${file.negative_items}</span>
+                                            </div>
+                                            <div class="flex justify-between items-end">
+                                                <span class="text-lg text-gray-600">Hidden COGS</span>
+                                                <span class="text-5xl font-black text-emerald-600">$${file.estimated_hidden_cogs.toLocaleString()}</span>
+                                            </div>
+                                            <div class="flex justify-between items-end">
+                                                <span class="text-lg text-gray-600">True Margin</span>
+                                                <span class="text-4xl font-bold">${file.true_margin_pct.toFixed(1)}%</span>
+                                            </div>
+                                            <div class="pt-8 border-t border-gray-300">
+                                                <p class="italic text-gray-700 leading-relaxed">${file.summary}</p>
+                                                <p class="text-sm text-gray-600 mt-4">${file.recommendation}</p>
+                                            </div>
+                                        </div>
+                                    ` : `
+                                        <div class="text-red-600 font-bold text-xl">
+                                            ⚠️ Partial Analysis<br><span class="text-lg font-normal mt-2 block">${file.detail}</span>
+                                        </div>
+                                    `}
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        ${emailValue ? `<p class="text-center mt-16 text-xl text-gray-600">Full detailed report sent to <span class="font-bold">${emailValue}</span></p>` : ''}
                     </div>
                 `;
-                uploadProgress.appendChild(div);
-                progressBars.push(document.getElementById(`bar-${i}`));
-            });
 
-            const uploadPromises = presigned.map(async (p, i) => {
-                const file = files[i];
-                const xhr = new XMLHttpRequest();
+                result.classList.remove('hidden');
 
-                return new Promise((resolve, reject) => {
-                    xhr.upload.addEventListener('progress', (e) => {
-                        if (e.lengthComputable) {
-                            const percent = (e.loaded / e.total) * 100;
-                            progressBars[i].style.width = percent + '%';
-                        }
-                    });
-
-                    xhr.addEventListener('load', () => {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            resolve(p.key);
-                        } else {
-                            reject(new Error(`Upload failed: ${xhr.status}`));
-                        }
-                    });
-                    xhr.addEventListener('error', reject);
-                    xhr.addEventListener('abort', reject);
-
-                    xhr.open('POST', p.url.url);
-                    const uploadForm = new FormData();
-                    Object.keys(p.url.fields).forEach(key => uploadForm.append(key, p.url.fields[key]));
-                    uploadForm.append('file', file);
-                    xhr.send(uploadForm);
-                });
-            });
-
-            const keys = await Promise.all(uploadPromises);
-
-            // === 3. Trigger analysis ===
-            status.textContent = 'Analyzing your files...';
-
-            const analyzeForm = new FormData();
-            keys.forEach(key => analyzeForm.append('keys', key));
-            if (emailValue) analyzeForm.append('email', emailValue);
-
-            const analyzeRes = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/analyze', {
-                method: 'POST',
-                headers: headers,
-                body: analyzeForm
-            });
-
-            if (!analyzeRes.ok) {
-                const errorText = await analyzeRes.text();
-                throw new Error(`Analysis failed: ${analyzeRes.status} ${errorText}`);
+            } catch (err) {
+                console.error(err);
+                status.textContent = 'Error: ' + (err.message || 'Upload/analysis failed');
+                status.className = 'text-red-600';
             }
-
-            const data = await analyzeRes.json();
-
-            // === 4. Render Beautiful Results ===
-            uploadProgress.innerHTML = '';
-            status.innerHTML = '<span class="text-emerald-600 font-bold text-3xl">Analysis complete! 🚀</span>';
-
-            let totalHidden = 0;
-            let totalNegative = 0;
-            let maxImpact = 0;
-            let successCount = 0;
-
-            data.results.forEach(r => {
-                if (r.status === "success") {
-                    successCount++;
-                    totalHidden += r.estimated_hidden_cogs || 0;
-                    totalNegative += r.negative_items || 0;
-                    if (r.margin_impact_pct > maxImpact) maxImpact = r.margin_impact_pct;
-                }
-            });
-
-            result.innerHTML = `
-                <div class="mt-12 animate-fade-in">
-                    <!-- Hero Summary -->
-                    <div class="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-10 rounded-3xl shadow-2xl mb-12 text-center">
-                        <h3 class="text-4xl font-bold mb-6">Your Profit Leak Report</h3>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
-                            <div>
-                                <p class="text-emerald-100 text-lg">Files Processed</p>
-                                <p class="text-5xl font-black mt-2">${data.results.length}</p>
-                            </div>
-                            <div>
-                                <p class="text-emerald-100 text-lg">Hidden COGS</p>
-                                <p class="text-5xl font-black mt-2 $${totalHidden > 0 ? 'text-yellow-300' : ''}">$${totalHidden.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
-                            </div>
-                            <div>
-                                <p class="text-emerald-100 text-lg">Negative Items</p>
-                                <p class="text-5xl font-black mt-2 ${totalNegative > 0 ? 'text-red-300' : ''}">${totalNegative}</p>
-                            </div>
-                            <div>
-                                <p class="text-emerald-100 text-lg">Max Margin Impact</p>
-                                <p class="text-5xl font-black mt-2 ${maxImpact > 5 ? 'text-orange-300' : ''}">${maxImpact.toFixed(1)}%</p>
-                            </div>
-                        </div>
-                        <p class="mt-10 text-2xl font-medium">
-                            ${totalHidden > 0 || totalNegative > 0 
-                                ? '🔴 We found potential profit leaks – see details below!' 
-                                : '🟢 Your inventory looks clean – great processes!'}
-                        </p>
-                    </div>
-
-                    <!-- Individual File Cards -->
-                    <div class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-                        ${data.results.map(file => `
-                            <div class="bg-white border-2 ${file.status !== 'success' ? 'border-red-500' : 'border-gray-200'} rounded-3xl shadow-xl p-8 card-hover">
-                                <h4 class="font-bold text-xl mb-3 truncate text-gray-800">${file.filename || 'Unknown file'}</h4>
-                                <p class="text-sm text-gray-500 mb-6">${file.rows?.toLocaleString() || 'N/A'} rows analyzed</p>
-
-                                ${file.status === 'success' ? `
-                                    <div class="space-y-6">
-                                        <div class="flex justify-between items-center">
-                                            <span class="text-gray-600">Negative Items Found</span>
-                                            <span class="text-3xl font-bold ${file.negative_items > 0 ? 'text-red-600' : 'text-green-600'}">${file.negative_items}</span>
-                                        </div>
-                                        <div class="flex justify-between items-center">
-                                            <span class="text-gray-600">Estimated Hidden COGS</span>
-                                            <span class="text-3xl font-bold text-emerald-600">$${file.estimated_hidden_cogs.toLocaleString()}</span>
-                                        </div>
-                                        <div class="flex justify-between items-center">
-                                            <span class="text-gray-600">True Margin</span>
-                                            <span class="text-2xl font-bold">${file.true_margin_pct.toFixed(1)}%</span>
-                                        </div>
-                                        <div class="pt-6 border-t border-gray-200">
-                                            <p class="text-sm italic text-gray-700 leading-relaxed">${file.summary}</p>
-                                            <p class="text-sm text-gray-600 mt-3">${file.recommendation}</p>
-                                        </div>
-                                    </div>
-                                ` : `
-                                    <div class="text-red-600 font-bold text-lg">
-                                        ⚠️ Partial Analysis<br>
-                                        <span class="text-base font-normal">${file.detail}</span>
-                                    </div>
-                                `}
-                            </div>
-                        `).join('')}
-                    </div>
-
-                    <div class="text-center mt-12">
-                        <p class="text-gray-600">Detailed report sent to <span class="font-semibold">${emailValue || 'your email'}</span></p>
-                    </div>
-                </div>
-            `;
-
-            result.classList.remove('hidden');
-
-        } catch (err) {
-            console.error(err);
-            status.textContent = 'Error: ' + (err.message || 'Something went wrong – check network or try again.');
-            status.className = 'mt-10 text-2xl font-medium text-red-600';
-        }
-    });
-</script></body>
+        });
+    </script>
+</body>
 </html>
