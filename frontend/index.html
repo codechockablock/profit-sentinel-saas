@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Removed Tailwind CDN for production (warning in logs). Install Tailwind properly via PostCSS/CLI if this is part of a build process. For now, assuming classes are handled elsewhere or accept the dev warning. -->
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
     <!-- Supabase JS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -12,6 +13,8 @@
         .gradient-bg { background: linear-gradient(135deg, #065f46, #064e3b); }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Optional: Add a favicon to fix 404 error in logs -->
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body class="bg-gray-50 text-gray-800">
     <header class="gradient-bg text-white py-20">
@@ -35,7 +38,7 @@
                     </div>
                     <div>
                         <label for="email" class="block text-left text-lg font-medium mb-2">Email (to send your report)</label>
-                        <input type="email" id="email" name="email" required class="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500" placeholder="you@store.com">
+                        <input type="email" id="email" name="email" class="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500" placeholder="you@store.com">
                     </div>
                     <button type="submit" class="w-full bg-emerald-600 text-white font-bold py-4 px-8 rounded-md hover:bg-emerald-700 transition">
                         Analyze My Profits – Free Beta
@@ -104,9 +107,16 @@
 
             const formData = new FormData();
             formData.append('file', document.getElementById('file').files[0]);
+            // Append email (optional in backend, but form collects it)
+            const emailValue = document.getElementById('email').value.trim();
+            if (emailValue) {
+                formData.append('email', emailValue);
+            }
 
             try {
-                const response = await fetch('https://profitsentinel.com/upload', {
+                // FIXED: Relative URL – uses the current origin (www or non-www automatically)
+                // This eliminates CORS and subdomain SSL/TLS mismatch errors
+                const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData
                 });
@@ -124,61 +134,31 @@
                             <div class="grid md:grid-cols-3 gap-6 mb-12">
                                 <div class="bg-red-50 p-6 rounded-xl shadow-lg">
                                     <p class="text-lg font-semibold text-red-700">Estimated Hidden Leak</p>
-                                    <p class="text-4xl font-bold text-red-800">$${Number(data.estimated_hidden_cogs || 0).toLocaleString()}</p>
+                                    <p class="text-4xl font-bold text-red-800">$${Number(data.estimated_hidden_cogs || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
                                     <p class="text-sm text-gray-600 mt-2">${Number(data.negative_items || 0).toLocaleString()} negative items</p>
                                 </div>
                                 <div class="bg-blue-50 p-6 rounded-xl shadow-lg">
                                     <p class="text-lg font-semibold text-blue-700">Reported Margin</p>
-                                    <p class="text-4xl font-bold text-blue-800">${data.reported_margin_pct || 0}%</p>
+                                    <p class="text-4xl font-bold text-blue-800">${(data.reported_margin_pct || 0).toFixed(1)}%</p>
                                 </div>
                                 <div class="bg-emerald-50 p-6 rounded-xl shadow-lg">
                                     <p class="text-lg font-semibold text-emerald-700">True Margin (After Leaks)</p>
-                                    <p class="text-4xl font-bold text-emerald-800">${data.true_margin_pct || 0}%</p>
-                                    <p class="text-sm text-gray-600 mt-2">${data.margin_impact_pct || 0}% impact</p>
+                                    <p class="text-4xl font-bold text-emerald-800">${(data.true_margin_pct || 0).toFixed(1)}%</p>
+                                    <p class="text-sm text-gray-600 mt-2">${(data.margin_impact_pct || 0).toFixed(1)}% impact</p>
                                 </div>
                             </div>
 
                             ${data.summary ? `
                             <div class="bg-white p-8 rounded-xl shadow-lg mb-8">
                                 <h4 class="text-2xl font-bold mb-4">Summary</h4>
-                                <ul class="space-y-3">
-                                    ${data.summary.map(line => `<li class="text-lg flex items-start"><span class="mr-3">•</span>${line}</li>`).join('')}
-                                </ul>
+                                <p class="text-lg">${data.summary}</p>
                             </div>
                             ` : ''}
 
-                            ${data.recommendations ? `
-                            <div class="bg-amber-50 p-8 rounded-xl shadow-lg">
-                                <h4 class="text-2xl font-bold mb-4 text-amber-700">Next Steps & Recommendations</h4>
-                                <ol class="space-y-3 list-decimal list-inside">
-                                    ${data.recommendations.map(rec => `<li class="text-lg">${rec}</li>`).join('')}
-                                </ol>
-                            </div>
-                            ` : ''}
-
-                            ${data.top_negative_items && data.top_negative_items.length > 0 ? `
-                            <div class="bg-purple-50 p-8 rounded-xl shadow-lg mb-8">
-                                <h4 class="text-2xl font-bold mb-4 text-purple-700">Top Negative Items</h4>
-                                <div class="overflow-x-auto">
-                                    <table class="min-w-full bg-white rounded-lg">
-                                        <thead class="bg-purple-100">
-                                            <tr>
-                                                <th class="py-3 px-4 text-left">SKU/Description</th>
-                                                <th class="py-3 px-4 text-right">Negative Qty</th>
-                                                <th class="py-3 px-4 text-right">Cost Impact</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${data.top_negative_items.map(item => `
-                                            <tr class="border-b">
-                                                <td class="py-3 px-4">${item.Description || item.SKU || 'Unknown'}</td>
-                                                <td class="py-3 px-4 text-right">${Number(item.quantity || 0).toLocaleString()}</td>
-                                                <td class="py-3 px-4 text-right">$${Number(item.hidden_cogs || 0).toLocaleString()}</td>
-                                            </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
+                            ${data.recommendation ? `
+                            <div class="bg-amber-50 p-8 rounded-xl shadow-lg mb-8">
+                                <h4 class="text-2xl font-bold mb-4 text-amber-700">Recommendation</h4>
+                                <p class="text-lg">${data.recommendation}</p>
                             </div>
                             ` : ''}
 
@@ -191,7 +171,7 @@
                 }
             } catch (err) {
                 console.error(err);
-                status.textContent = 'Upload failed – try again';
+                status.textContent = 'Upload failed – check connection and try again';
                 status.className = 'mt-6 text-lg text-red-600';
             }
         });
