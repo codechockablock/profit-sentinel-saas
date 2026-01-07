@@ -4,16 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
-    <!-- Tailwind CDN (harmless warning for simple page) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Supabase JS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         .gradient-bg { background: linear-gradient(135deg, #065f46, #064e3b); }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- Favicon to avoid 404 -->
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -92,7 +89,7 @@
         checkSession();
     </script>
 
-    <!-- Upload Form Script (Updated with HTTP + Your ALB DNS) -->
+    <!-- Upload Form Script (Using HTTPS on ALB) -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -103,7 +100,7 @@
             const fileInput = document.getElementById('file');
             const file = fileInput.files[0];
             
-            if (file && file.size > 50 * 1024 * 1024) { // Optional: Warn for very large files
+            if (file && file.size > 50 * 1024 * 1024) {
                 status.textContent = 'File too large (>50 MB) – may take time or fail on network.';
                 status.className = 'mt-6 text-lg text-orange-600';
                 return;
@@ -120,9 +117,8 @@
             }
 
             try {
-                // Using HTTP to bypass cert mismatch on raw ALB DNS
-                // Test health first: http://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/health
-                const response = await fetch('http://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/upload', {
+                // HTTPS on your ALB DNS - cert attached, no mixed content, no cert error
+                const response = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/upload', {
                     method: 'POST',
                     body: formData
                 });
@@ -167,7 +163,7 @@
                 }
             } catch (err) {
                 console.error(err);
-                status.textContent = 'Upload failed – check network, file size, or try HTTP health URL first.';
+                status.textContent = 'Upload failed – check network or try health URL.';
                 status.className = 'mt-6 text-lg text-red-600';
             }
         });
