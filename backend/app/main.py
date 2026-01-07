@@ -3,12 +3,12 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Header, Depe
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
-from typing import List  # For List[UploadFile]
+from typing import List
 import pandas as pd
 import io
 import boto3
 import os
-import uuid  # For unique S3 keys
+import uuid
 
 app = FastAPI(
     title="Profit Sentinel",
@@ -16,40 +16,35 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# === SECURITY: Tight CORS for production + Vercel preview ===
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://profitsentinel.com",
         "https://www.profitsentinel.com",
-        "https://profit-sentinel-saas.vercel.app",  # Your Vercel production
-        # Add preview domains if needed, e.g., "https://profit-sentinel-saas-git-main-yourusername.vercel.app"
+        "https://profit-sentinel-saas.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# S3 client
 S3_CLIENT = boto3.client('s3') if os.getenv("AWS_DEFAULT_REGION") else None
 BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "profitsentinel-dev-uploads")
 
-# Supabase client for server-side JWT verification (service_role key - secret!)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://PLACEHOLDER_SUPABASE_PROJECT.supabase.co")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # Add this in ECS task env vars
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 supabase: Client | None = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_SERVICE_KEY else None
 
-# Optional JWT verification dependency (guest allowed)
 async def get_current_user(authorization: str | None = Header(None)):
     if not authorization or not supabase:
-        return None  # Guest
+        return None
     try:
         token = authorization.replace("Bearer ", "")
         user = supabase.auth.get_user(token)
         return user.user.id if user else None
     except Exception as e:
         print(f"JWT verification failed: {e}")
-        return None  # Invalid token → treat as guest
+        return None
 
 @app.get("/")
 def root():
@@ -61,29 +56,22 @@ def health():
 
 @app.post("/upload")
 async def upload_file(
-    files: List[UploadFile] = File(alias="files"),  # Multiple files, alias matches frontend 'files'
+    files: List[UploadFile] = File(alias="files"),  # Accepts single or multiple
     email: str = Form(None),
-    user_id: str | None = Depends(get_current_user)  # Optional auth - guest if None
+    user_id: str | None = Depends(get_current_user)
 ):
     results = []
+    print(f"Received {len(files)} file(s) from user {user_id or 'guest'}")
 
     for file in files:
-        # Per-file size limit (50MB)
+        print(f"Processing file: {file.filename}")
         contents = await file.read()
         if len(contents) > 50 * 1024 * 1024:
-            results.append({
-                "filename": file.filename,
-                "status": "error",
-                "detail": "File too large (>50MB)"
-            })
+            results.append({"filename": file.filename, "status": "error", "detail": "File too large (>50MB)"})
             continue
 
         if not file.filename.lower().endswith(('.csv', '.xlsx', '.xls')):
-            results.append({
-                "filename": file.filename,
-                "status": "error",
-                "detail": "Invalid file type—CSV or Excel only"
-            })
+            results.append({"filename": file.filename, "status": "error", "detail": "Invalid file type"})
             continue
 
         try:
@@ -92,22 +80,14 @@ async def upload_file(
             else:
                 df = pd.read_excel(io.BytesIO(contents), dtype=str)
         except Exception as e:
-            results.append({
-                "filename": file.filename,
-                "status": "error",
-                "detail": f"Error reading file: {str(e)}"
-            })
+            print(f"Read error for {file.filename}: {e}")
+            results.append({"filename": file.filename, "status": "error", "detail": f"Read error: {str(e)}"})
             continue
 
         if df.empty:
-            results.append({
-                "filename": file.filename,
-                "status": "error",
-                "detail": "File is empty"
-            })
+            results.append({"filename": file.filename, "status": "error", "detail": "File is empty"})
             continue
 
-        # Aggressive column matching
         col_lower = {col: col.strip().lower().replace('$', '').replace('.', '').replace(' ', '') for col in df.columns}
 
         quantity_col = next((orig for orig, clean in col_lower.items() if 'qty' in clean or 'quantity' in clean or 'onhand' in clean or 'diff' in clean), None)
@@ -117,15 +97,11 @@ async def upload_file(
         file_result = {
             "filename": file.filename,
             "rows": len(df),
-            "found_columns": list(df.columns),
             "mapped": {"quantity": quantity_col, "cost": cost_col, "sales": sales_col},
         }
 
         if not all([quantity_col, cost_col, sales_col]):
-            file_result.update({
-                "status": "partial_failure",
-                "detail": "Could not map all required columns—analysis skipped"
-            })
+            file_result.update({"status": "partial_failure", "detail": "Could not map all required columns"})
             results.append(file_result)
             continue
 
@@ -145,10 +121,8 @@ async def upload_file(
         true_cogs = reported_cogs + hidden_cogs_total
         reported_margin = (total_sales - reported_cogs) / total_sales if total_sales else 0
         true_margin = (total_sales - true_cogs) / total_sales if total_sales else 0
-
         margin_impact = (reported_margin - true_margin) * 100
 
-        # Human-friendly summary
         file_result.update({
             "status": "success",
             "negative_items": int(len(negative)),
@@ -160,22 +134,16 @@ async def upload_file(
             "recommendation": "Review receiving processes and inventory adjustments—negative quantities often indicate skipped steps."
         })
 
-        # Unique S3 key + save
         if S3_CLIENT:
             try:
                 unique_key = f"uploads/{uuid.uuid4()}_{file.filename}"
                 S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=unique_key, Body=contents)
                 file_result["s3_status"] = "saved"
             except Exception as e:
+                print(f"S3 save failed for {file.filename}: {e}")
                 file_result["s3_status"] = f"save failed: {str(e)}"
 
         results.append(file_result)
-
-    # Log authenticated user
-    if user_id:
-        print(f"Multi-upload by authenticated user: {user_id}")
-    else:
-        print("Guest multi-upload")
 
     return JSONResponse(content={"results": results})
 
