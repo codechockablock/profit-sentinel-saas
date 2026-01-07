@@ -70,16 +70,14 @@ async def presign(
         url = S3_CLIENT.generate_presigned_post(
             Bucket=BUCKET_NAME,
             Key=key,
-            Fields={"acl": "private"},
-            Conditions=[{"acl": "private"}, ["content-length-range", 1, 200 * 1024 * 1024]],  # Max 200MB
             ExpiresIn=3600
         )
         presigned.append({"url": url, "key": key, "filename": filename})
 
-    print(f"Presigned URLs generated for {len(filenames)} files by user {user_id or 'guest'}")
+    print(f"Presigned URLs for {len(filenames)} files by user {user_id or 'guest'}")
     return {"presigned": presigned}
 
-# Analyze files from S3 keys (after direct upload)
+# Analyze files from S3 keys
 @app.post("/analyze")
 async def analyze(
     keys: List[str] = Form(...),
@@ -88,10 +86,7 @@ async def analyze(
 ):
     results = []
     for key in keys:
-        file_result = {
-            "key": key,
-        }
-
+        file_result = {"key": key}
         try:
             obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
             contents = obj['Body'].read()
@@ -102,10 +97,7 @@ async def analyze(
                 df = pd.read_excel(io.BytesIO(contents), dtype=str)
 
             if df.empty:
-                file_result.update({
-                    "status": "error",
-                    "detail": "File is empty"
-                })
+                file_result.update({"status": "error", "detail": "File is empty"})
                 results.append(file_result)
                 continue
 
@@ -122,10 +114,7 @@ async def analyze(
             })
 
             if not all([quantity_col, cost_col, sales_col]):
-                file_result.update({
-                    "status": "partial_failure",
-                    "detail": "Could not map all required columns—analysis skipped"
-                })
+                file_result.update({"status": "partial_failure", "detail": "Could not map all required columns"})
                 results.append(file_result)
                 continue
 
@@ -162,14 +151,11 @@ async def analyze(
             if email:
                 file_result["report_sent_to"] = email
 
-            file_result["s3_status"] = "already_saved"  # Already in S3
+            file_result["s3_status"] = "already_saved"
 
         except Exception as e:
             print(f"Analysis error for {key}: {e}")
-            file_result.update({
-                "status": "error",
-                "detail": str(e)
-            })
+            file_result.update({"status": "error", "detail": str(e)})
 
         results.append(file_result)
 
