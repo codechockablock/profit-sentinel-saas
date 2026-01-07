@@ -6,6 +6,7 @@
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
         body { font-family: 'Inter', sans-serif; }
         .gradient-bg { background: linear-gradient(135deg, #065f46, #10b981); }
@@ -19,7 +20,8 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body class="bg-gray-50 text-gray-800">
-    <!-- Header unchanged... -->
+
+    <!-- Header (you can add your header here if needed) -->
 
     <section id="upload" class="py-24 bg-white">
         <div class="container mx-auto px-6 text-center max-w-4xl">
@@ -27,7 +29,6 @@
             <p class="text-xl mb-12 text-gray-600">Upload one or more POS exports (CSV or Excel) — instant forensic analysis. No signup required for beta.</p>
             
             <div class="bg-gradient-to-br from-gray-50 to-gray-100 p-12 rounded-3xl shadow-2xl">
-                <!-- Auth section unchanged... -->
 
                 <form id="uploadForm" class="space-y-8">
                     <div>
@@ -50,7 +51,16 @@
         </div>
     </section>
 
-    <!-- Other sections unchanged... -->
+    <!-- Other sections can go here -->
+
+    <!-- Initialize Supabase Client -->
+    <script>
+        const { createClient } = supabase;  // Global 'supabase' object from the CDN
+        const supabaseClient = createClient(
+            'https://kbjiejqotrjsdeuxhtcx.supabase.co',
+            'sb_publishable_gocACZSOQvdZ6XV1qiu28A_W19nqgYc'
+        );
+    </script>
 
     <!-- Presigned Multi-File Upload Script -->
     <script>
@@ -79,10 +89,15 @@
             const emailValue = document.getElementById('email').value.trim();
             if (emailValue) formData.append('email', emailValue);
 
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            const headers = {};
-            if (session) {
-                headers['Authorization'] = `Bearer ${session.access_token}`;
+            // Optional auth header (only added if user is logged in)
+            let headers = {};
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) {
+                    headers['Authorization'] = `Bearer ${session.access_token}`;
+                }
+            } catch (err) {
+                console.warn('Could not get Supabase session (normal for unauthenticated users)', err);
             }
 
             try {
@@ -92,7 +107,10 @@
                     body: formData
                 });
 
-                if (!presignRes.ok) throw new Error('Failed to get upload links');
+                if (!presignRes.ok) {
+                    const errorText = await presignRes.text();
+                    throw new Error(`Failed to get upload links: ${presignRes.status} ${errorText}`);
+                }
 
                 const { presigned } = await presignRes.json();
 
@@ -125,8 +143,15 @@
                             }
                         });
 
-                        xhr.addEventListener('load', () => resolve(p.key));
+                        xhr.addEventListener('load', () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                resolve(p.key);
+                            } else {
+                                reject(new Error(`Upload failed: ${xhr.status}`));
+                            }
+                        });
                         xhr.addEventListener('error', reject);
+                        xhr.addEventListener('abort', reject);
 
                         xhr.open('POST', p.url.url);
                         const uploadForm = new FormData();
@@ -150,16 +175,22 @@
                     body: analyzeForm
                 });
 
-                if (!analyzeRes.ok) throw new Error('Analysis failed');
+                if (!analyzeRes.ok) {
+                    const errorText = await analyzeRes.text();
+                    throw new Error(`Analysis failed: ${analyzeRes.status} ${errorText}`);
+                }
 
                 const data = await analyzeRes.json();
 
                 uploadProgress.innerHTML = '';
                 status.textContent = 'Analysis complete! 🚀';
                 result.classList.remove('hidden');
-                // Pretty multi-file results (from previous)
+                result.innerHTML = `<pre class="text-left bg-gray-900 text-green-400 p-6 rounded-lg overflow-x-auto">${JSON.stringify(data, null, 2)}</pre>`;
+                // Replace the line above with your pretty results rendering when ready
+
             } catch (err) {
-                status.textContent = 'Upload failed – check network.';
+                console.error(err);
+                status.textContent = 'Error: ' + (err.message || 'Upload or analysis failed – check console or network.');
             }
         });
     </script>
