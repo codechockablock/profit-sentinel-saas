@@ -1,5 +1,5 @@
 # backend/app/main.py
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Header, Depends
+from fastapi import FastAPI, Form, Header, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
@@ -54,10 +54,10 @@ def root():
 def health():
     return {"status": "healthy"}
 
-# Generate presigned URLs for direct S3 upload
+# Generate presigned POST URLs for direct S3 upload
 @app.post("/presign")
 async def presign(
-    filenames: List[str] = Form(...),  # List of filenames from frontend
+    filenames: List[str] = Form(...),
     email: str = Form(None),
     user_id: str | None = Depends(get_current_user)
 ):
@@ -71,18 +71,18 @@ async def presign(
             Bucket=BUCKET_NAME,
             Key=key,
             Fields={"acl": "private"},
-            Conditions=[{"acl": "private"}],
-            ExpiresIn=3600  # 1 hour
+            Conditions=[{"acl": "private"}, ["content-length-range", 1, 200 * 1024 * 1024]],  # Max 200MB per file
+            ExpiresIn=3600
         )
         presigned.append({"url": url, "key": key, "filename": filename})
 
-    print(f"Presigned URLs generated for {len(filenames)} files by user {user_id or 'guest'}")
-    return {"presigned": presigned, "email": email}
+    print(f"Presigned URLs for {len(filenames)} files by user {user_id or 'guest'}")
+    return {"presigned": presigned}
 
-# Analyze from S3 key (called after direct upload)
+# Analyze files from S3 keys
 @app.post("/analyze")
 async def analyze(
-    keys: List[str] = Form(...),  # S3 keys from frontend
+    keys: List[str] = Form(...),
     email: str = Form(None),
     user_id: str | None = Depends(get_current_user)
 ):
@@ -92,15 +92,19 @@ async def analyze(
             obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
             contents = obj['Body'].read()
 
-            # Your existing processing (same as before)
-            # ... (pd.read_csv/excel, column matching, analysis, result dict)
-            # Append file_result to results
+            # Your existing processing
+            if key.lower().endswith('.csv'):
+                df = pd.read_csv(io.BytesIO(contents), dtype=str, keep_default_na=False, encoding='latin1')
+            else:
+                df = pd.read_excel(io.BytesIO(contents), dtype=str)
+
+            # ... your column matching, analysis, result dict ...
+
+            results.append(result)
         except Exception as e:
             results.append({"key": key, "status": "error", "detail": str(e)})
 
     return {"results": results}
-
-# Keep old /upload for compatibility if needed (or remove)
 
 if __name__ == "__main__":
     import uvicorn
