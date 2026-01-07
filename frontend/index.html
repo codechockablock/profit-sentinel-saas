@@ -12,91 +12,115 @@
 
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(to bottom, #f8fafc, #e2e8f0);
+            background: linear-gradient(to bottom, #0f172a, #1e293b);
+            color: #e2e8f0;
             min-height: 100vh;
         }
 
-        .hero-gradient {
-            background: linear-gradient(135deg, #064e3b 0%, #059669 50%, #10b981 100%);
+        .hero-bg {
+            background-image: url('https://images.unsplash.com/photo-1635070041078-e363dbe005cb?ixlib=rb-4.0.3&auto=format&fit=crop&q=80');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+
+        .hero-bg::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(15,23,42,0.8));
         }
 
         .glass-card {
-            background: rgba(255, 255, 255, 0.75);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
         }
 
         .result-card {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            transition: all 0.4s ease;
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .result-card:hover {
-            transform: translateY(-12px) scale(1.02);
-            box-shadow: 0 30px 60px rgba(16, 185, 129, 0.15);
+            transform: translateY(-20px) scale(1.05);
+            box-shadow: 0 50px 100px rgba(16, 185, 129, 0.25);
+            border-color: rgba(16, 185, 129, 0.8);
         }
 
-        .glow-text {
-            text-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(40px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .animate-fade-in-up {
-            animation: fadeInUp 0.8s ease-out forwards;
+        .glow {
+            box-shadow: 0 0 60px rgba(16, 185, 129, 0.4);
         }
 
         .logo-glow {
-            filter: drop-shadow(0 0 30px rgba(16, 185, 129, 0.6));
+            filter: drop-shadow(0 0 50px rgba(16, 185, 129, 0.9));
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 40px rgba(16, 185, 129, 0.6)); }
+            50% { filter: drop-shadow(0 0 80px rgba(16, 185, 129, 1)); }
+        }
+
+        .animate-pulse-glow {
+            animation: pulse-glow 6s infinite ease-in-out;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(80px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in-up {
+            animation: fadeInUp 1.2s ease-out forwards;
         }
     </style>
 </head>
-<body class="text-gray-800">
+<body>
 
-    <!-- Hero Header with Logo -->
-    <header class="hero-gradient text-white py-16 md:py-24">
-        <div class="container mx-auto px-6 text-center">
-            <img src="YOUR_LOGO_URL_HERE.png" alt="Profit Sentinel Logo" class="mx-auto w-64 md:w-80 logo-glow mb-8">
-            <!-- Replace YOUR_LOGO_URL_HERE.png with your hosted logo URL (upload to S3 or Vercel) -->
-            <h1 class="text-5xl md:text-7xl font-black glow-text mb-6">Profit Sentinel</h1>
-            <p class="text-xl md:text-2xl opacity-90 max-w-3xl mx-auto">Instant forensic analysis of your POS exports. Uncover hidden profit leaks — no signup required.</p>
+    <!-- Hero Section - Mysa-inspired Minimal Elegance with Your Cyber Theme -->
+    <header class="hero-bg relative text-white py-40 md:py-60">
+        <div class="container mx-auto px-6 text-center relative z-10">
+            <!-- YOUR LOGO - REPLACE WITH DIRECT URL -->
+            <img src="https://your-hosted-logo-url.com/logo.png" alt="Profit Sentinel Logo" class="mx-auto w-96 md:w-[500px] logo-glow animate-pulse-glow mb-16">
+            <!-- Upload your shield logo to Imgur/S3 and paste the direct link above -->
+
+            <h1 class="text-6xl md:text-8xl font-black mb-10">Profit Sentinel</h1>
+            <p class="text-3xl md:text-5xl opacity-90 max-w-5xl mx-auto mb-8">Uncover Hidden Profit Leaks</p>
+            <p class="text-xl md:text-2xl opacity-80 max-w-4xl mx-auto">Instant AI-powered forensic analysis of your POS exports. Free beta — no signup required.</p>
         </div>
     </header>
 
-    <!-- Upload Section -->
-    <section id="upload" class="py-20 -mt-10 relative z-10">
-        <div class="container mx-auto px-6 max-w-4xl">
-            <div class="glass-card p-12 rounded-3xl">
-                <form id="uploadForm" class="space-y-10">
+    <!-- Upload CTA Section -->
+    <section class="py-32 relative -mt-32">
+        <div class="container mx-auto px-6 max-w-6xl">
+            <div class="glass-card p-20 rounded-3xl glow">
+                <div class="text-center mb-16">
+                    <h2 class="text-5xl font-bold mb-6">Get Your Free Report</h2>
+                    <p class="text-2xl opacity-80">Upload POS exports below for immediate analysis</p>
+                </div>
+
+                <form id="uploadForm" class="space-y-16">
                     <div>
-                        <label for="file" class="block text-3xl font-bold mb-6 text-gray-800">Upload POS Exports</label>
-                        <p class="text-lg text-gray-600 mb-6">Multiple CSV or Excel files allowed. Instant analysis.</p>
-                        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" multiple class="w-full px-8 py-6 text-lg bg-white border-2 border-gray-300 rounded-2xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition">
+                        <label class="block text-2xl font-semibold mb-6">POS Export Files</label>
+                        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" multiple class="w-full px-10 py-10 text-2xl bg-white/5 border-2 border-emerald-500/40 rounded-3xl focus:border-emerald-400 focus:ring-8 focus:ring-emerald-400/20 transition">
                     </div>
+
                     <div>
-                        <label for="email" class="block text-3xl font-bold mb-6 text-gray-800">Email for Report</label>
-                        <input type="email" id="email" name="email" class="w-full px-8 py-6 text-lg bg-white border-2 border-gray-300 rounded-2xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 transition" placeholder="you@yourstore.com (optional)">
+                        <label class="block text-2xl font-semibold mb-6">Email (for detailed report)</label>
+                        <input type="email" id="email" name="email" placeholder="optional@yourstore.com" class="w-full px-10 py-8 text-2xl bg-white/5 border-2 border-gray-500/40 rounded-3xl focus:border-emerald-400 focus:ring-8 focus:ring-emerald-400/20 transition">
                     </div>
-                    <button type="submit" class="w-full hero-gradient text-white font-black text-3xl py-8 rounded-3xl hover:opacity-90 transition transform hover:scale-105 shadow-2xl">
-                        Analyze My Profits — Free Beta
+
+                    <button type="submit" class="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-black text-4xl py-10 rounded-3xl hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-105 glow">
+                        Analyze Profits Now
                     </button>
                 </form>
 
-                <div id="status" class="mt-12 text-3xl font-bold text-center"></div>
-                <div id="uploadProgress" class="mt-10 space-y-6"></div>
-                <div id="result" class="mt-16 hidden"></div>
+                <div id="status" class="mt-20 text-4xl font-bold text-center"></div>
+                <div id="uploadProgress" class="mt-16 space-y-10"></div>
+                <div id="result" class="mt-32 hidden"></div>
             </div>
         </div>
     </section>
@@ -110,7 +134,7 @@
         );
     </script>
 
-    <!-- Main Script with Ultra-Premium Results -->
+    <!-- Full Upload & Premium Results Script -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -121,13 +145,13 @@
             e.preventDefault();
             const files = document.getElementById('file').files;
             if (files.length === 0) {
-                status.textContent = 'Please select at least one file.';
-                status.className = 'text-red-600';
+                status.textContent = 'Please select files';
+                status.className = 'text-red-400';
                 return;
             }
 
-            status.textContent = 'Generating secure upload links...';
-            status.className = 'text-emerald-600';
+            status.textContent = 'Generating upload links...';
+            status.className = 'text-emerald-400';
             uploadProgress.innerHTML = '';
             result.classList.add('hidden');
 
@@ -150,14 +174,15 @@
                 const { presigned } = await presignRes.json();
 
                 status.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`;
+
                 uploadProgress.innerHTML = '';
                 const progressBars = [];
                 presigned.forEach((p, i) => {
                     const div = document.createElement('div');
                     div.innerHTML = `
-                        <p class="text-lg font-medium text-gray-700 mb-2">${files[i].name} <span class="text-sm text-gray-500">(${(files[i].size / 1024 / 1024).toFixed(1)} MB)</span></p>
-                        <div class="h-3 bg-gray-200 rounded-full overflow-hidden">
-                            <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all duration-300" id="bar-${i}"></div>
+                        <p class="text-xl font-medium mb-4">${files[i].name} <span class="text-gray-400">(${(files[i].size / 1024 / 1024).toFixed(1)} MB)</span></p>
+                        <div class="h-4 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500" id="bar-${i}"></div>
                         </div>
                     `;
                     uploadProgress.appendChild(div);
@@ -183,7 +208,7 @@
 
                 await Promise.all(uploadPromises);
 
-                status.textContent = 'Analyzing your inventory...';
+                status.textContent = 'Analyzing...';
 
                 const analyzeForm = new FormData();
                 presigned.forEach(p => analyzeForm.append('keys', p.key));
@@ -196,9 +221,8 @@
                 const data = await analyzeRes.json();
 
                 uploadProgress.innerHTML = '';
-                status.innerHTML = '<div class="text-4xl font-black text-emerald-600 glow-text">Analysis Complete 🚀</div>';
+                status.innerHTML = '<div class="text-5xl font-black text-emerald-400">Analysis Complete 🚀</div>';
 
-                // Premium Results
                 let totalHidden = 0, totalNegative = 0, maxImpact = 0;
                 data.results.forEach(r => {
                     if (r.status === "success") {
@@ -209,66 +233,65 @@
                 });
 
                 result.innerHTML = `
-                    <div class="mt-20">
-                        <div class="hero-gradient text-white p-12 md:p-20 rounded-3xl shadow-2xl text-center mb-20">
-                            <h2 class="text-5xl md:text-6xl font-black mb-8 glow-text">Your Profit Leak Report</h2>
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-10 max-w-5xl mx-auto">
-                                <div class="bg-white/10 backdrop-blur rounded-2xl p-8">
-                                    <p class="text-emerald-100 text-xl mb-4">Files Analyzed</p>
-                                    <p class="text-6xl font-black">${data.results.length}</p>
+                    <div class="mt-32">
+                        <div class="glass-card p-20 rounded-3xl glow mb-32 text-center">
+                            <h2 class="text-6xl font-black mb-12">Your Profit Leak Report</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-12">
+                                <div class="bg-white/5 rounded-3xl p-10">
+                                    <p class="text-2xl mb-6 opacity-80">Files Analyzed</p>
+                                    <p class="text-7xl font-black">${data.results.length}</p>
                                 </div>
-                                <div class="bg-white/10 backdrop-blur rounded-2xl p-8">
-                                    <p class="text-emerald-100 text-xl mb-4">Hidden COGS</p>
-                                    <p class="text-6xl font-black $${totalHidden > 0 ? 'text-yellow-300' : ''}">$${totalHidden.toLocaleString()}</p>
+                                <div class="bg-white/5 rounded-3xl p-10">
+                                    <p class="text-2xl mb-6 opacity-80">Hidden COGS</p>
+                                    <p class="text-7xl font-black ${totalHidden > 0 ? 'text-yellow-400' : ''}">$${totalHidden.toLocaleString()}</p>
                                 </div>
-                                <div class="bg-white/10 backdrop-blur rounded-2xl p-8">
-                                    <p class="text-emerald-100 text-xl mb-4">Negative Items</p>
-                                    <p class="text-6xl font-black ${totalNegative > 0 ? 'text-red-300' : 'text-emerald-200'}">${totalNegative}</p>
+                                <div class="bg-white/5 rounded-3xl p-10">
+                                    <p class="text-2xl mb-6 opacity-80">Negative Items</p>
+                                    <p class="text-7xl font-black ${totalNegative > 0 ? 'text-red-400' : ''}">${totalNegative}</p>
                                 </div>
-                                <div class="bg-white/10 backdrop-blur rounded-2xl p-8">
-                                    <p class="text-emerald-100 text-xl mb-4">Max Impact</p>
-                                    <p class="text-6xl font-black ${maxImpact > 5 ? 'text-orange-300' : ''}">${maxImpact.toFixed(1)}%</p>
+                                <div class="bg-white/5 rounded-3xl p-10">
+                                    <p class="text-2xl mb-6 opacity-80">Max Impact</p>
+                                    <p class="text-7xl font-black ${maxImpact > 5 ? 'text-orange-400' : ''}">${maxImpact.toFixed(1)}%</p>
                                 </div>
                             </div>
-                            <p class="mt-12 text-3xl font-medium">
-                                ${totalHidden > 0 || totalNegative > 0 ? '🔴 Profit leaks detected — act now!' : '🟢 Your inventory is pristine. Excellent work!'}
+                            <p class="mt-16 text-4xl font-medium">
+                                ${totalHidden > 0 || totalNegative > 0 ? '🔴 Leaks detected — take action!' : '🟢 Clean inventory — excellent!'}
                             </p>
                         </div>
 
-                        <div class="grid gap-12 md:grid-cols-2 lg:grid-cols-3">
+                        <div class="grid gap-16 md:grid-cols-2 lg:grid-cols-3">
                             ${data.results.map((file, idx) => `
-                                <div class="result-card rounded-3xl p-10 opacity-0 animate-fade-in-up" style="animation-delay: ${idx * 0.15}s">
-                                    <h3 class="text-2xl font-bold mb-4 text-gray-800 truncate">${file.filename || 'Unknown File'}</h3>
-                                    <p class="text-gray-600 mb-8">${(file.rows || 0).toLocaleString()} rows analyzed</p>
+                                <div class="result-card rounded-3xl p-12 opacity-0 animate-fade-in-up" style="animation-delay: ${idx * 0.2}s">
+                                    <h3 class="text-3xl font-bold mb-6 truncate">${file.filename || 'File'}</h3>
+                                    <p class="text-xl opacity-70 mb-10">${(file.rows || 0).toLocaleString()} rows</p>
                                     ${file.status === 'success' ? `
-                                        <div class="space-y-8">
+                                        <div class="space-y-10">
                                             <div class="flex justify-between items-end">
-                                                <span class="text-lg text-gray-600">Negative Items</span>
-                                                <span class="text-5xl font-black ${file.negative_items > 0 ? 'text-red-600' : 'text-emerald-600'}">${file.negative_items}</span>
+                                                <span class="text-xl opacity-80">Negative Items</span>
+                                                <span class="text-6xl font-black ${file.negative_items > 0 ? 'text-red-400' : 'text-emerald-400'}">${file.negative_items}</span>
                                             </div>
                                             <div class="flex justify-between items-end">
-                                                <span class="text-lg text-gray-600">Hidden COGS</span>
-                                                <span class="text-5xl font-black text-emerald-600">$${file.estimated_hidden_cogs.toLocaleString()}</span>
+                                                <span class="text-xl opacity-80">Hidden COGS</span>
+                                                <span class="text-6xl font-black text-emerald-400">$${file.estimated_hidden_cogs.toLocaleString()}</span>
                                             </div>
                                             <div class="flex justify-between items-end">
-                                                <span class="text-lg text-gray-600">True Margin</span>
-                                                <span class="text-4xl font-bold">${file.true_margin_pct.toFixed(1)}%</span>
+                                                <span class="text-xl opacity-80">True Margin</span>
+                                                <span class="text-5xl font-bold">${file.true_margin_pct.toFixed(1)}%</span>
                                             </div>
-                                            <div class="pt-8 border-t border-gray-300">
-                                                <p class="italic text-gray-700 leading-relaxed">${file.summary}</p>
-                                                <p class="text-sm text-gray-600 mt-4">${file.recommendation}</p>
+                                            <div class="pt-10 border-t border-emerald-500/30">
+                                                <p class="text-lg italic leading-relaxed">${file.summary}</p>
+                                                <p class="text-base opacity-70 mt-6">${file.recommendation}</p>
                                             </div>
                                         </div>
                                     ` : `
-                                        <div class="text-red-600 font-bold text-xl">
-                                            ⚠️ Partial Analysis<br><span class="text-lg font-normal mt-2 block">${file.detail}</span>
+                                        <div class="text-red-400 font-bold text-2xl">
+                                            ⚠️ Partial Analysis<br>
+                                            <span class="text-xl font-normal opacity-80 mt-4 block">${file.detail}</span>
                                         </div>
                                     `}
                                 </div>
                             `).join('')}
                         </div>
-
-                        ${emailValue ? `<p class="text-center mt-16 text-xl text-gray-600">Full detailed report sent to <span class="font-bold">${emailValue}</span></p>` : ''}
                     </div>
                 `;
 
@@ -276,8 +299,8 @@
 
             } catch (err) {
                 console.error(err);
-                status.textContent = 'Error: ' + (err.message || 'Upload/analysis failed');
-                status.className = 'text-red-600';
+                status.textContent = 'Error: ' + (err.message || 'Failed');
+                status.className = 'text-red-400';
             }
         });
     </script>
