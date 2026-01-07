@@ -10,7 +10,7 @@
         body { font-family: 'Inter', sans-serif; }
         .gradient-bg { background: linear-gradient(135deg, #065f46, #064e3b); }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght=400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -28,7 +28,7 @@
             <p class="text-lg mb-12 max-w-2xl mx-auto">Simply upload your CSV or Excel export. No signup required for beta – instant forensic insights.</p>
             
             <div class="max-w-2xl mx-auto bg-gray-100 p-8 rounded-lg shadow-lg">
-                <!-- Optional Login Section (for future dashboard/history) -->
+                <!-- Optional Login Section -->
                 <div id="authSection" class="mb-8 text-center">
                     <p class="text-sm text-gray-600 mb-4">Optional: Sign in to save report history (beta feature coming)</p>
                     <button id="loginButton" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition">
@@ -94,7 +94,6 @@
         const { createClient } = supabase;
         const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
-        // Check session on load
         async function updateAuthUI() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             const loginButton = document.getElementById('loginButton');
@@ -112,7 +111,6 @@
             }
         }
 
-        // Login with email magic link (no password)
         document.getElementById('loginButton').addEventListener('click', async () => {
             const email = prompt('Enter your email for magic link login:');
             if (email) {
@@ -122,7 +120,6 @@
             }
         });
 
-        // Logout
         document.getElementById('logoutButton').addEventListener('click', async () => {
             await supabaseClient.auth.signOut();
             updateAuthUI();
@@ -131,7 +128,7 @@
         updateAuthUI();
     </script>
 
-    <!-- Upload Form Script (With Optional JWT Header) -->
+    <!-- Upload Form Script (With Auto-Retry for Reliability) -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -155,7 +152,7 @@
             const emailValue = document.getElementById('email').value.trim();
             if (emailValue) formData.append('email', emailValue);
 
-            // Send JWT if logged in (optional auth)
+            // Send JWT if logged in
             const { data: { session } } = await supabaseClient.auth.getSession();
             const headers = {};
             if (session) {
@@ -163,15 +160,33 @@
             }
 
             try {
-                const response = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/upload', {
-                    method: 'POST',
-                    headers: headers,
-                    body: formData
-                });
+                let attempts = 0;
+                const maxAttempts = 5;
+                let response;
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Server error ${response.status}: ${errorText || 'Unknown'}`);
+                while (attempts < maxAttempts) {
+                    attempts++;
+                    status.textContent = attempts > 1 ? `Retrying (${attempts}/${maxAttempts})...` : 'Uploading and analyzing...';
+
+                    try {
+                        response = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/upload', {
+                            method: 'POST',
+                            headers: headers,
+                            body: formData
+                        });
+
+                        if (response.ok) break;
+                    } catch (networkErr) {
+                        console.warn(`Attempt ${attempts} failed:`, networkErr);
+                    }
+
+                    if (attempts < maxAttempts) {
+                        await new Promise(r => setTimeout(r, 3000)); // 3s delay
+                    }
+                }
+
+                if (!response || !response.ok) {
+                    throw new Error('Failed after retries');
                 }
 
                 const data = await response.json();
@@ -221,7 +236,7 @@
                 `;
             } catch (err) {
                 console.error(err);
-                status.textContent = 'Upload failed – check network or file.';
+                status.textContent = 'Upload failed after retries – try faster network.';
                 status.className = 'mt-6 text-lg text-red-600';
             }
         });
