@@ -14,12 +14,16 @@ app = FastAPI(
 )
 
 # === SECURITY: Lock down CORS to your real domain ===
+# TEMPORARY CHANGE FOR TESTING: Using ["*"] to rule out any origin mismatch issues
+# Once you confirm CORS headers are being sent and the request reaches the server,
+# revert to the specific origins below for production security.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://profitsentinel.com",
-        "https://www.profitsentinel.com",
-    ],
+    allow_origins=["*"],  # Temporary wildcard for debugging
+    # allow_origins=[
+    #     "https://profitsentinel.com",
+    #     "https://www.profitsentinel.com",
+    # ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
