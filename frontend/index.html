@@ -64,9 +64,75 @@
         </div>
     </section>
 
-    <!-- ... your other sections unchanged ... -->
+    <section class="py-16 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-12">Why Retailers Love Profit Sentinel</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white p-8 rounded-lg shadow">
+                    <h3 class="text-2xl font-bold mb-4">Forensic Leak Detection</h3>
+                    <p>Find hidden shrink others miss – negative inventory, unrecorded COGS, skipped receiving.</p>
+                </div>
+                <div class="bg-white p-8 rounded-lg shadow">
+                    <h3 class="text-2xl font-bold mb-4">True Margin Insights</h3>
+                    <p>See your real margins vs. reported – often 2–5% lower due to silent leaks.</p>
+                </div>
+                <div class="bg-white p-8 rounded-lg shadow">
+                    <h3 class="text-2xl font-bold mb-4">No Disruption</h3>
+                    <p>Works alongside your existing POS – lightweight add-on for independent retailers.</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
-    <!-- Upload Form Script (With Progress Bar + Auto-Retry) -->
+    <footer class="bg-gray-900 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2026 Profit Sentinel. Guarding your margins.</p>
+        </div>
+    </footer>
+
+    <!-- Supabase Client Initialization -->
+    <script>
+        const supabaseUrl = 'https://kbjiejqotrjsdeuxhtcx.supabase.co';
+        const supabaseAnonKey = 'sb_publishable_gocACZSOQvdZ6XV1qiu28A_W19nqgYc';
+
+        const { createClient } = supabase;
+        const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+
+        async function updateAuthUI() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const loginButton = document.getElementById('loginButton');
+            const logoutButton = document.getElementById('logoutButton');
+            const userEmail = document.getElementById('userEmail');
+
+            if (session) {
+                loginButton.classList.add('hidden');
+                logoutButton.classList.remove('hidden');
+                userEmail.textContent = `Signed in as ${session.user.email}`;
+            } else {
+                loginButton.classList.remove('hidden');
+                logoutButton.classList.add('hidden');
+                userEmail.textContent = '';
+            }
+        }
+
+        document.getElementById('loginButton').addEventListener('click', async () => {
+            const email = prompt('Enter your email for magic link login:');
+            if (email) {
+                const { error } = await supabaseClient.auth.signInWithOtp({ email });
+                if (error) alert('Error: ' + error.message);
+                else alert('Check your email for magic link!');
+            }
+        });
+
+        document.getElementById('logoutButton').addEventListener('click', async () => {
+            await supabaseClient.auth.signOut();
+            updateAuthUI();
+        });
+
+        updateAuthUI();
+    </script>
+
+    <!-- Upload Form Script (Single File + Progress Bar + Auto-Retry + Prettiest Results) -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -110,7 +176,7 @@
 
             const uploadWithRetry = async (attempts = 5) => {
                 for (let attempt = 1; attempt <= attempts; attempt++) {
-                    status.textContent = attempt > 1 ? `Retrying upload (${attempt}/${attempts})...` : 'Uploading...';
+                    status.textContent = attempt > 1 ? `Retrying (${attempt}/${attempts})...` : 'Uploading...';
 
                     const xhr = new XMLHttpRequest();
 
@@ -148,7 +214,46 @@
                         status.textContent = 'Analysis complete! 🚀';
                         status.className = 'mt-6 text-lg text-green-600';
                         result.classList.remove('hidden');
-                        // Your result display code here (unchanged from previous)
+                        result.innerHTML = `
+                            <div class="max-w-5xl mx-auto bg-white p-12 rounded-3xl shadow-2xl border border-emerald-300">
+                                <h2 class="text-5xl font-bold text-center mb-10 text-emerald-800">Profit Leak Report: ${data.filename || 'Your File'}</h2>
+
+                                <div class="grid md:grid-cols-3 gap-10 mb-16">
+                                    <div class="bg-red-100 p-10 rounded-3xl text-center shadow-2xl transform hover:scale-105 transition">
+                                        <p class="text-2xl font-semibold text-red-800 mb-6">Estimated Hidden Leak</p>
+                                        <p class="text-6xl font-bold text-red-900">$${Number(data.estimated_hidden_cogs || 0).toLocaleString()}</p>
+                                        <p class="text-xl text-red-700 mt-6">${Number(data.negative_items || 0).toLocaleString()} negative items found</p>
+                                    </div>
+                                    <div class="bg-amber-100 p-10 rounded-3xl text-center shadow-2xl transform hover:scale-105 transition">
+                                        <p class="text-2xl font-semibold text-amber-800 mb-6">Reported Margin</p>
+                                        <p class="text-6xl font-bold text-amber-900">${(data.reported_margin_pct || 0).toFixed(1)}%</p>
+                                    </div>
+                                    <div class="bg-emerald-100 p-10 rounded-3xl text-center shadow-2xl transform hover:scale-105 transition">
+                                        <p class="text-2xl font-semibold text-emerald-800 mb-6">True Margin (After Leaks)</p>
+                                        <p class="text-6xl font-bold text-emerald-900">${(data.true_margin_pct || 0).toFixed(1)}%</p>
+                                        <p class="text-xl text-emerald-700 mt-6">${(data.margin_impact_pct || 0).toFixed(1)}% impact from leaks</p>
+                                    </div>
+                                </div>
+
+                                ${data.summary ? `
+                                <div class="bg-gradient-to-r from-gray-50 to-gray-100 p-10 rounded-3xl mb-10 shadow-xl">
+                                    <h3 class="text-3xl font-bold mb-6 text-gray-800">Executive Summary</h3>
+                                    <p class="text-xl leading-relaxed text-gray-700">${data.summary}</p>
+                                </div>
+                                ` : ''}
+
+                                ${data.recommendation ? `
+                                <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-10 rounded-3xl shadow-xl">
+                                    <h3 class="text-3xl font-bold mb-6 text-blue-800">Recommendations</h3>
+                                    <p class="text-xl leading-relaxed text-blue-700">${data.recommendation}</p>
+                                </div>
+                                ` : ''}
+
+                                <p class="mt-16 text-center text-gray-500 text-base">
+                                    Processed ${Number(data.rows || 0).toLocaleString()} rows • File saved to S3: ${data.s3_status || 'Success'}
+                                </p>
+                            </div>
+                        `;
                         return;
                     } catch (err) {
                         console.warn(`Attempt ${attempt} failed:`, err);
@@ -157,7 +262,7 @@
                             status.className = 'mt-6 text-lg text-red-600';
                             progressContainer.style.display = 'none';
                         }
-                        await new Promise(r => setTimeout(r, 3000)); // 3s delay
+                        await new Promise(r => setTimeout(r, 3000));
                     }
                 }
             };
