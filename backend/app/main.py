@@ -19,11 +19,7 @@ app = FastAPI(
 # revert to the specific origins below for production security.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Temporary wildcard for debugging
-    # allow_origins=[
-    #     "https://profitsentinel.com",
-    #     "https://www.profitsentinel.com",
-    # ],
+    allow_origins=["*"],  #REMOVE IN PRODUCTION
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
