@@ -92,7 +92,7 @@
         checkSession();
     </script>
 
-    <!-- Upload Form Script (Fixed & Complete) -->
+    <!-- Upload Form Script (Fixed with Placeholder Comment) -->
     <script>
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -100,19 +100,29 @@
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const fileInput = document.getElementById('file');
+            const file = fileInput.files[0];
+            
+            if (file && file.size > 50 * 1024 * 1024) { // Optional: Warn for very large files
+                status.textContent = 'File too large (>50 MB) – may take time or fail on network.';
+                status.className = 'mt-6 text-lg text-orange-600';
+                return;
+            }
+
             status.textContent = 'Uploading and analyzing...';
             status.className = 'mt-6 text-lg text-blue-600';
 
             const formData = new FormData();
-            formData.append('file', document.getElementById('file').files[0]);
+            formData.append('file', file);
             const emailValue = document.getElementById('email').value.trim();
             if (emailValue) {
                 formData.append('email', emailValue);
             }
 
             try {
-                // Direct to your live backend (worked for one file; Vercel HTTPS is solid)
-                const response = await fetch('https://your-alb-dns-or-custom-domain/upload', {
+                // REPLACE THIS URL WITH YOUR ACTUAL AWS ALB DNS NAME
+                // Example: 'https://profit-sentinel-alb-123456789.us-east-1.elb.amazonaws.com/upload'
+                const response = await fetch('https://your-real-alb-dns-name/upload', {
                     method: 'POST',
                     body: formData
                 });
@@ -157,7 +167,7 @@
                 }
             } catch (err) {
                 console.error(err);
-                status.textContent = 'Upload failed – try a different browser/network or smaller file';
+                status.textContent = 'Upload failed – check the backend URL in code, network, or file size.';
                 status.className = 'mt-6 text-lg text-red-600';
             }
         });
