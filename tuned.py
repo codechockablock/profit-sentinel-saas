@@ -16,7 +16,7 @@ def gen_vector(d):
     phases = np.random.uniform(0, 2*np.pi, d)
     return np.exp(1j * phases)
 
-d = 16000
+d = 4000
 n_codebook = 100
 codebook = [gen_vector(d) for _ in range(n_codebook)]
 F_mat = np.array(codebook).T

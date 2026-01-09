@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Form, Header, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
@@ -10,10 +13,15 @@ import uuid
 import json
 from openai import OpenAI  # Compatible with Grok API
 
+# ------------------- FastAPI App Setup -------------------
 app = FastAPI(
     title="Profit Sentinel",
     description="Forensic analysis of POS exports to detect hidden profit leaks",
     version="1.0.0",
+    openapi_tags=[
+        {"name": "uploads", "description": "File upload and mapping"},
+        {"name": "analysis", "description": "Profit leak analysis"}
+    ]
 )
 
 app.add_middleware(
@@ -22,15 +30,17 @@ app.add_middleware(
         "https://profitsentinel.com",
         "https://www.profitsentinel.com",
         "https://profit-sentinel-saas.vercel.app",
-        "http://localhost:3000",  # Dev
+        "http://localhost:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ------------------- Clients & Config -------------------
 S3_CLIENT = boto3.client('s3')
 BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "profitsentinel-dev-uploads")
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 supabase: Client | None = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_SERVICE_KEY else None
@@ -50,10 +60,11 @@ STANDARD_FIELDS = {
     "return_flag": ["return", "refund", "is_return", "negative_qty"]
 }
 
-# Grok client (safe, only if key set)
+# Grok client
 GROK_API_KEY = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")
 grok_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1") if GROK_API_KEY else None
 
+# ------------------- Auth Helper -------------------
 async def get_current_user(authorization: str | None = Header(None)):
     if not authorization or not supabase:
         return None
@@ -64,6 +75,7 @@ async def get_current_user(authorization: str | None = Header(None)):
     except Exception:
         return None
 
+# ------------------- Utility Functions -------------------
 def load_sample_df(key: str) -> pd.DataFrame:
     obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
     contents = obj['Body'].read()
@@ -89,6 +101,7 @@ def heuristic_mapping(columns: List[str]) -> Dict:
             confidence[col] = 0.0
     return {"mapping": mapping, "confidence": confidence, "notes": "Heuristic keyword match"}
 
+# ------------------- Core Mapping Logic -------------------
 def suggest_column_mapping(df: pd.DataFrame, filename: str) -> Dict:
     columns = list(df.columns)
     sample = df.head(10).to_dict(orient='records')
@@ -96,7 +109,7 @@ def suggest_column_mapping(df: pd.DataFrame, filename: str) -> Dict:
     if grok_client:
         prompt = f"""
 You are Profit Sentinel's expert semi-agentic column mapper for messy POS/ERP exports.
-Task: Suggest mapping from uploaded columns to our standard fields using BOTH column names AND sample values for context.
+Task: Suggest mapping from uploaded columns to our standard fields using BOTH column names AND sample values.
 
 Uploaded file: {filename}
 Columns: {columns}
@@ -111,6 +124,7 @@ Rules:
 - Common tricks: "Ext Price"/"Line Total"/"Amount" → revenue, "Avg Cost" → cost.
 - Only map if confident (>0.6 internally).
 - Use EXACT standard field name or null.
+
 Return ONLY valid JSON:
 {{
   "mapping": {{"Uploaded Column Name": "standard_field" or null}},
@@ -120,24 +134,25 @@ Return ONLY valid JSON:
 """
         try:
             response = grok_client.chat.completions.create(
-                model="grok-3",  # Current model
+                model="grok-3",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
                 max_tokens=1024
             )
             content = response.choices[0].message.content.strip()
             if content.startswith("```json"):
-                content = content[7:-3]  # Strip markdown
+                content = content[7:-3].strip()
+            elif content.startswith("```"):
+                content = content[3:-3].strip()
             suggestions = json.loads(content)
         except Exception as e:
             print(f"Grok mapping failed: {e}")
             suggestions = heuristic_mapping(columns)
-            suggestions["notes"] = f"Grok failed ({e}) – heuristic fallback"
+            suggestions["notes"] = f"Grok failed ({str(e)}) – heuristic fallback"
     else:
         suggestions = heuristic_mapping(columns)
         suggestions["notes"] = "No GROK_API_KEY – heuristic fallback"
     
-    # Ensure confidence dict
     if "confidence" not in suggestions:
         suggestions["confidence"] = {col: 1.0 if suggestions["mapping"].get(col) else 0.0 for col in columns}
     
@@ -149,8 +164,36 @@ Return ONLY valid JSON:
         "notes": suggestions.get("notes", "")
     }
 
-# ... rest of your code unchanged (presign, analyze, etc.)
+# ------------------- Endpoints -------------------
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/", tags=["health"])
+async def root():
+    return {"message": "Profit Sentinel backend is running"}
+
+@app.get("/health", tags=["health"])
+async def health():
+    return {"status": "healthy"}
+
+@app.post("/presign", tags=["uploads"])
+async def presign_upload(
+    filenames: List[str] = Form(...),
+    user_id: str | None = Depends(get_current_user)
+):
+    # ... (your full presign logic from above)
+
+    return {"presigned_urls": presigned_urls}
+
+@app.post("/suggest-mapping", tags=["uploads"])
+async def suggest_mapping_endpoint(
+    key: str = Form(...),
+    filename: str = Form(...),
+    user_id: str | None = Depends(get_current_user)
+):
+    try:
+        df = load_sample_df(key)
+        result = suggest_column_mapping(df, filename)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Column mapping failed: {str(e)}")
+
+# You can add /analyze here later when ready
