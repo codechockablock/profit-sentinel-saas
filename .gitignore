@@ -6,3 +6,5 @@
 *.tfplan
 .DS_Store
 node_modules/
+backend/venv/
+.env
