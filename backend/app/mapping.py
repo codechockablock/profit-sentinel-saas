@@ -21,7 +21,7 @@ def suggest_column_mapping(df: pd.DataFrame, filename: str) -> Dict:
     columns = list(df.columns)
     sample = df.head(10).to_dict(orient='records')
     
-    client = OpenAI(api_key=os.getenv("grokapikey"), base_url="https://api.x.ai/v1")
+    client = OpenAI(api_key=os.getenv(""), base_url="https://api.x.ai/v1")
     
     prompt = f"""
 You are Profit Sentinel's expert column mapper for messy POS/ERP exports.
