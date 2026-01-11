@@ -9,6 +9,27 @@ node_modules/
 backend/venv/
 .env
 *.dylib
-1024Bin.py
-.gitignore
-Debias.py
+*.gitignore
+profit-sentinel-full-backup/
+backup-repo/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node/Next.js
+.next/
+out/
+build/
+dist/
+
+# General
+*.log
+*.tmp
+*.bak
+
+# IDE/Editor
+.vscode/
+.idea/
