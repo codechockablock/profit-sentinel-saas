@@ -9,3 +9,6 @@ node_modules/
 backend/venv/
 .env
 *.dylib
+1024Bin.py
+.gitignore
+Debias.py
