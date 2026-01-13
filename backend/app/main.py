@@ -237,9 +237,17 @@ async def analyze_upload(
         # Bundle facts with sentinel resonator (private)
         bundle = bundle_pos_facts(rows)
         
-        # MVP predefined leak queries
+        # Expanded predefined leak queries (matches expanded bindings in sentinel_engine)
         leaks = {}
-        for primitive in ["low_stock", "high_margin_leak", "dead_item", "negative_inventory"]:
+        primitives = [
+            "low_stock",
+            "negative_inventory",
+            "high_margin_leak",
+            "dead_item",
+            "high_velocity"
+            # Add "seasonal" here once binding logic is added in sentinel_engine
+        ]
+        for primitive in primitives:
             items, scores = query_bundle(bundle, primitive)
             leaks[primitive] = {"top_items": items[:20], "scores": [float(s) for s in scores[:20]]}
         
