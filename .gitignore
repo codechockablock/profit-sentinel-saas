@@ -13,6 +13,18 @@ backend/venv/
 profit-sentinel-full-backup/
 backup-repo/
 
+
+# Resonator secrets
+backend/sentinel_engine.py  
+*.pt  # Tuned params/models
+*.pth
+secrets/
+backend/*resonator*
+backend/ie_hrr*
+*.pkl  # If any pickled params
+*.bin  # Binary param files
+*.json  # If params exported
+
 # Python
 __pycache__/
 *.pyc
@@ -33,3 +45,8 @@ dist/
 # IDE/Editor
 .vscode/
 .idea/
+
+# Catch-all for any local dev files
+local_*
+dev_*
+test_resonator.py
