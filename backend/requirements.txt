@@ -4,4 +4,9 @@ python-multipart
 pandas
 openpyxl
 boto3
+python-dotenv
 supabase
+torch
+torchvision
+torchaudio
+openai
