@@ -194,21 +194,21 @@ async def presign_upload(
     filenames: List[str] = Form(...),
     user_id: str | None = Depends(get_current_user)
 ):
-    presigned_posts = []
+    presigned_urls = []
     for filename in filenames:
         key = f"{user_id or 'anonymous'}/{uuid.uuid4()}-{filename}"
-        post = S3_CLIENT.generate_presigned_post(
-            Bucket=BUCKET_NAME,
-            Key=key,
-            Fields={"acl": "private", "Content-Type": "application/octet-stream"},
-            Conditions=[
-                {"acl": "private"},
-                ["content-length-range", 0, 104857600]  # Max 100MB, adjust if needed
-            ],
+        url = S3_CLIENT.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': BUCKET_NAME,
+                'Key': key,
+                'ContentType': 'application/octet-stream',
+                'ACL': 'private'
+            },
             ExpiresIn=3600
         )
-        presigned_posts.append({"filename": filename, "key": key, "post": post})
-    return {"presigned_posts": presigned_posts}
+        presigned_urls.append({"filename": filename, "key": key, "url": url})
+    return {"presigned_urls": presigned_urls}
 
 @app.post("/suggest-mapping", tags=["uploads"])
 async def suggest_mapping_endpoint(
