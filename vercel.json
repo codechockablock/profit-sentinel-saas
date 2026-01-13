@@ -1,0 +1,10 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "destination": "https://www.profitsentinel.com/:path*",
+      "permanent": false,
+      "statusCode": 301
+    }
+  ]
+}
