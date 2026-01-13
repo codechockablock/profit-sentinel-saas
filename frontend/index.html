@@ -125,6 +125,7 @@
 
                 <div id="status" class="mt-20 text-4xl font-bold text-center"></div>
                 <div id="uploadProgress" class="mt-16 space-y-10"></div>
+                <div id="mappingSection" class="mt-32 hidden"></div>
                 <div id="result" class="mt-32 hidden"></div>
             </div>
         </div>
@@ -137,14 +138,16 @@
             'https://kbjiejqotrjsdeuxhtcx.supabase.co',
             'sb_publishable_gocACZSOQvdZ6XV1qiu28A_W19nqgYc'
         );
-    </script>
 
-    <!-- Full Upload & Premium Results Script -->
-    <script>
+        const BACKEND_URL = 'https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com';  // Production backend
+
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
         const uploadProgress = document.getElementById('uploadProgress');
+        const mappingSection = document.getElementById('mappingSection');
         const result = document.getElementById('result');
+
+        let fileData = [];  // {file, key, mapping}
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -158,12 +161,12 @@
             status.textContent = 'Generating upload links...';
             status.className = 'text-emerald-400';
             uploadProgress.innerHTML = '';
+            mappingSection.classList.add('hidden');
             result.classList.add('hidden');
+            fileData = [];
 
             const formData = new FormData();
             for (let file of files) formData.append('filenames', file.name);
-            const emailValue = document.getElementById('email').value.trim();
-            if (emailValue) formData.append('email', emailValue);
 
             let headers = {};
             try {
@@ -172,29 +175,31 @@
             } catch (err) {}
 
             try {
-                const presignRes = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/presign', {
-                    method: 'POST', headers, body: formData
+                const presignRes = await fetch(`${BACKEND_URL}/presign`, {
+                    method: 'POST',
+                    headers,
+                    body: formData
                 });
                 if (!presignRes.ok) throw new Error(await presignRes.text());
-                const { presigned } = await presignRes.json();
+                const { presigned_urls } = await presignRes.json();
 
                 status.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`;
 
                 uploadProgress.innerHTML = '';
                 const progressBars = [];
-                presigned.forEach((p, i) => {
+                presigned_urls.forEach((p, i) => {
                     const div = document.createElement('div');
                     div.innerHTML = `
                         <p class="text-xl font-medium mb-4">${files[i].name} <span class="text-gray-400">(${(files[i].size / 1024 / 1024).toFixed(1)} MB)</span></p>
                         <div class="h-4 bg-gray-700 rounded-full overflow-hidden">
-                            <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500" id="bar-${i}"></div>
+                            <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500 w-0" id="bar-${i}"></div>
                         </div>
                     `;
                     uploadProgress.appendChild(div);
                     progressBars.push(document.getElementById(`bar-${i}`));
                 });
 
-                const uploadPromises = presigned.map(async (p, i) => {
+                const uploadPromises = presigned_urls.map(async (p, i) => {
                     const file = files[i];
                     const xhr = new XMLHttpRequest();
                     return new Promise((resolve, reject) => {
@@ -203,104 +208,115 @@
                         });
                         xhr.addEventListener('load', () => xhr.status >= 200 && xhr.status < 300 ? resolve(p.key) : reject());
                         xhr.addEventListener('error', reject);
-                        xhr.open('POST', p.url.url);
-                        const uf = new FormData();
-                        Object.keys(p.url.fields).forEach(k => uf.append(k, p.url.fields[k]));
-                        uf.append('file', file);
-                        xhr.send(uf);
+                        xhr.open('PUT', p.url);
+                        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+                        xhr.send(file);
                     });
                 });
 
-                await Promise.all(uploadPromises);
+                const keys = await Promise.all(uploadPromises);
 
-                status.textContent = 'Analyzing...';
+                status.textContent = 'Suggesting column mappings...';
 
-                const analyzeForm = new FormData();
-                presigned.forEach(p => analyzeForm.append('keys', p.key));
-                if (emailValue) analyzeForm.append('email', emailValue);
+                // Suggest mapping for each file
+                const mappingPromises = keys.map(async (key, i) => {
+                    const mappingForm = new FormData();
+                    mappingForm.append('key', key);
+                    mappingForm.append('filename', files[i].name);
 
-                const analyzeRes = await fetch('https://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com/analyze', {
-                    method: 'POST', headers, body: analyzeForm
-                });
-                if (!analyzeRes.ok) throw new Error(await analyzeRes.text());
-                const data = await analyzeRes.json();
-
-                uploadProgress.innerHTML = '';
-                status.innerHTML = '<div class="text-5xl font-black text-emerald-400">Analysis Complete 🚀</div>';
-
-                let totalHidden = 0, totalNegative = 0, maxImpact = 0;
-                data.results.forEach(r => {
-                    if (r.status === "success") {
-                        totalHidden += r.estimated_hidden_cogs || 0;
-                        totalNegative += r.negative_items || 0;
-                        maxImpact = Math.max(maxImpact, r.margin_impact_pct || 0);
-                    }
+                    const mappingRes = await fetch(`${BACKEND_URL}/suggest-mapping`, {
+                        method: 'POST',
+                        headers,
+                        body: mappingForm
+                    });
+                    if (!mappingRes.ok) throw new Error(await mappingRes.text());
+                    const mappingData = await mappingRes.json();
+                    return { key, filename: files[i].name, mapping: mappingData.suggestions || {}, confidences: mappingData.confidences || {} };
                 });
 
-                result.innerHTML = `
-                    <div class="mt-32">
-                        <div class="glass-card p-20 rounded-3xl glow mb-32 text-center">
-                            <h2 class="text-6xl font-black mb-12">Your Profit Leak Report</h2>
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-12">
-                                <div class="bg-white/5 rounded-3xl p-10">
-                                    <p class="text-2xl mb-6 opacity-80">Files Analyzed</p>
-                                    <p class="text-7xl font-black">${data.results.length}</p>
-                                </div>
-                                <div class="bg-white/5 rounded-3xl p-10">
-                                    <p class="text-2xl mb-6 opacity-80">Hidden COGS</p>
-                                    <p class="text-7xl font-black ${totalHidden > 0 ? 'text-yellow-400' : ''}">$${totalHidden.toLocaleString()}</p>
-                                </div>
-                                <div class="bg-white/5 rounded-3xl p-10">
-                                    <p class="text-2xl mb-6 opacity-80">Negative Items</p>
-                                    <p class="text-7xl font-black ${totalNegative > 0 ? 'text-red-400' : ''}">${totalNegative}</p>
-                                </div>
-                                <div class="bg-white/5 rounded-3xl p-10">
-                                    <p class="text-2xl mb-6 opacity-80">Max Impact</p>
-                                    <p class="text-7xl font-black ${maxImpact > 5 ? 'text-orange-400' : ''}">${maxImpact.toFixed(1)}%</p>
-                                </div>
-                            </div>
-                            <p class="mt-16 text-4xl font-medium">
-                                ${totalHidden > 0 || totalNegative > 0 ? '🔴 Leaks detected — take action!' : '🟢 Clean inventory — excellent!'}
-                            </p>
-                        </div>
+                fileData = await Promise.all(mappingPromises);
 
-                        <div class="grid gap-16 md:grid-cols-2 lg:grid-cols-3">
-                            ${data.results.map((file, idx) => `
-                                <div class="result-card rounded-3xl p-12 opacity-0 animate-fade-in-up" style="animation-delay: ${idx * 0.2}s">
-                                    <h3 class="text-3xl font-bold mb-6 truncate">${file.filename || 'File'}</h3>
-                                    <p class="text-xl opacity-70 mb-10">${(file.rows || 0).toLocaleString()} rows</p>
-                                    ${file.status === 'success' ? `
-                                        <div class="space-y-10">
-                                            <div class="flex justify-between items-end">
-                                                <span class="text-xl opacity-80">Negative Items</span>
-                                                <span class="text-6xl font-black ${file.negative_items > 0 ? 'text-red-400' : 'text-emerald-400'}">${file.negative_items}</span>
+                // Show combined mapping confirmation
+                mappingSection.innerHTML = `
+                    <div class="glass-card p-16 rounded-3xl">
+                        <h3 class="text-4xl font-bold mb-12 text-center">Confirm Column Mappings (${fileData.length} files)</h3>
+                        <div class="space-y-12 mb-12">
+                            ${fileData.map((f, idx) => `
+                                <div class="bg-white/5 rounded-2xl p-8">
+                                    <h4 class="text-2xl font-bold mb-6">${f.filename}</h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        ${Object.entries(f.mapping).map(([col, mapped]) => `
+                                            <div class="bg-white/5 rounded-xl p-6">
+                                                <p class="text-lg opacity-80">Column: <span class="font-bold text-emerald-400">${col}</span></p>
+                                                <p class="text-xl mt-2">→ <span class="font-bold ${mapped ? 'text-emerald-400' : 'text-red-400'}">${mapped || 'Unmapped'}</span></p>
                                             </div>
-                                            <div class="flex justify-between items-end">
-                                                <span class="text-xl opacity-80">Hidden COGS</span>
-                                                <span class="text-6xl font-black text-emerald-400">$${file.estimated_hidden_cogs.toLocaleString()}</span>
-                                            </div>
-                                            <div class="flex justify-between items-end">
-                                                <span class="text-xl opacity-80">True Margin</span>
-                                                <span class="text-5xl font-bold">${file.true_margin_pct.toFixed(1)}%</span>
-                                            </div>
-                                            <div class="pt-10 border-t border-emerald-500/30">
-                                                <p class="text-lg italic leading-relaxed">${file.summary}</p>
-                                                <p class="text-base opacity-70 mt-6">${file.recommendation}</p>
-                                            </div>
-                                        </div>
-                                    ` : `
-                                        <div class="text-red-400 font-bold text-2xl">
-                                            ⚠️ Partial Analysis<br>
-                                            <span class="text-xl font-normal opacity-80 mt-4 block">${file.detail}</span>
-                                        </div>
-                                    `}
+                                        `).join('')}
+                                    </div>
                                 </div>
                             `).join('')}
                         </div>
+                        <button id="confirmAllMappings" class="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-black text-3xl py-8 rounded-3xl hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-105 glow">
+                            Confirm All & Run Full Resonator Analysis
+                        </button>
                     </div>
                 `;
+                mappingSection.classList.remove('hidden');
 
-                result.classList.remove('hidden');
+                document.getElementById('confirmAllMappings').addEventListener('click', async () => {
+                    status.textContent = 'Running full resonator analysis on all files...';
+                    mappingSection.classList.add('hidden');
+
+                    // Analyze each file
+                    const analyzePromises = fileData.map(async (f) => {
+                        const analyzeForm = new FormData();
+                        analyzeForm.append('key', f.key);
+                        analyzeForm.append('mapping', JSON.stringify(f.mapping));
+
+                        const analyzeRes = await fetch(`${BACKEND_URL}/analyze`, {
+                            method: 'POST',
+                            headers,
+                            body: analyzeForm
+                        });
+                        if (!analyzeRes.ok) throw new Error(await analyzeRes.text());
+                        const data = await analyzeRes.json();
+                        return { filename: f.filename, leaks: data.leaks || {} };
+                    });
+
+                    const allResults = await Promise.all(analyzePromises);
+
+                    status.textContent = 'Analysis Complete!';
+                    status.className = 'text-emerald-400';
+
+                    // Aggregate and display results
+                    result.innerHTML = `
+                        <div class="glass-card p-20 rounded-3xl glow">
+                            <h2 class="text-6xl font-black mb-16 text-center">Resonator Profit Leak Analysis (${allResults.length} files)</h2>
+                            <div class="space-y-20">
+                                ${allResults.map((res) => `
+                                    <div class="bg-white/5 rounded-3xl p-12">
+                                        <h3 class="text-4xl font-bold mb-8">${res.filename}</h3>
+                                        <div class="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
+                                            ${Object.entries(res.leaks || {}).map(([primitive, data]) => `
+                                                <div>
+                                                    <h4 class="text-2xl font-semibold mb-4 capitalize">${primitive.replace('_', ' ')}</h4>
+                                                    <ol class="space-y-3 text-lg">
+                                                        ${data.top_items.slice(0, 5).map((item, i) => `
+                                                            <li class="flex justify-between">
+                                                                <span>${item || 'Unknown'}</span>
+                                                                <span class="text-emerald-400">${data.scores[i]?.toFixed(2) || 'N/A'}</span>
+                                                            </li>
+                                                        `).join('')}
+                                                    </ol>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                    result.classList.remove('hidden');
+                });
 
             } catch (err) {
                 console.error(err);
