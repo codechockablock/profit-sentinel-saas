@@ -18,6 +18,7 @@ backup-repo/
 backend/sentinel_engine.py  
 *.pt  # Tuned params/models
 *.pth
+backend/app/sentinel_engine.py
 secrets/
 backend/*resonator*
 backend/ie_hrr*

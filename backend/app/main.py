@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # Force app folder on path for imports
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -12,10 +16,9 @@ import os
 import uuid
 import json
 from openai import OpenAI  # Compatible with Grok API
-from sentinel_engine import bundle_pos_facts, query_bundle
 
-# Private local import — NEVER commit this file or path
-from backend.sentinel_engine import bundle_pos_facts, query_bundle  # Local only, .gitignore'd
+# Private resonator — local only, .gitignore'd
+from sentinel_engine import bundle_pos_facts, query_bundle  # In backend/app/sentinel_engine.py
 
 # ------------------- FastAPI App Setup -------------------
 app = FastAPI(
