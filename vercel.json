@@ -2,16 +2,22 @@
   "redirects": [
     {
       "source": "/:path*",
-      "destination": "https://www.profitsentinel.com/:path*",
+      "destination": "https://profitsentinel.com/:path*",
       "permanent": false,
       "statusCode": 307
     },
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "profitsentinel.com" }],
-      "destination": "https://www.profitsentinel.com/:path*",
-      "permanent": true,
-      "statusCode": 301
+      "has": [
+        {
+          "type": "header",
+          "key": "x-forwarded-proto",
+          "value": "http"
+        }
+      ],
+      "destination": "https://profitsentinel.com/:path*",
+      "permanent": false,
+      "statusCode": 307
     }
   ]
 }
