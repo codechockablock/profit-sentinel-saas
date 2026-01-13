@@ -24,7 +24,7 @@ backend/*resonator*
 backend/ie_hrr*
 *.pkl  # If any pickled params
 *.bin  # Binary param files
-*.json  # If params exported
+# If params exported
 
 # Python
 __pycache__/
