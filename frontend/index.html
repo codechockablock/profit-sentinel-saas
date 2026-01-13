@@ -179,16 +179,14 @@
                     headers,
                     body: formData
                 });
-                if (!presignRes.ok) throw new Error(await presignRes.text());
-                const data = await presignRes.json();
-                const presigned_urls = data.presigned_urls || data.presigned || [];  // Robust for old/new backend
-                if (!presigned_urls || presigned_urls.length === 0) throw new Error('No presigned URLs returned');
-
+                if (!presignRes.ok) throw new Error(await presignRes.text());const data = await presignRes.json();
+                const presigned_posts = data.presigned_posts || [];  // New key
+                if (!presigned_posts || presigned_posts.length === 0) throw new Error('No presigned posts returned');
                 status.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`;
 
                 uploadProgress.innerHTML = '';
                 const progressBars = [];
-                presigned_urls.forEach((p, i) => {
+                presigned_posts.forEach((p, i) => {
                     const div = document.createElement('div');
                     div.innerHTML = `
                         <p class="text-xl font-medium mb-4">${files[i].name} <span class="text-gray-400">(${(files[i].size / 1024 / 1024).toFixed(1)} MB)</span></p>
@@ -200,21 +198,23 @@
                     progressBars.push(document.getElementById(`bar-${i}`));
                 });
 
-                const uploadPromises = presigned_urls.map(async (p, i) => {
+                const uploadPromises = presigned_posts.map(async (p, i) => {
                     const file = files[i];
-                    const xhr = new XMLHttpRequest();
+                    const postData = new FormData();
+                    Object.entries(p.post.fields).forEach(([k, v]) => postData.append(k, v));
+                    postData.append('file', file);
+
                     return new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
                         xhr.upload.addEventListener('progress', e => {
                             if (e.lengthComputable) progressBars[i].style.width = (e.loaded / e.total) * 100 + '%';
                         });
-                        xhr.addEventListener('load', () => xhr.status >= 200 && xhr.status < 300 ? resolve({key: p.key, filename: file.name}) : reject(new Error(`Upload failed for ${file.name}`)));
-                        xhr.addEventListener('error', () => reject(new Error(`Upload error for ${file.name}`)));
-                        xhr.open('PUT', p.url);  // PUT for current backend
-                        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-                        xhr.send(file);
-                    });
-                });
-
+                        xhr.addEventListener('load', () => xhr.status >= 200 && xhr.status < 300 ? resolve({key: p.key, filename: file.name}) : reject(new Error(`Upload failed: ${xhr.status}`)));
+                        xhr.addEventListener('error', () => reject(new Error('Network error')));
+                        xhr.open('POST', p.post.url);
+                        xhr.send(postData);
+    });
+});
                 const uploadedFiles = await Promise.all(uploadPromises);
 
                 status.textContent = 'Suggesting column mappings...';
