@@ -180,13 +180,13 @@
                     body: formData
                 });
                 if (!presignRes.ok) throw new Error(await presignRes.text());const data = await presignRes.json();
-                const presigned_posts = data.presigned_posts || [];  // New key
-                if (!presigned_posts || presigned_posts.length === 0) throw new Error('No presigned posts returned');
+                const presigned_urls = data.presigned_posts || [];  // New key
+                if (!presigned_urls || presigned_urls.length === 0) throw new Error('No presigned posts returned');
                 status.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`;
 
                 uploadProgress.innerHTML = '';
                 const progressBars = [];
-                presigned_posts.forEach((p, i) => {
+                presigned_urls.forEach((p, i) => {
                     const div = document.createElement('div');
                     div.innerHTML = `
                         <p class="text-xl font-medium mb-4">${files[i].name} <span class="text-gray-400">(${(files[i].size / 1024 / 1024).toFixed(1)} MB)</span></p>

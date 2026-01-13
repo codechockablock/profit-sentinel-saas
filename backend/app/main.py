@@ -226,15 +226,18 @@ async def suggest_mapping_endpoint(
 @app.post("/analyze", tags=["analysis"])
 async def analyze_upload(
     key: str = Form(...),
-    mapping: Dict[str, str] = Form(...),  # Confirmed mapping from frontend
+    mapping: str = Form(...),  # Change to str — curl/Swagger sends as string
     user_id: str | None = Depends(get_current_user)
 ):
     try:
+        # Parse mapping string to dict
+        mapping_dict = json.loads(mapping)
+        
         # Load full CSV/Excel
         df = load_full_df(key)
         
         # Apply confirmed mapping
-        df = df.rename(columns={k: v for k, v in mapping.items() if v})
+        df = df.rename(columns={k: v for k, v in mapping_dict.items() if v})
         
         # Convert to rows for resonator
         rows = df.to_dict(orient='records')
@@ -242,20 +245,14 @@ async def analyze_upload(
         # Bundle facts with sentinel resonator (private)
         bundle = bundle_pos_facts(rows)
         
-        # Expanded predefined leak queries (matches expanded bindings in sentinel_engine)
+        # MVP predefined leak queries
         leaks = {}
-        primitives = [
-            "low_stock",
-            "negative_inventory",
-            "high_margin_leak",
-            "dead_item",
-            "high_velocity"
-            # Add "seasonal" here once binding logic is added in sentinel_engine
-        ]
-        for primitive in primitives:
+        for primitive in ["low_stock", "high_margin_leak", "dead_item", "negative_inventory"]:
             items, scores = query_bundle(bundle, primitive)
             leaks[primitive] = {"top_items": items[:20], "scores": [float(s) for s in scores[:20]]}
         
         return {"status": "success", "leaks": leaks}
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="Invalid mapping JSON")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
