@@ -4,6 +4,13 @@
       "source": "/:path*",
       "destination": "https://www.profitsentinel.com/:path*",
       "permanent": false,
+      "statusCode": 307
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "profitsentinel.com" }],
+      "destination": "https://www.profitsentinel.com/:path*",
+      "permanent": true,
       "statusCode": 301
     }
   ]
