@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, Form, Header, Depends, HTTPException
+from fastapi import FastAPI, Form, Header, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
 from typing import List, Dict
@@ -12,6 +12,10 @@ import os
 import uuid
 import json
 from openai import OpenAI  # Compatible with Grok API
+from sentinel_engine import bundle_pos_facts, query_bundle
+
+# Private local import — NEVER commit this file or path
+from backend.sentinel_engine import bundle_pos_facts, query_bundle  # Local only, .gitignore'd
 
 # ------------------- FastAPI App Setup -------------------
 app = FastAPI(
@@ -83,6 +87,14 @@ def load_sample_df(key: str) -> pd.DataFrame:
         return pd.read_csv(io.BytesIO(contents), nrows=50, dtype=str, keep_default_na=False, encoding='latin1')
     else:
         return pd.read_excel(io.BytesIO(contents), nrows=50, dtype=str)
+
+def load_full_df(key: str) -> pd.DataFrame:
+    obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
+    contents = obj['Body'].read()
+    if key.lower().endswith('.csv'):
+        return pd.read_csv(io.BytesIO(contents), dtype=str)
+    else:
+        return pd.read_excel(io.BytesIO(contents), dtype=str)
 
 def heuristic_mapping(columns: List[str]) -> Dict:
     mapping = {}
@@ -179,8 +191,15 @@ async def presign_upload(
     filenames: List[str] = Form(...),
     user_id: str | None = Depends(get_current_user)
 ):
-    # ... (your full presign logic from above)
-
+    presigned_urls = []
+    for filename in filenames:
+        key = f"{user_id or 'anonymous'}/{uuid.uuid4()}-{filename}"
+        url = S3_CLIENT.generate_presigned_url(
+            'put_object',
+            Params={'Bucket': BUCKET_NAME, 'Key': key, 'ContentType': 'application/octet-stream'},
+            ExpiresIn=3600
+        )
+        presigned_urls.append({"filename": filename, "key": key, "url": url})
     return {"presigned_urls": presigned_urls}
 
 @app.post("/suggest-mapping", tags=["uploads"])
@@ -196,4 +215,31 @@ async def suggest_mapping_endpoint(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Column mapping failed: {str(e)}")
 
-# You can add /analyze here later when ready
+@app.post("/analyze", tags=["analysis"])
+async def analyze_upload(
+    key: str = Form(...),
+    mapping: Dict[str, str] = Form(...),  # Confirmed mapping from frontend
+    user_id: str | None = Depends(get_current_user)
+):
+    try:
+        # Load full CSV/Excel
+        df = load_full_df(key)
+        
+        # Apply confirmed mapping
+        df = df.rename(columns={k: v for k, v in mapping.items() if v})
+        
+        # Convert to rows for resonator
+        rows = df.to_dict(orient='records')
+        
+        # Bundle facts with sentinel resonator (private)
+        bundle = bundle_pos_facts(rows)
+        
+        # MVP predefined leak queries
+        leaks = {}
+        for primitive in ["low_stock", "high_margin_leak", "dead_item", "negative_inventory"]:
+            items, scores = query_bundle(bundle, primitive)
+            leaks[primitive] = {"top_items": items[:20], "scores": [float(s) for s in scores[:20]]}
+        
+        return {"status": "success", "leaks": leaks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
