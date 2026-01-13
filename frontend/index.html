@@ -219,7 +219,7 @@
                         });
                         xhr.addEventListener('error', () => reject(new Error('Network error')));
                         xhr.open('PUT', p.url);
-                        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+                        xhr.setRequestHeader('Content-Type', 'application/octet-stream');  // Fixed to match presigned URL
                         xhr.send(file);
                     });
                 });
