@@ -15,10 +15,15 @@ import boto3
 import os
 import uuid
 import json
+import logging
+import time
 from openai import OpenAI  # Compatible with Grok API
 
 # Private resonator — local only, .gitignore'd
 from sentinel_engine import bundle_pos_facts, query_bundle  # In backend/app/sentinel_engine.py
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 
 # ------------------- FastAPI App Setup -------------------
 app = FastAPI(
@@ -93,17 +98,23 @@ def load_sample_df(key: str) -> pd.DataFrame:
             return pd.read_csv(io.BytesIO(contents), nrows=50, dtype=str, keep_default_na=False, encoding='latin1')
     else:
         return pd.read_excel(io.BytesIO(contents), nrows=50, dtype=str)
-    
+        
 def load_full_df(key: str) -> pd.DataFrame:
     obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
     contents = obj['Body'].read()
     if key.lower().endswith('.csv'):
         try:
+            # Default: assume UTF-8
             return pd.read_csv(io.BytesIO(contents), dtype=str)
         except UnicodeDecodeError:
-            return pd.read_csv(io.BytesIO(contents), dtype=str, encoding='latin1', errors='replace')
+            # Safe fallback: latin1 reads any bytes without error
+            return pd.read_csv(io.BytesIO(contents), dtype=str, encoding='latin1')
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"CSV parsing failed: {str(e)}")
     else:
+        # Excel files
         return pd.read_excel(io.BytesIO(contents), dtype=str)
+        
 def heuristic_mapping(columns: List[str]) -> Dict:
     mapping = {}
     confidence = {}
@@ -237,26 +248,58 @@ async def analyze_upload(
         # Parse mapping string to dict
         mapping_dict = json.loads(mapping)
         
+        overall_start = time.time()
+        logging.info(f"Starting analysis for key: {key}")
+
         # Load full CSV/Excel
+        load_start = time.time()
         df = load_full_df(key)
-        
+        logging.info(f"Loaded DataFrame ({len(df)} rows, {len(df.columns)} columns) in {time.time() - load_start:.2f}s")
+
         # Apply confirmed mapping
         df = df.rename(columns={k: v for k, v in mapping_dict.items() if v})
-        
+
+        # Clean numeric columns (remove $ and commas, convert to float, fill NaN with 0)
+        numeric_cols = ['quantity', 'revenue', 'cost', 'discount', 'tax']
+        clean_start = time.time()
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(
+                    df[col].astype(str).str.replace(r'[$,]', '', regex=True).str.strip(),
+                    errors='coerce'
+                )
+        df[numeric_cols] = df[numeric_cols].fillna(0.0)
+        logging.info(f"Cleaned numeric columns in {time.time() - clean_start:.2f}s")
+
+        # Drop duplicate columns to avoid warnings
+        df = df.loc[:, ~df.columns.duplicated(keep='first')]
+
         # Convert to rows for resonator
+        records_start = time.time()
         rows = df.to_dict(orient='records')
-        
-        # Bundle facts with sentinel resonator (private)
+        logging.info(f"Converted to records ({len(rows)} rows) in {time.time() - records_start:.2f}s")
+
+        # Bundle facts
+        bundle_start = time.time()
         bundle = bundle_pos_facts(rows)
-        
-        # MVP predefined leak queries
+        logging.info(f"Bundled facts in {time.time() - bundle_start:.2f}s")
+
+        # Query leaks
         leaks = {}
         for primitive in ["low_stock", "high_margin_leak", "dead_item", "negative_inventory"]:
+            query_start = time.time()
             items, scores = query_bundle(bundle, primitive)
-            leaks[primitive] = {"top_items": items[:20], "scores": [float(s) for s in scores[:20]]}
+            leaks[primitive] = {
+                "top_items": items[:20],
+                "scores": [float(s) for s in scores[:20]]
+            }
+            logging.info(f"Queried {primitive} in {time.time() - query_start:.2f}s")
+
+        logging.info(f"Full analysis completed in {time.time() - overall_start:.2f}s")
         
         return {"status": "success", "leaks": leaks}
     except json.JSONDecodeError:
         raise HTTPException(status_code=422, detail="Invalid mapping JSON")
     except Exception as e:
+        logging.error(f"Analysis failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
