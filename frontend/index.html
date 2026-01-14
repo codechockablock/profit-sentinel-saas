@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
+    <link rel="icon" href="https://i.imgur.com/68NbW7U.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -138,7 +139,7 @@
             'sb_publishable_gocACZSOQvdZ6XV1qiu28A_W19nqgYc'
         );
 
-        const BACKEND_URL = 'https://api.profitsentinel.com';  // HTTP to avoid cert invalid
+        const BACKEND_URL = 'https://api.profitsentinel.com';
 
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -181,46 +182,67 @@
                 });
                 if (!presignRes.ok) throw new Error(await presignRes.text());
                 const data = await presignRes.json();
-                console.log('Presigned response:', data);  // Debug
-                const presigned = data.presigned || [];
-                if (!presigned || presigned.length === 0) throw new Error('No presigned returned');
+                console.log('Presigned response:', data);
+
+                const presigned = data.presigned_urls || [];
+                if (presigned.length === 0 || presigned.length !== files.length) {
+                    throw new Error('No presigned URLs returned or count mismatch');
+                }
+
                 status.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`;
+                status.className = 'text-emerald-400';
 
                 uploadProgress.innerHTML = '';
                 const progressBars = [];
+
                 presigned.forEach((p, i) => {
                     const div = document.createElement('div');
+                    div.className = 'space-y-4';
                     div.innerHTML = `
-                        <p class="text-xl font-medium mb-4">${files[i].name} <span class="text-gray-400">(${(files[i].size / 1024 / 1024).toFixed(1)} MB)</span></p>
-                        <div class="h-4 bg-gray-700 rounded-full overflow-hidden">
-                            <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500 w-0" id="bar-${i}"></div>
+                        <p class="text-xl font-medium">${files[i].name} 
+                            <span class="text-gray-400">(${(files[i].size / 1024 / 1024).toFixed(1)} MB)</span>
+                        </p>
+                        <div class="w-full bg-gray-700 rounded-full h-6 overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-300 w-0" 
+                                 id="bar-${i}"></div>
                         </div>
+                        <p class="text-sm text-gray-400" id="percent-${i}">0%</p>
                     `;
                     uploadProgress.appendChild(div);
-                    progressBars.push(document.getElementById(`bar-${i}`));
+                    progressBars.push({
+                        bar: document.getElementById(`bar-${i}`),
+                        percent: document.getElementById(`percent-${i}`)
+                    });
                 });
 
                 const uploadPromises = presigned.map(async (p, i) => {
                     const file = files[i];
-                    const postData = new FormData();
-                    Object.entries(p.post.fields).forEach(([k, v]) => postData.append(k, v));
-                    postData.append('file', file);
 
                     return new Promise((resolve, reject) => {
                         const xhr = new XMLHttpRequest();
-                        xhr.upload.addEventListener('progress', e => {
-                            if (e.lengthComputable) progressBars[i].style.width = (e.loaded / e.total) * 100 + '%';
-                        });
-                        xhr.addEventListener('load', () => {
-                            if (xhr.status >= 200 && xhr.status < 300) {
-                                resolve({key: p.key, filename: file.name});
-                            } else {
-                                reject(new Error(`Upload failed: ${xhr.status}`));
+
+                        xhr.upload.addEventListener('progress', (e) => {
+                            if (e.lengthComputable) {
+                                const percent = Math.round((e.loaded / e.total) * 100);
+                                progressBars[i].bar.style.width = percent + '%';
+                                progressBars[i].percent.textContent = percent + '%';
                             }
                         });
-                        xhr.addEventListener('error', () => reject(new Error('Network error')));
-                        xhr.open('POST', p.post.url);
-                        xhr.send(postData);
+
+                        xhr.addEventListener('load', () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                resolve({ key: p.key, filename: file.name });
+                            } else {
+                                reject(new Error(`Upload failed: ${xhr.status} ${xhr.responseText || xhr.statusText}`));
+                            }
+                        });
+
+                        xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+                        xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+                        xhr.open('PUT', p.url);
+                        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+                        xhr.send(file);
                     });
                 });
 
