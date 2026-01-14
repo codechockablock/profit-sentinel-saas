@@ -204,8 +204,8 @@ async def presign_upload(
             Params={
                 'Bucket': BUCKET_NAME,
                 'Key': key,
-                'ContentType': 'application/octet-stream',
-                'ACL': 'private'
+                # REMOVED 'ContentType': 'application/octet-stream'
+                # REMOVED 'ACL': 'private' (private is default; ACLs are deprecated)
             },
             ExpiresIn=3600
         )
