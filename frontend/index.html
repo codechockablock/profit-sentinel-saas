@@ -241,7 +241,7 @@
                         xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
 
                         xhr.open('PUT', p.url);
-                        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+                        // Removed Content-Type header — not needed and avoids signature mismatches
                         xhr.send(file);
                     });
                 });
