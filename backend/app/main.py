@@ -87,10 +87,13 @@ def load_sample_df(key: str) -> pd.DataFrame:
     obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
     contents = obj['Body'].read()
     if key.lower().endswith('.csv'):
-        return pd.read_csv(io.BytesIO(contents), nrows=50, dtype=str, keep_default_na=False, encoding='latin1')
+        try:
+            return pd.read_csv(io.BytesIO(contents), nrows=50, dtype=str, keep_default_na=False)
+        except UnicodeDecodeError:
+            return pd.read_csv(io.BytesIO(contents), nrows=50, dtype=str, keep_default_na=False, encoding='latin1')
     else:
         return pd.read_excel(io.BytesIO(contents), nrows=50, dtype=str)
-
+    
 def load_full_df(key: str) -> pd.DataFrame:
     obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
     contents = obj['Body'].read()
