@@ -95,10 +95,12 @@ def load_full_df(key: str) -> pd.DataFrame:
     obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
     contents = obj['Body'].read()
     if key.lower().endswith('.csv'):
-        return pd.read_csv(io.BytesIO(contents), dtype=str)
+        try:
+            return pd.read_csv(io.BytesIO(contents), dtype=str)
+        except UnicodeDecodeError:
+            return pd.read_csv(io.BytesIO(contents), dtype=str, encoding='latin1', errors='replace')
     else:
         return pd.read_excel(io.BytesIO(contents), dtype=str)
-
 def heuristic_mapping(columns: List[str]) -> Dict:
     mapping = {}
     confidence = {}
