@@ -6,7 +6,6 @@
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="icon" href="/favicon.ico">
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -139,6 +138,7 @@
             'sb_publishable_gocACZSOQvdZ6XV1qiu28A_W19nqgYc'
         );
 
+        // FIXED: HTTP backend (ALB cert invalid for HTTPS)
         const BACKEND_URL = 'http://profitsentinel-dev-alb-1068333431.us-east-1.elb.amazonaws.com';
 
         const form = document.getElementById('uploadForm');
@@ -180,9 +180,12 @@
                     headers,
                     body: formData
                 });
-                if (!presignRes.ok) throw new Error(await presignRes.text());
+                if (!presignRes.ok) {
+                    const errorText = await presignRes.text();
+                    throw new Error(`Presign failed: ${presignRes.status} - ${errorText}`);
+                }
                 const data = await presignRes.json();
-                console.log('Presigned response:', data);  // Debug — F12 Console shows keys
+                console.log('Presigned response:', data);  // Debug — F12 Console shows keys/urls
                 const presigned_urls = data.presigned_urls || [];
                 if (!presigned_urls || presigned_urls.length === 0) throw new Error('No presigned urls returned');
                 status.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`;
@@ -214,12 +217,12 @@
                                 console.log(`Upload successful for ${file.name}`);
                                 resolve({key: p.key, filename: file.name});
                             } else {
-                                reject(new Error(`Upload failed: ${xhr.status} - ${xhr.responseText}`));
+                                reject(new Error(`Upload failed: ${xhr.status}`));
                             }
                         });
                         xhr.addEventListener('error', () => reject(new Error('Network error')));
                         xhr.open('PUT', p.url);
-                        xhr.setRequestHeader('Content-Type', 'application/octet-stream');  // Fixed to match presigned URL
+                        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
                         xhr.send(file);
                     });
                 });
@@ -274,54 +277,60 @@
                     status.textContent = 'Running full resonator analysis on all files...';
                     mappingSection.classList.add('hidden');
 
-                    const analyzePromises = fileData.map(async (f) => {
-                        const analyzeForm = new FormData();
-                        analyzeForm.append('key', f.key);
-                        analyzeForm.append('mapping', JSON.stringify(f.mapping));
+                    try {
+                        const analyzePromises = fileData.map(async (f) => {
+                            const analyzeForm = new FormData();
+                            analyzeForm.append('key', f.key);
+                            analyzeForm.append('mapping', JSON.stringify(f.mapping));
 
-                        const analyzeRes = await fetch(`${BACKEND_URL}/analyze`, {
-                            method: 'POST',
-                            headers,
-                            body: analyzeForm
+                            const analyzeRes = await fetch(`${BACKEND_URL}/analyze`, {
+                                method: 'POST',
+                                headers,
+                                body: analyzeForm
+                            });
+                            if (!analyzeRes.ok) throw new Error(await analyzeRes.text());
+                            const data = await analyzeRes.json();
+                            return { filename: f.filename, leaks: data.leaks || {} };
                         });
-                        if (!analyzeRes.ok) throw new Error(await analyzeRes.text());
-                        const data = await analyzeRes.json();
-                        return { filename: f.filename, leaks: data.leaks || {} };
-                    });
 
-                    const allResults = await Promise.all(analyzePromises);
+                        const allResults = await Promise.all(analyzePromises);
 
-                    status.textContent = 'Analysis Complete!';
-                    status.className = 'text-emerald-400';
+                        status.textContent = 'Analysis Complete!';
+                        status.className = 'text-emerald-400';
 
-                    result.innerHTML = `
-                        <div class="glass-card p-20 rounded-3xl glow">
-                            <h2 class="text-6xl font-black mb-16 text-center">Resonator Profit Leak Analysis (${allResults.length} files)</h2>
-                            <div class="space-y-20">
-                                ${allResults.map((res) => `
-                                    <div class="bg-white/5 rounded-3xl p-12">
-                                        <h3 class="text-4xl font-bold mb-8">${res.filename}</h3>
-                                        <div class="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
-                                            ${Object.entries(res.leaks).map(([primitive, data]) => `
-                                                <div>
-                                                    <h4 class="text-2xl font-semibold mb-4 capitalize">${primitive.replace('_', ' ')}</h4>
-                                                    <ol class="space-y-3 text-lg">
-                                                        ${data.top_items.slice(0, 5).map((item, i) => `
-                                                            <li class="flex justify-between">
-                                                                <span>${item || 'Unknown'}</span>
-                                                                <span class="text-emerald-400">${data.scores[i]?.toFixed(2) || 'N/A'}</span>
-                                                            </li>
-                                                        `).join('')}
-                                                    </ol>
-                                                </div>
-                                            `).join('')}
+                        result.innerHTML = `
+                            <div class="glass-card p-20 rounded-3xl glow">
+                                <h2 class="text-6xl font-black mb-16 text-center">Resonator Profit Leak Analysis (${allResults.length} files)</h2>
+                                <div class="space-y-20">
+                                    ${allResults.map((res) => `
+                                        <div class="bg-white/5 rounded-3xl p-12">
+                                            <h3 class="text-4xl font-bold mb-8">${res.filename}</h3>
+                                            <div class="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
+                                                ${Object.entries(res.leaks).map(([primitive, data]) => `
+                                                    <div>
+                                                        <h4 class="text-2xl font-semibold mb-4 capitalize">${primitive.replace('_', ' ')}</h4>
+                                                        <ol class="space-y-3 text-lg">
+                                                            ${data.top_items.slice(0, 5).map((item, i) => `
+                                                                <li class="flex justify-between">
+                                                                    <span>${item || 'Unknown'}</span>
+                                                                    <span class="text-emerald-400">${data.scores[i]?.toFixed(2) || 'N/A'}</span>
+                                                                </li>
+                                                            `).join('')}
+                                                        </ol>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
                                         </div>
-                                    </div>
-                                `).join('')}
+                                    `).join('')}
+                                </div>
                             </div>
-                        </div>
-                    `;
-                    result.classList.remove('hidden');
+                        `;
+                        result.classList.remove('hidden');
+                    } catch (err) {
+                        console.error(err);
+                        status.textContent = 'Error: ' + (err.message || 'Analysis failed');
+                        status.className = 'text-red-400';
+                    }
                 });
 
             } catch (err) {
