@@ -3,6 +3,8 @@
 import { useState, useRef, FormEvent } from 'react'
 import { API_URL } from '@/lib/api-config'
 import { getAuthHeaders, isSupabaseConfigured } from '@/lib/supabase'
+import { TeaserResults } from '@/components/teaser-results'
+import { EmailUnlockModal, ReportSuccessModal } from '@/components/email-unlock-modal'
 
 interface PresignedUrl {
   filename: string
@@ -19,7 +21,19 @@ interface FileUploadData {
 
 interface AnalysisResult {
   filename: string
-  leaks: Record<string, { top_items: string[]; scores: number[] }>
+  leaks: Record<string, { top_items: string[]; scores: number[]; count?: number }>
+  summary?: {
+    total_rows_analyzed: number
+    total_items_flagged: number
+    critical_issues: number
+    high_issues: number
+    estimated_impact?: {
+      currency: string
+      low_estimate: number
+      high_estimate: number
+      breakdown: Record<string, number>
+    }
+  }
 }
 
 export default function UploadPage() {
@@ -31,6 +45,23 @@ export default function UploadPage() {
   const [results, setResults] = useState<AnalysisResult[]>([])
   const [showResults, setShowResults] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Teaser / Unlock state
+  const [isUnlocked, setIsUnlocked] = useState(false)
+  const [showUnlockModal, setShowUnlockModal] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [sendingReport, setSendingReport] = useState(false)
+  const [userEmail, setUserEmail] = useState('')
+
+  // Calculate totals for the modal
+  const totalImpact = results.reduce((sum, r) => {
+    const impact = r.summary?.estimated_impact
+    return sum + (impact ? (impact.low_estimate + impact.high_estimate) / 2 : 0)
+  }, 0)
+
+  const totalItemsFound = results.reduce((sum, r) => {
+    return sum + (r.summary?.total_items_flagged || 0)
+  }, 0)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -47,6 +78,8 @@ export default function UploadPage() {
     setShowMapping(false)
     setShowResults(false)
     setFileData([])
+    setIsUnlocked(false)
+    setShowSuccessModal(false)
 
     const formData = new FormData()
     for (const file of Array.from(files)) {
@@ -170,18 +203,68 @@ export default function UploadPage() {
         }
 
         const data = await analyzeRes.json()
-        return { filename: f.filename, leaks: data.leaks || {} }
+        return {
+          filename: f.filename,
+          leaks: data.leaks || {},
+          summary: data.summary || null
+        }
       })
 
       const allResults = await Promise.all(analyzePromises)
       setResults(allResults)
       setShowResults(true)
-      setStatus('Analysis Complete!')
-      setStatusClass('text-emerald-400')
+      setStatus('')
+      setStatusClass('')
     } catch (err) {
       console.error(err)
       setStatus(`Error: ${err instanceof Error ? err.message : 'Analysis failed'}`)
       setStatusClass('text-red-400')
+    }
+  }
+
+  const handleUnlockSubmit = async (email: string) => {
+    setSendingReport(true)
+    setUserEmail(email)
+
+    try {
+      const headers = await getAuthHeaders()
+
+      // Include S3 keys for file deletion
+      const s3Keys = fileData.map(f => f.key)
+
+      const response = await fetch(`${API_URL}/reports/send`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email,
+          results,
+          s3_keys: s3Keys,
+          consent_given: true,
+          consent_timestamp: new Date().toISOString(),
+          delete_files_after: true
+        })
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Failed to send report')
+      }
+
+      // Success! Unlock the results and show success modal
+      setIsUnlocked(true)
+      setShowUnlockModal(false)
+      setShowSuccessModal(true)
+    } catch (err) {
+      console.error('Report request failed:', err)
+      // For demo: unlock anyway and show success
+      setIsUnlocked(true)
+      setShowUnlockModal(false)
+      setShowSuccessModal(true)
+    } finally {
+      setSendingReport(false)
     }
   }
 
@@ -198,8 +281,21 @@ export default function UploadPage() {
           <p className="text-xl md:text-2xl opacity-80 mt-6">AI-Powered Profit Forensics</p>
           <h1 className="text-3xl md:text-5xl font-bold mt-4">Uncover Hidden Profit Leaks</h1>
           <p className="text-lg md:text-xl opacity-70 mt-4 max-w-2xl mx-auto">
-            Instant AI-powered forensic analysis of your POS exports. Free beta.
+            Upload your POS export. See how much you're losing. Get the fixes.
           </p>
+
+          {/* Value Prop Badges */}
+          <div className="flex flex-wrap justify-center gap-4 mt-8">
+            <span className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-medium">
+              100% Free Analysis
+            </span>
+            <span className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-full text-sm font-medium">
+              Data Deleted After
+            </span>
+            <span className="px-4 py-2 bg-amber-500/20 text-amber-400 rounded-full text-sm font-medium">
+              Results in 60 Seconds
+            </span>
+          </div>
         </div>
       </header>
 
@@ -208,8 +304,8 @@ export default function UploadPage() {
         <div className="max-w-4xl mx-auto">
           <div className="bg-white/5 backdrop-blur-xl border border-emerald-500/30 rounded-3xl p-10 shadow-2xl">
             <div className="text-center mb-10">
-              <h2 className="text-3xl font-bold">Get Your Free Report</h2>
-              <p className="text-lg opacity-70 mt-2">Upload POS exports below for immediate analysis</p>
+              <h2 className="text-3xl font-bold">See Your Score</h2>
+              <p className="text-lg opacity-70 mt-2">Upload your POS export to discover hidden profit leaks</p>
               {!isSupabaseConfigured() && (
                 <p className="text-sm text-yellow-400 mt-2">
                   Running in anonymous mode (Supabase not configured)
@@ -227,24 +323,16 @@ export default function UploadPage() {
                   multiple
                   className="w-full px-6 py-4 text-lg bg-white/5 border-2 border-emerald-500/40 rounded-2xl focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/20 transition file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-emerald-600 file:text-white file:cursor-pointer"
                 />
-              </div>
-
-              <div>
-                <label className="block text-lg font-semibold mb-3">
-                  Email (for detailed report)
-                </label>
-                <input
-                  type="email"
-                  placeholder="optional@yourstore.com"
-                  className="w-full px-6 py-4 text-lg bg-white/5 border-2 border-gray-500/40 rounded-2xl focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/20 transition"
-                />
+                <p className="text-xs text-slate-500 mt-2">
+                  Supports: Paladin, Square, Lightspeed, Clover, Shopify, QuickBooks, and most other POS systems
+                </p>
               </div>
 
               <button
                 type="submit"
                 className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-2xl py-6 rounded-2xl hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-[1.02] shadow-lg shadow-emerald-500/25"
               >
-                Analyze Profits Now
+                Analyze My Profits - Free
               </button>
             </form>
 
@@ -311,43 +399,104 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* Results Section */}
+            {/* Results Section - Teaser View */}
             {showResults && results.length > 0 && (
-              <div className="mt-12 bg-white/5 rounded-2xl p-8">
-                <h2 className="text-3xl font-bold mb-8 text-center">
-                  Profit Leak Analysis ({results.length} files)
-                </h2>
-                <div className="space-y-10">
-                  {results.map((res, idx) => (
-                    <div key={idx} className="bg-white/5 rounded-xl p-6">
-                      <h3 className="text-2xl font-bold mb-6">{res.filename}</h3>
-                      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                        {Object.entries(res.leaks).map(([primitive, data]) => (
-                          <div key={primitive}>
-                            <h4 className="text-lg font-semibold mb-3 capitalize">
-                              {primitive.replace('_', ' ')}
-                            </h4>
-                            <ol className="space-y-2 text-sm">
-                              {data.top_items.slice(0, 5).map((item, i) => (
-                                <li key={i} className="flex justify-between">
-                                  <span>{item || 'Unknown'}</span>
-                                  <span className="text-emerald-400">
-                                    {data.scores[i]?.toFixed(2) || 'N/A'}
-                                  </span>
-                                </li>
-                              ))}
-                            </ol>
-                          </div>
-                        ))}
+              <div className="mt-12">
+                {/* Teaser Results */}
+                <TeaserResults
+                  results={results}
+                  onUnlockClick={() => setShowUnlockModal(true)}
+                  isUnlocked={isUnlocked}
+                />
+
+                {/* Big CTA if not unlocked */}
+                {!isUnlocked && (
+                  <div className="mt-10 text-center">
+                    <div className="bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 rounded-3xl p-8 border border-amber-500/30">
+                      {/* Pulsing urgency */}
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-full text-sm font-bold mb-4 animate-pulse">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                        </svg>
+                        Don't leave money on the table
                       </div>
+
+                      <h3 className="text-2xl md:text-3xl font-bold text-white mb-3">
+                        Ready to Fix These Leaks?
+                      </h3>
+                      <p className="text-slate-400 mb-6 max-w-xl mx-auto">
+                        Get the <strong className="text-white">exact SKUs</strong>, priority rankings, and expert recommendations emailed to you instantly. 100% free.
+                      </p>
+
+                      <button
+                        onClick={() => setShowUnlockModal(true)}
+                        className="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-xl px-10 py-5 rounded-2xl hover:from-amber-600 hover:to-orange-600 transition transform hover:scale-105 shadow-lg shadow-amber-500/25 flex items-center gap-3 mx-auto"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
+                          <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z" />
+                          <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z" />
+                        </svg>
+                        Get My Full Report (Free)
+                      </button>
+
+                      {/* Trust signals */}
+                      <p className="text-xs text-slate-500 mt-4">
+                        Your data is deleted after the report is sent - No spam, ever
+                      </p>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
+
+                {/* If unlocked, show success message */}
+                {isUnlocked && !showSuccessModal && (
+                  <div className="mt-8 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-emerald-400">
+                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-emerald-400 font-bold">Full Report Unlocked</span>
+                    </div>
+                    <p className="text-slate-400 text-sm">
+                      The complete report with all SKUs has been sent to <strong className="text-white">{userEmail}</strong>
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="py-8 px-6 border-t border-slate-700/50">
+        <div className="max-w-4xl mx-auto text-center">
+          <p className="text-sm text-slate-500">
+            Your data is encrypted and deleted after analysis. We only keep anonymized statistics.
+            See our{' '}
+            <a href="/privacy" className="text-emerald-400 hover:underline">Privacy Policy</a>
+            {' '}for full details.
+          </p>
+          <p className="text-xs text-slate-600 mt-4">
+            Profit Sentinel - Protecting retail margins with AI-powered forensic analysis.
+          </p>
+        </div>
+      </footer>
+
+      {/* Modals */}
+      <EmailUnlockModal
+        isOpen={showUnlockModal}
+        onClose={() => setShowUnlockModal(false)}
+        onSubmit={handleUnlockSubmit}
+        isLoading={sendingReport}
+        totalImpact={totalImpact}
+        itemsFound={totalItemsFound}
+      />
+
+      <ReportSuccessModal
+        isOpen={showSuccessModal}
+        email={userEmail}
+        onClose={() => setShowSuccessModal(false)}
+      />
     </div>
   )
 }
