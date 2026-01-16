@@ -396,7 +396,7 @@ if [ "$BACKEND_ONLY" = true ] || [ "$FRONTEND_ONLY" = false ]; then
 
     # Build Docker image
     print_step "Building Docker image..."
-    docker build -t "$ECR_REPO_NAME:$IMAGE_TAG" apps/api/
+    docker build --platform linux/amd64 -t "$ECR_REPO_NAME:$IMAGE_TAG" apps/api/
     print_success "Docker image built: $ECR_REPO_NAME:$IMAGE_TAG"
 
     # Tag for ECR
