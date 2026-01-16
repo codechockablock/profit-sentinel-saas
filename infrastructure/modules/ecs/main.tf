@@ -18,6 +18,17 @@ variable "alb_sg_id" {
   type = string
 }
 
+variable "ecr_repository_url" {
+  description = "ECR repository URL for the API image (without tag)"
+  type        = string
+}
+
+variable "container_image_tag" {
+  description = "Container image tag to deploy"
+  type        = string
+  default     = "latest"
+}
+
 resource "aws_ecs_cluster" "main" {
   name = "${var.name_prefix}-cluster"
 
@@ -72,7 +83,7 @@ resource "aws_ecs_task_definition" "api" {
   container_definitions = jsonencode([
     {
       name      = "api"
-      image     = "133608785306.dkr.ecr.us-east-1.amazonaws.com/profitsentinel-dev-api:latest" # ECR URL
+      image     = "${var.ecr_repository_url}:${var.container_image_tag}"
       essential = true
       portMappings = [
         {

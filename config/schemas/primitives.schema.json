@@ -1,0 +1,178 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profitsentinel.com/schemas/primitives.schema.json",
+  "title": "Profit Sentinel Primitives Schema",
+  "description": "Schema for validating HDC/VSA primitive configuration files",
+  "type": "object",
+  "required": ["schema_version", "domain", "dimensions", "primitives"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of the schema"
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Domain identifier for this primitive set"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the primitive set"
+    },
+    "dimensions": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 131072,
+      "description": "Dimensionality of hypervectors (must be power of 2)"
+    },
+    "dtype": {
+      "type": "string",
+      "enum": ["complex64", "complex128", "float32", "float64"],
+      "default": "complex64",
+      "description": "Data type for vectors"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "author": { "type": "string" },
+        "created": { "type": "string", "format": "date" },
+        "version": { "type": "string" },
+        "checksum_algorithm": { 
+          "type": "string",
+          "enum": ["sha256", "md5", "sha1"]
+        }
+      }
+    },
+    "primitives": {
+      "type": "object",
+      "description": "Categorized primitive definitions",
+      "additionalProperties": {
+        "type": "object",
+        "description": "Category of primitives",
+        "additionalProperties": {
+          "$ref": "#/definitions/primitive"
+        }
+      }
+    },
+    "aliases": {
+      "type": "object",
+      "description": "Short name aliases for primitives",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "composite_patterns": {
+      "type": "object",
+      "description": "Pre-defined composite primitive patterns",
+      "additionalProperties": {
+        "$ref": "#/definitions/composite_pattern"
+      }
+    }
+  },
+  "definitions": {
+    "primitive": {
+      "type": "object",
+      "required": ["seed", "description", "category"],
+      "properties": {
+        "seed": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Deterministic seed string for vector generation"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the primitive"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["anomaly", "state", "operator", "temporal", "role", "metric", "pattern"],
+          "description": "Functional category of the primitive"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "warning", "info", "normal"],
+          "description": "Default severity when this primitive triggers"
+        },
+        "semantic_type": {
+          "type": "string",
+          "description": "Semantic classification for the primitive"
+        },
+        "related_primitives": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of semantically related primitives"
+        },
+        "root_causes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "description"],
+            "properties": {
+              "code": { "type": "string" },
+              "description": { "type": "string" },
+              "likelihood": { 
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "description": "Possible root causes when this primitive is detected"
+        },
+        "investigation_steps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Steps to investigate when this primitive is detected"
+        },
+        "detection_hints": {
+          "type": "object",
+          "properties": {
+            "threshold_field": { "type": "string" },
+            "threshold_operator": { 
+              "type": "string",
+              "enum": ["<", "<=", ">", ">=", "==", "!="]
+            },
+            "default_threshold": { "type": "number" },
+            "computed_field": { "type": "string" },
+            "computation": { "type": "string" },
+            "time_window_days": { "type": "integer" }
+          },
+          "description": "Hints for automatic detection of this primitive"
+        },
+        "algebraic_note": {
+          "type": "string",
+          "description": "Notes on algebraic properties or usage"
+        }
+      }
+    },
+    "composite_pattern": {
+      "type": "object",
+      "required": ["description", "composition"],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "composition": {
+          "type": "object",
+          "required": ["operator", "operands"],
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": ["bind", "bundle", "permute", "sequence"]
+            },
+            "operands": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          }
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "warning", "info"]
+        }
+      }
+    }
+  }
+}

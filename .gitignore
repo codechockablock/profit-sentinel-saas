@@ -1,53 +1,203 @@
-.terraform/
-.terraform.lock.hcl
-*.tfstate
-*.tfstate.*
-*.tfvars
-*.tfplan
-.DS_Store
-node_modules/
-backend/venv/
+# ===========================================
+# Profit Sentinel - Git Ignore
+# ===========================================
+
+# ===========================================
+# Environment & Secrets (CRITICAL - never commit)
+# ===========================================
 .env
-*.dylib
-*.gitignore
-profit-sentinel-full-backup/
-backup-repo/
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+*.env
 
-
-# Resonator secrets
-backend/sentinel_engine.py  
-*.pt  # Tuned params/models
-*.pth
-backend/app/sentinel_engine.py
+# API Keys & Credentials
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials.json
+credentials.yaml
+credentials.yml
+service-account.json
 secrets/
-backend/*resonator*
-backend/ie_hrr*
-*.pkl  # If any pickled params
-*.bin  # Binary param files
-# If params exported
+.secrets
+*-credentials.json
 
+# AWS
+.aws/
+aws-credentials
+aws_credentials
+
+# Vercel
+.vercel/project.json
+
+# ===========================================
 # Python
+# ===========================================
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Node/Next.js
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+backend/venv/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ===========================================
+# Node.js / Next.js
+# ===========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js
 .next/
 out/
-build/
-dist/
 
-# General
+# Vercel
+.vercel
+
+# ===========================================
+# IDE & Editors
+# ===========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# JetBrains
+*.iml
+
+# ===========================================
+# OS Files
+# ===========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ===========================================
+# Build Outputs
+# ===========================================
 *.log
+logs/
 *.tmp
+*.temp
 *.bak
 
-# IDE/Editor
-.vscode/
-.idea/
+# ===========================================
+# Docker
+# ===========================================
+.docker/
 
-# Catch-all for any local dev files
+# ===========================================
+# Terraform
+# ===========================================
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ===========================================
+# ML / Data
+# ===========================================
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.h5
+*.model
+*.bin
+*.dylib
+data/
+datasets/
+checkpoints/
+
+# Large files (use Git LFS if needed)
+*.csv
+*.xlsx
+*.xls
+!examples/*.csv
+
+# ===========================================
+# Project Specific
+# ===========================================
+# Legacy/backup folders
+profit-sentinel-full-backup/
+backup-repo/
+.legacy-backup/
+
+# Sentinel engine core (proprietary - keep in private repo only)
+packages/sentinel-engine/src/sentinel_engine/core.py
+
+# Local development
 local_*
 dev_*
 test_resonator.py

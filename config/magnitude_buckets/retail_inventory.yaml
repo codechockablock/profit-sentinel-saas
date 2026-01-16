@@ -1,0 +1,266 @@
+# Profit Sentinel Magnitude Buckets - Retail Inventory
+# Schema Version: 1.0.0
+#
+# Magnitude buckets provide continuous-to-discrete bindings for numeric values.
+# Instead of arbitrary thresholds, we define semantic ranges that get bound
+# to entity vectors.
+#
+# USAGE:
+#   loader = MagnitudeLoader()
+#   loader.load_file("magnitude_buckets/retail_inventory.yaml")
+#   bucket = loader.get_bucket("quantity", 5)  # Returns "critical_low"
+#   binding = loader.bind_magnitude(sku_vec, "quantity", 5)
+---
+schema_version: "1.0.0"
+domain: retail_inventory
+description: "Magnitude buckets for retail inventory metrics"
+
+fields:
+  # ---------------------------------------------------------------------------
+  # QUANTITY BUCKETS
+  # Inventory quantity levels
+  # ---------------------------------------------------------------------------
+  quantity:
+    field: quantity
+    buckets:
+      - name: negative
+        min_value: null
+        max_value: 0
+        seed_suffix: ":mag:quantity:negative"
+
+      - name: critical_low
+        min_value: 0
+        max_value: 5
+        seed_suffix: ":mag:quantity:critical_low"
+
+      - name: low
+        min_value: 5
+        max_value: 20
+        seed_suffix: ":mag:quantity:low"
+
+      - name: normal
+        min_value: 20
+        max_value: 100
+        seed_suffix: ":mag:quantity:normal"
+
+      - name: high
+        min_value: 100
+        max_value: 500
+        seed_suffix: ":mag:quantity:high"
+
+      - name: excessive
+        min_value: 500
+        max_value: null
+        seed_suffix: ":mag:quantity:excessive"
+
+  # ---------------------------------------------------------------------------
+  # MARGIN BUCKETS
+  # Profit margin percentages
+  # ---------------------------------------------------------------------------
+  margin:
+    field: margin_percent
+    buckets:
+      - name: negative
+        min_value: null
+        max_value: 0
+        seed_suffix: ":mag:margin:negative"
+
+      - name: breakeven
+        min_value: 0
+        max_value: 5
+        seed_suffix: ":mag:margin:breakeven"
+
+      - name: below_target
+        min_value: 5
+        max_value: 20
+        seed_suffix: ":mag:margin:below_target"
+
+      - name: target
+        min_value: 20
+        max_value: 35
+        seed_suffix: ":mag:margin:target"
+
+      - name: healthy
+        min_value: 35
+        max_value: 50
+        seed_suffix: ":mag:margin:healthy"
+
+      - name: premium
+        min_value: 50
+        max_value: null
+        seed_suffix: ":mag:margin:premium"
+
+  # ---------------------------------------------------------------------------
+  # VELOCITY BUCKETS
+  # Sales velocity (units per day)
+  # ---------------------------------------------------------------------------
+  velocity:
+    field: daily_velocity
+    buckets:
+      - name: dead
+        min_value: null
+        max_value: 0.01
+        seed_suffix: ":mag:velocity:dead"
+
+      - name: very_slow
+        min_value: 0.01
+        max_value: 0.1
+        seed_suffix: ":mag:velocity:very_slow"
+
+      - name: slow
+        min_value: 0.1
+        max_value: 1.0
+        seed_suffix: ":mag:velocity:slow"
+
+      - name: moderate
+        min_value: 1.0
+        max_value: 5.0
+        seed_suffix: ":mag:velocity:moderate"
+
+      - name: fast
+        min_value: 5.0
+        max_value: 20.0
+        seed_suffix: ":mag:velocity:fast"
+
+      - name: very_fast
+        min_value: 20.0
+        max_value: null
+        seed_suffix: ":mag:velocity:very_fast"
+
+  # ---------------------------------------------------------------------------
+  # DAYS OF SUPPLY BUCKETS
+  # Days until stockout at current velocity
+  # ---------------------------------------------------------------------------
+  days_of_supply:
+    field: days_of_supply
+    buckets:
+      - name: stockout
+        min_value: null
+        max_value: 0
+        seed_suffix: ":mag:dos:stockout"
+
+      - name: critical
+        min_value: 0
+        max_value: 3
+        seed_suffix: ":mag:dos:critical"
+
+      - name: low
+        min_value: 3
+        max_value: 7
+        seed_suffix: ":mag:dos:low"
+
+      - name: adequate
+        min_value: 7
+        max_value: 30
+        seed_suffix: ":mag:dos:adequate"
+
+      - name: high
+        min_value: 30
+        max_value: 90
+        seed_suffix: ":mag:dos:high"
+
+      - name: excessive
+        min_value: 90
+        max_value: null
+        seed_suffix: ":mag:dos:excessive"
+
+  # ---------------------------------------------------------------------------
+  # VALUE BUCKETS
+  # Dollar value (inventory value, revenue, etc.)
+  # ---------------------------------------------------------------------------
+  value:
+    field: value
+    buckets:
+      - name: trivial
+        min_value: null
+        max_value: 10
+        seed_suffix: ":mag:value:trivial"
+
+      - name: low
+        min_value: 10
+        max_value: 100
+        seed_suffix: ":mag:value:low"
+
+      - name: moderate
+        min_value: 100
+        max_value: 1000
+        seed_suffix: ":mag:value:moderate"
+
+      - name: significant
+        min_value: 1000
+        max_value: 10000
+        seed_suffix: ":mag:value:significant"
+
+      - name: major
+        min_value: 10000
+        max_value: 100000
+        seed_suffix: ":mag:value:major"
+
+      - name: critical
+        min_value: 100000
+        max_value: null
+        seed_suffix: ":mag:value:critical"
+
+  # ---------------------------------------------------------------------------
+  # AGE BUCKETS
+  # Days since last activity (sale, receipt, etc.)
+  # ---------------------------------------------------------------------------
+  age:
+    field: days_since_activity
+    buckets:
+      - name: fresh
+        min_value: null
+        max_value: 7
+        seed_suffix: ":mag:age:fresh"
+
+      - name: recent
+        min_value: 7
+        max_value: 30
+        seed_suffix: ":mag:age:recent"
+
+      - name: aging
+        min_value: 30
+        max_value: 90
+        seed_suffix: ":mag:age:aging"
+
+      - name: old
+        min_value: 90
+        max_value: 180
+        seed_suffix: ":mag:age:old"
+
+      - name: ancient
+        min_value: 180
+        max_value: null
+        seed_suffix: ":mag:age:ancient"
+
+  # ---------------------------------------------------------------------------
+  # SEVERITY SCORE BUCKETS
+  # Normalized severity scores (0-100)
+  # ---------------------------------------------------------------------------
+  severity_score:
+    field: severity_score
+    buckets:
+      - name: info
+        min_value: null
+        max_value: 20
+        seed_suffix: ":mag:sev:info"
+
+      - name: warning
+        min_value: 20
+        max_value: 40
+        seed_suffix: ":mag:sev:warning"
+
+      - name: medium
+        min_value: 40
+        max_value: 60
+        seed_suffix: ":mag:sev:medium"
+
+      - name: high
+        min_value: 60
+        max_value: 80
+        seed_suffix: ":mag:sev:high"
+
+      - name: critical
+        min_value: 80
+        max_value: null
+        seed_suffix: ":mag:sev:critical"

@@ -1,0 +1,432 @@
+"""
+vsa_core/resonator.py - Convergence-Lock Resonator for Query Cleanup
+
+The resonator is the core inference mechanism in VSA systems. Given a noisy
+query vector, it iteratively refines the query until it converges to a
+stable attractor in the representation space.
+
+Algorithm:
+    1. Start with noisy query q
+    2. Compute similarity to all codebook vectors
+    3. Reconstruct cleaned vector using weighted combination
+    4. Apply momentum (mix with previous iterate)
+    5. Normalize and repeat until convergence
+
+Mathematical Foundation:
+    The resonator implements iterative projection onto the manifold of
+    "clean" representations. With momentum, it follows a damped trajectory
+    that settles into local attractors.
+
+    For complex phasors, convergence means phase alignment with
+    codebook entries that explain the query.
+"""
+from __future__ import annotations
+import torch
+from typing import Dict, List, Optional, Tuple, Any
+from dataclasses import dataclass
+import time
+
+from .types import ResonatorConfig
+from .vectors import normalize, batch_similarity, get_device, get_dtype
+from .operators import sparse_resonance_step
+
+
+@dataclass
+class ResonatorResult:
+    """Result from resonator processing."""
+    vector: torch.Tensor
+    iterations: int
+    converged: bool
+    convergence_delta: float
+    elapsed_ms: float
+    top_matches: List[Tuple[str, float]]  # [(label, similarity), ...]
+    metadata: Dict[str, Any]
+
+
+class Resonator:
+    """Convergence-lock resonator for VSA query cleanup.
+
+    The resonator takes a noisy query vector and iteratively refines it
+    against a codebook until the query stabilizes on clean primitives.
+
+    Example:
+        resonator = Resonator()
+        resonator.set_codebook(labels, vectors)
+
+        # Query with noisy fact
+        result = resonator.resonate(noisy_query)
+        print(result.top_matches)  # [('low_stock', 0.87), ('sku:123', 0.65)]
+    """
+
+    def __init__(self, config: Optional[ResonatorConfig] = None):
+        """Initialize resonator.
+
+        Args:
+            config: Resonator configuration (uses defaults if None)
+        """
+        self.config = config or ResonatorConfig()
+        self.codebook: Optional[torch.Tensor] = None
+        self.labels: List[str] = []
+        self._device = get_device()
+
+    def set_codebook(
+        self,
+        labels: List[str],
+        vectors: torch.Tensor
+    ) -> None:
+        """Set the codebook for resonator queries.
+
+        Args:
+            labels: Human-readable labels for each vector
+            vectors: Codebook matrix of shape (n, d)
+        """
+        if len(labels) != len(vectors):
+            raise ValueError("labels and vectors must have same length")
+
+        self.labels = labels
+        self.codebook = vectors.to(self._device)
+
+    def add_to_codebook(self, label: str, vector: torch.Tensor) -> None:
+        """Add single vector to codebook.
+
+        Args:
+            label: Label for the vector
+            vector: Vector to add
+        """
+        vector = vector.to(self._device)
+
+        if self.codebook is None:
+            self.codebook = vector.unsqueeze(0)
+            self.labels = [label]
+        else:
+            self.codebook = torch.cat([
+                self.codebook,
+                vector.unsqueeze(0)
+            ], dim=0)
+            self.labels.append(label)
+
+    def resonate(
+        self,
+        query: torch.Tensor,
+        return_trajectory: bool = False
+    ) -> ResonatorResult:
+        """Run convergence-lock resonator on query.
+
+        Args:
+            query: Input query vector
+            return_trajectory: If True, include iteration history in metadata
+
+        Returns:
+            ResonatorResult with cleaned vector and diagnostics
+        """
+        if self.codebook is None or len(self.codebook) == 0:
+            raise RuntimeError("Codebook not set. Call set_codebook() first.")
+
+        start_time = time.time()
+        query = query.to(self._device)
+
+        # Initialize
+        x = normalize(query.clone())
+        x_prev = x.clone()
+        momentum = torch.zeros_like(x)
+        trajectory = [x.clone()] if return_trajectory else []
+
+        converged = False
+        final_delta = float('inf')
+
+        for iteration in range(self.config.iterations):
+            # Multi-step update
+            for _ in range(self.config.multi_steps):
+                # Sparse resonance step
+                x_new = sparse_resonance_step(
+                    x,
+                    self.codebook,
+                    top_k=self.config.top_k,
+                    power=self.config.power
+                )
+
+                # Apply momentum
+                momentum = self.config.alpha * momentum + (1 - self.config.alpha) * (x_new - x)
+                x = normalize(x + momentum)
+
+            # Check convergence
+            delta = float(torch.norm(x - x_prev).item())
+
+            if return_trajectory:
+                trajectory.append(x.clone())
+
+            if self.config.early_exit and delta < self.config.convergence_threshold:
+                converged = True
+                final_delta = delta
+                break
+
+            x_prev = x.clone()
+            final_delta = delta
+
+        # Compute final similarities
+        similarities = batch_similarity(x, self.codebook)
+        top_k = min(10, len(similarities))
+        values, indices = torch.topk(similarities, top_k)
+
+        top_matches = [
+            (self.labels[idx], float(val))
+            for idx, val in zip(indices.tolist(), values.tolist())
+        ]
+
+        elapsed = (time.time() - start_time) * 1000
+
+        metadata = {
+            "codebook_size": len(self.codebook),
+            "config": self.config.model_dump(),
+        }
+        if return_trajectory:
+            metadata["trajectory"] = trajectory
+
+        return ResonatorResult(
+            vector=x,
+            iterations=iteration + 1,
+            converged=converged,
+            convergence_delta=final_delta,
+            elapsed_ms=elapsed,
+            top_matches=top_matches,
+            metadata=metadata
+        )
+
+    def batch_resonate(
+        self,
+        queries: torch.Tensor
+    ) -> List[ResonatorResult]:
+        """Process multiple queries.
+
+        Args:
+            queries: Batch of queries (n, d)
+
+        Returns:
+            List of results, one per query
+        """
+        return [self.resonate(q) for q in queries]
+
+    def resonator_attention(
+        self,
+        query: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get attention weights without full resonation.
+
+        Useful for inspecting what the resonator "sees" in a query.
+
+        Args:
+            query: Input query
+
+        Returns:
+            (weights, labels_indices) of top-k attended vectors
+        """
+        if self.codebook is None:
+            raise RuntimeError("Codebook not set")
+
+        query = query.to(self._device)
+        sims = batch_similarity(query, self.codebook)
+
+        k = min(self.config.top_k, len(sims))
+        values, indices = torch.topk(sims, k)
+
+        weights = torch.pow(torch.clamp(values, min=0), self.config.power)
+        weights = weights / (weights.sum() + 1e-10)
+
+        return weights, indices
+
+
+class HierarchicalResonator:
+    """Multi-level resonator with coarse-to-fine processing.
+
+    Uses a hierarchy of codebooks for efficient large-scale queries:
+    1. Quick coarse matching to find relevant region
+    2. Fine resonation within selected region
+
+    Useful for codebooks with 100k+ entries.
+    """
+
+    def __init__(
+        self,
+        config: Optional[ResonatorConfig] = None,
+        coarse_clusters: int = 100
+    ):
+        """Initialize hierarchical resonator.
+
+        Args:
+            config: Resonator configuration
+            coarse_clusters: Number of coarse clusters
+        """
+        self.config = config or ResonatorConfig()
+        self.coarse_clusters = coarse_clusters
+
+        self.coarse_centroids: Optional[torch.Tensor] = None
+        self.fine_codebooks: List[torch.Tensor] = []
+        self.fine_labels: List[List[str]] = []
+        self.cluster_assignments: List[int] = []
+        self._device = get_device()
+
+    def build_hierarchy(
+        self,
+        labels: List[str],
+        vectors: torch.Tensor
+    ) -> None:
+        """Build hierarchical codebook structure.
+
+        Uses k-means to create coarse clusters, then stores
+        fine codebooks per cluster.
+
+        Args:
+            labels: All labels
+            vectors: All vectors
+        """
+        vectors = vectors.to(self._device)
+        n = len(vectors)
+
+        # Simple k-means for coarse clustering
+        k = min(self.coarse_clusters, n)
+
+        # Initialize centroids randomly
+        indices = torch.randperm(n)[:k]
+        centroids = vectors[indices].clone()
+
+        # K-means iterations
+        for _ in range(20):
+            # Assign to nearest centroid
+            dists = torch.cdist(vectors.float(), centroids.float())
+            assignments = torch.argmin(dists, dim=1)
+
+            # Update centroids
+            new_centroids = torch.zeros_like(centroids)
+            for i in range(k):
+                mask = assignments == i
+                if mask.any():
+                    new_centroids[i] = normalize(vectors[mask].sum(dim=0))
+                else:
+                    new_centroids[i] = centroids[i]
+            centroids = new_centroids
+
+        self.coarse_centroids = centroids
+        self.cluster_assignments = assignments.tolist()
+
+        # Build fine codebooks per cluster
+        self.fine_codebooks = []
+        self.fine_labels = []
+
+        for i in range(k):
+            mask = assignments == i
+            cluster_vectors = vectors[mask]
+            cluster_labels = [labels[j] for j, m in enumerate(mask.tolist()) if m]
+
+            self.fine_codebooks.append(cluster_vectors)
+            self.fine_labels.append(cluster_labels)
+
+    def resonate(self, query: torch.Tensor) -> ResonatorResult:
+        """Hierarchical resonation.
+
+        Args:
+            query: Input query
+
+        Returns:
+            Result from fine-grained resonator
+        """
+        if self.coarse_centroids is None:
+            raise RuntimeError("Hierarchy not built. Call build_hierarchy() first.")
+
+        query = query.to(self._device)
+
+        # Find best cluster
+        coarse_sims = batch_similarity(query, self.coarse_centroids)
+        best_cluster = int(torch.argmax(coarse_sims))
+
+        # Create temporary resonator for fine search
+        fine_resonator = Resonator(self.config)
+        fine_resonator.set_codebook(
+            self.fine_labels[best_cluster],
+            self.fine_codebooks[best_cluster]
+        )
+
+        result = fine_resonator.resonate(query)
+        result.metadata["selected_cluster"] = best_cluster
+        result.metadata["coarse_similarity"] = float(coarse_sims[best_cluster])
+
+        return result
+
+
+class EnsembleResonator:
+    """Ensemble of resonators with different configurations.
+
+    Runs multiple resonators and combines results, useful for
+    increasing robustness and detecting edge cases.
+    """
+
+    def __init__(self, configs: List[ResonatorConfig]):
+        """Initialize ensemble.
+
+        Args:
+            configs: List of configurations for each resonator
+        """
+        self.resonators = [Resonator(c) for c in configs]
+
+    def set_codebook(self, labels: List[str], vectors: torch.Tensor) -> None:
+        """Set codebook for all resonators."""
+        for r in self.resonators:
+            r.set_codebook(labels, vectors)
+
+    def resonate(
+        self,
+        query: torch.Tensor,
+        aggregation: str = "vote"
+    ) -> ResonatorResult:
+        """Run ensemble resonation.
+
+        Args:
+            query: Input query
+            aggregation: "vote" (majority), "average" (mean vectors)
+
+        Returns:
+            Aggregated result
+        """
+        results = [r.resonate(query) for r in self.resonators]
+
+        if aggregation == "vote":
+            # Count votes for top match
+            votes: Dict[str, float] = {}
+            for r in results:
+                if r.top_matches:
+                    label = r.top_matches[0][0]
+                    votes[label] = votes.get(label, 0) + 1
+
+            # Sort by votes
+            sorted_votes = sorted(votes.items(), key=lambda x: -x[1])
+            top_matches = [(label, count / len(results)) for label, count in sorted_votes[:10]]
+
+            return ResonatorResult(
+                vector=results[0].vector,  # Use first resonator's vector
+                iterations=max(r.iterations for r in results),
+                converged=all(r.converged for r in results),
+                convergence_delta=min(r.convergence_delta for r in results),
+                elapsed_ms=sum(r.elapsed_ms for r in results),
+                top_matches=top_matches,
+                metadata={"ensemble_size": len(results), "aggregation": "vote"}
+            )
+        else:
+            # Average vectors
+            avg_vector = normalize(sum(r.vector for r in results))
+            avg_sims = batch_similarity(avg_vector, self.resonators[0].codebook)
+            top_k = min(10, len(avg_sims))
+            values, indices = torch.topk(avg_sims, top_k)
+
+            top_matches = [
+                (self.resonators[0].labels[idx], float(val))
+                for idx, val in zip(indices.tolist(), values.tolist())
+            ]
+
+            return ResonatorResult(
+                vector=avg_vector,
+                iterations=max(r.iterations for r in results),
+                converged=all(r.converged for r in results),
+                convergence_delta=min(r.convergence_delta for r in results),
+                elapsed_ms=sum(r.elapsed_ms for r in results),
+                top_matches=top_matches,
+                metadata={"ensemble_size": len(results), "aggregation": "average"}
+            )
