@@ -325,6 +325,12 @@ async def analyze_upload(
             status_code=400,
             detail="Uploaded file is empty or has no valid data"
         )
+    except ValueError as e:
+        # File size or validation errors
+        error_msg = str(e)
+        if "too large" in error_msg.lower() or "size" in error_msg.lower():
+            raise HTTPException(status_code=413, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
     except Exception as e:
         logger.error(f"Analysis failed: {str(e)}", exc_info=True)
         # Provide user-friendly error message
