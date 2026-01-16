@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
     <link rel="icon" href="https://i.imgur.com/68NbW7U.png" type="image/png">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS is now bundled via PostCSS build - CDN removed for production -->
+    <link rel="stylesheet" href="/styles/tailwind.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
@@ -132,16 +133,18 @@
     </section>
 
     <!-- Supabase Init -->
-    <!-- IMPORTANT: Set these values via environment variables at build time or server-side injection -->
+    <!-- Configuration injected via env-config.js (generated at deploy time) or inline defaults -->
+    <script src="/env-config.js" onerror="console.log('env-config.js not found, using defaults')"></script>
     <script>
-        // Configuration - these should be injected at build/deploy time
-        // Do NOT hardcode real credentials here
+        // Configuration - loaded from env-config.js or window.__ENV__
+        // In production, env-config.js sets window.__ENV__ with real values
         const SUPABASE_URL = window.__ENV__?.SUPABASE_URL || '';
         const SUPABASE_ANON_KEY = window.__ENV__?.SUPABASE_ANON_KEY || '';
         const BACKEND_URL = window.__ENV__?.BACKEND_URL || 'https://api.profitsentinel.com';
 
-        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-            console.warn('Supabase configuration missing. Set window.__ENV__ with SUPABASE_URL and SUPABASE_ANON_KEY');
+        // Only warn in development if missing (production should have env-config.js)
+        if ((!SUPABASE_URL || !SUPABASE_ANON_KEY) && window.location.hostname === 'localhost') {
+            console.info('Supabase configuration not set. Create env-config.js with window.__ENV__ = { SUPABASE_URL, SUPABASE_ANON_KEY, BACKEND_URL }');
         }
 
         const { createClient } = supabase;
@@ -183,7 +186,7 @@
             } catch (err) {}
 
             try {
-                const presignRes = await fetch(`${BACKEND_URL}/presign`, {
+                const presignRes = await fetch(`${BACKEND_URL}/uploads/presign`, {
                     method: 'POST',
                     headers,
                     body: formData
@@ -263,7 +266,7 @@
                     mappingForm.append('key', f.key);
                     mappingForm.append('filename', f.filename);
 
-                    const mappingRes = await fetch(`${BACKEND_URL}/suggest-mapping`, {
+                    const mappingRes = await fetch(`${BACKEND_URL}/uploads/suggest-mapping`, {
                         method: 'POST',
                         headers,
                         body: mappingForm
@@ -310,7 +313,7 @@
                             analyzeForm.append('key', f.key);
                             analyzeForm.append('mapping', JSON.stringify(f.mapping));
 
-                            const analyzeRes = await fetch(`${BACKEND_URL}/analyze`, {
+                            const analyzeRes = await fetch(`${BACKEND_URL}/analysis/analyze`, {
                                 method: 'POST',
                                 headers,
                                 body: analyzeForm

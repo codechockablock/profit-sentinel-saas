@@ -749,14 +749,21 @@ To add your domain, edit `apps/api/src/config.py` and add your domain to the lis
 1. Go to your project → **Settings** → **Environment Variables**
 2. Add each variable:
 
-| Variable | Value | Environment |
-|----------|-------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase URL | All |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your anon key | All |
-| `NEXT_PUBLIC_API_URL` | `https://api.yourdomain.com` | Production |
-| `XAI_API_KEY` | Your xAI key | All |
+| Variable | Value | Environment | Required |
+|----------|-------|-------------|----------|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://YOUR_PROJECT.supabase.co` | Production, Preview | **Yes** |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJ...` (your anon key) | Production, Preview | **Yes** |
+| `NEXT_PUBLIC_API_URL` | `https://api.yourdomain.com` | Production | **Yes** |
+| `XAI_API_KEY` | `xai-...` (your xAI key) | Production | Recommended |
+
+> **IMPORTANT**: The `NEXT_PUBLIC_` prefix is required for these variables to be available in the browser at runtime. Without them, the Supabase client will fail to initialize and you'll see console errors.
 
 **Step 3: Redeploy** after adding variables.
+
+```bash
+# Verify variables are set in Vercel CLI (optional)
+vercel env ls
+```
 
 #### Backend Deployment (AWS ECS)
 
