@@ -1,0 +1,442 @@
+# Profit Sentinel Anomaly Detection Rules
+# Domain: Retail Inventory
+# Schema Version: 1.0.0
+#
+# Declarative rules define WHAT anomalies to detect, not HOW.
+# Rules are compiled to algebraic bundle patterns at runtime.
+#
+# RULE STRUCTURE:
+#   1. Detection pattern: Which primitives to bind/bundle
+#   2. Context: Entity types and modifiers to include
+#   3. Actions: What to do when rule fires
+#   4. Metadata: Severity, priority, documentation
+#
+# ALGEBRAIC COMPILATION:
+#   rule.pattern → bind(primitive1, primitive2, ...) → query_vector
+---
+schema_version: "1.0.0"
+domain: retail_inventory
+description: "Declarative anomaly detection rules for retail POS data"
+
+metadata:
+  author: "Profit Sentinel"
+  created: "2026-01-15"
+  version: "1.0.0"
+
+# =============================================================================
+# RULE DEFINITIONS
+# =============================================================================
+rules:
+  # ---------------------------------------------------------------------------
+  # CRITICAL SEVERITY RULES
+  # ---------------------------------------------------------------------------
+  - id: unrecorded_receiving
+    name: "Unrecorded Purchase Order"
+    description: "Items being sold but never formally received into inventory"
+    enabled: true
+    
+    severity: critical
+    priority: 1
+    
+    detection:
+      type: compound
+      operator: bind
+      conditions:
+        - primitive: inventory.negative_inventory
+          required: true
+        - primitive: velocity.high_velocity
+          magnitude_bucket: velocity.fast
+          required: false
+          
+    entity_context:
+      primary: sku
+      include_modifiers:
+        - type: category
+          weight: 0.4
+        - type: vendor
+          weight: 0.3
+          
+    root_cause_analysis:
+      enabled: true
+      inference_chain:
+        - step: 1
+          check: "Recent PO exists for vendor"
+          if_true: "PO_NOT_ENTERED"
+          if_false: "continue"
+        - step: 2
+          check: "Physical count > system count"
+          if_true: "RECEIVING_BYPASS"
+          if_false: "continue"
+        - step: 3
+          default: "UNKNOWN_SHRINKAGE"
+          
+    recommended_actions:
+      immediate:
+        - action: physical_count
+          description: "Perform physical count of item"
+          priority: 1
+        - action: review_pos
+          description: "Review last 30 days of POs for vendor {vendor}"
+          priority: 2
+      preventive:
+        - action: process_change
+          description: "Implement mandatory receiving scan at dock"
+        - action: report
+          description: "Add PO-to-sale reconciliation report"
+          
+    alert_config:
+      notify:
+        - role: manager
+        - role: inventory_team
+      escalate_after_hours: 24
+      suppress_duplicate_hours: 4
+      
+    documentation:
+      playbook_ref: "SOP-INV-001"
+      training_module: "Receiving Best Practices"
+
+  # ---------------------------------------------------------------------------
+  - id: margin_critical
+    name: "Critical Margin Leak"
+    description: "Items selling at or below cost - immediate profit loss"
+    enabled: true
+    
+    severity: critical
+    priority: 2
+    
+    detection:
+      type: primitive
+      primitive: margin.high_margin_leak
+      magnitude_filter:
+        bucket_type: margin
+        buckets:
+          - negative
+          - breakeven
+          
+    thresholds:
+      margin_floor: 0.05
+      
+    entity_context:
+      primary: sku
+      include_modifiers:
+        - type: category
+          weight: 0.4
+        - type: vendor
+          weight: 0.3
+          
+    root_cause_analysis:
+      enabled: true
+      likely_causes:
+        - code: COST_INCREASE
+          description: "Vendor cost increased without retail price update"
+          check: "Compare current cost to 30-day average"
+        - code: PROMO_STUCK
+          description: "Promotional pricing not reverted after sale ended"
+          check: "Check promotional calendar"
+        - code: PRICE_MATCH
+          description: "Excessive competitor price matching"
+          check: "Review price override transactions"
+          
+    recommended_actions:
+      immediate:
+        - action: price_review
+          description: "Review and update pricing for {sku}"
+          priority: 1
+        - action: suspend_promo
+          description: "Suspend any active promotions"
+          priority: 2
+          
+    alert_config:
+      notify:
+        - role: pricing_manager
+        - role: finance
+      escalate_after_hours: 4
+
+  # ---------------------------------------------------------------------------
+  # HIGH SEVERITY RULES
+  # ---------------------------------------------------------------------------
+  - id: margin_erosion
+    name: "Margin Erosion Pattern"
+    description: "High-volume items with sustained margin leak"
+    enabled: true
+    
+    severity: high
+    priority: 3
+    
+    detection:
+      type: compound
+      operator: bind
+      conditions:
+        - primitive: margin.high_margin_leak
+          magnitude_bucket: margin.below_target
+        - primitive: velocity.high_velocity
+          magnitude_bucket: velocity.fast
+          
+    entity_context:
+      primary: sku
+      aggregate_by:
+        - category
+        - vendor
+        
+    financial_impact:
+      calculation: "quantity_sold * (expected_margin - actual_margin) * revenue"
+      alert_threshold_dollars: 1000
+      
+    recommended_actions:
+      immediate:
+        - action: vendor_review
+          description: "Review recent invoices from {vendor}"
+        - action: competitor_check
+          description: "Check competitor pricing"
+
+  # ---------------------------------------------------------------------------
+  - id: shrinkage_pattern
+    name: "Shrinkage/Theft Indicator"
+    description: "Pattern suggesting inventory shrinkage or theft"
+    enabled: true
+    
+    severity: high
+    priority: 4
+    
+    detection:
+      type: compound
+      operator: bind
+      conditions:
+        - primitive: inventory.negative_inventory
+        - primitive: temporal.recent
+      exclude_if:
+        - condition: "po_exists_last_7_days"
+          
+    entity_context:
+      primary: sku
+      aggregate_by:
+        - category
+        - location
+        
+    alert_config:
+      notify:
+        - role: loss_prevention
+        - role: store_manager
+      confidential: true
+
+  # ---------------------------------------------------------------------------
+  # MEDIUM SEVERITY RULES
+  # ---------------------------------------------------------------------------
+  - id: dead_stock
+    name: "Dead/Slow-Moving Inventory"
+    description: "Items with minimal sales tying up capital"
+    enabled: true
+    
+    severity: medium
+    priority: 5
+    
+    detection:
+      type: compound
+      operator: bind
+      conditions:
+        - primitive: inventory.dead_item
+        - primitive: inventory.high_stock
+          required: false
+          
+    thresholds:
+      days_no_sale: 90
+      min_on_hand_value: 100
+      
+    entity_context:
+      primary: sku
+      aggregate_by:
+        - category
+        - vendor
+        
+    recommended_actions:
+      - action: markdown
+        description: "Consider markdown to ${suggested_price}"
+        calculation: "current_price * 0.7"
+      - action: bundle
+        description: "Bundle with fast-moving items"
+      - action: return
+        description: "Return to vendor if allowed"
+        condition: "vendor.accepts_returns == true"
+      - action: donate
+        description: "Donate for tax benefit"
+        condition: "on_hand_days > 180"
+        
+    report_grouping:
+      group_by: category
+      sort_by: on_hand_value
+      sort_order: desc
+
+  # ---------------------------------------------------------------------------
+  - id: reorder_risk
+    name: "Stockout Risk Alert"
+    description: "Fast-moving items approaching reorder point"
+    enabled: true
+    
+    severity: medium
+    priority: 6
+    
+    detection:
+      type: compound
+      operator: bind
+      conditions:
+        - primitive: inventory.low_stock
+          magnitude_bucket: quantity.low
+        - primitive: velocity.high_velocity
+          
+    prediction:
+      model: linear_velocity
+      formula: "quantity / (sold_last_30_days / 30)"
+      alert_when_days: 7
+      
+    recommended_actions:
+      - action: reorder
+        description: "Place order with {vendor} for {suggested_qty} units"
+        calculation: "max(0, reorder_point - quantity + safety_stock)"
+      - action: expedite
+        description: "Consider expedited shipping"
+        condition: "days_until_stockout < 3"
+
+  # ---------------------------------------------------------------------------
+  # WARNING SEVERITY RULES
+  # ---------------------------------------------------------------------------
+  - id: vendor_reliability
+    name: "Vendor Reliability Issue"
+    description: "Multiple anomalies associated with single vendor"
+    enabled: true
+    
+    severity: warning
+    priority: 7
+    
+    detection:
+      type: aggregate
+      pattern: co_occurrence
+      min_rules: 2
+      within_entity: vendor
+      rules:
+        - unrecorded_receiving
+        - margin_erosion
+      timeframe_days: 30
+      
+    escalation:
+      severity_override: high
+      notify:
+        - role: purchasing_manager
+        - role: finance
+      action: "Schedule vendor review meeting"
+
+# =============================================================================
+# INFERENCE CHAINS
+# Multi-step reasoning for root cause analysis
+# =============================================================================
+inference_chains:
+  - id: shrink_investigation
+    name: "Shrinkage Root Cause Chain"
+    description: "Step-by-step investigation of inventory shrinkage"
+    
+    trigger:
+      primitive: inventory.negative_inventory
+      
+    chain:
+      - step: 1
+        hypothesis: "Receiving not entered"
+        test:
+          operator: bind
+          with: "unrecorded_receiving"
+        if_match:
+          confidence: 0.8
+          conclude: "RECEIVING_ERROR"
+          stop: true
+          
+      - step: 2
+        hypothesis: "Theft or internal loss"
+        test:
+          operator: bind
+          with: "shrinkage_pattern"
+        if_match:
+          confidence: 0.6
+          conclude: "THEFT_SUSPECTED"
+          stop: true
+          
+      - step: 3
+        hypothesis: "Data entry error"
+        default: true
+        confidence: 0.5
+        conclude: "DATA_ERROR"
+
+  - id: margin_investigation
+    name: "Margin Leak Root Cause Chain"
+    
+    trigger:
+      primitive: margin.high_margin_leak
+      
+    chain:
+      - step: 1
+        hypothesis: "Vendor cost increase"
+        test:
+          check: "cost_change_30d > 0.05"
+        if_match:
+          confidence: 0.9
+          conclude: "COST_INCREASE"
+          action: "Update retail price"
+          
+      - step: 2
+        hypothesis: "Stuck promotional pricing"
+        test:
+          check: "has_promo_history_90d"
+        if_match:
+          confidence: 0.7
+          conclude: "PROMO_STUCK"
+          action: "Revert to standard price"
+          
+      - step: 3
+        default: true
+        conclude: "UNKNOWN"
+        action: "Manual review required"
+
+# =============================================================================
+# RULE GROUPS
+# Logical groupings for batch processing and reporting
+# =============================================================================
+rule_groups:
+  critical_alerts:
+    description: "Rules requiring immediate attention"
+    rules:
+      - unrecorded_receiving
+      - margin_critical
+    schedule: realtime
+    
+  daily_review:
+    description: "Rules for daily management review"
+    rules:
+      - margin_erosion
+      - shrinkage_pattern
+      - dead_stock
+    schedule: daily_6am
+    
+  weekly_analysis:
+    description: "Rules for weekly strategic analysis"
+    rules:
+      - reorder_risk
+      - vendor_reliability
+    schedule: weekly_monday
+
+# =============================================================================
+# GLOBAL SETTINGS
+# =============================================================================
+settings:
+  # Resonator parameters for rule matching
+  resonator:
+    vigilance_threshold: 0.4
+    convergence_tolerance: 0.0001
+    max_iterations: 450
+    
+  # Alert suppression
+  alerts:
+    suppress_duplicate_hours: 4
+    max_alerts_per_day: 100
+    
+  # Confidence thresholds
+  confidence:
+    high: 0.8
+    medium: 0.6
+    low: 0.4

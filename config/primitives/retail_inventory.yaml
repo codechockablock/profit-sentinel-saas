@@ -1,0 +1,395 @@
+# Profit Sentinel Primitives - Retail Inventory Domain
+# Schema Version: 1.0.0
+#
+# This file defines the atomic semantic primitives for retail inventory
+# anomaly detection. Each primitive generates a deterministic hypervector
+# via seed_hash(seed).
+#
+# USAGE:
+#   loader = PrimitiveLoader()
+#   loader.load_file("primitives/retail_inventory.yaml")
+#   vec = loader.get_vector("inventory.low_stock")
+---
+schema_version: "1.0.0"
+domain: retail_inventory
+description: "Atomic primitives for retail POS/inventory anomaly detection"
+dimensions: 16384
+
+metadata:
+  author: "Profit Sentinel"
+  created: "2026-01-15"
+  version: "1.0.0"
+  checksum_algorithm: sha256
+
+# =============================================================================
+# PRIMITIVE DEFINITIONS
+# Organized by category for clarity
+# =============================================================================
+primitives:
+  # ---------------------------------------------------------------------------
+  # INVENTORY ANOMALIES
+  # Core inventory state primitives
+  # ---------------------------------------------------------------------------
+  inventory:
+    low_stock:
+      seed: "primitive:inventory:low_stock:v1"
+      description: "Quantity below safety threshold"
+      category: anomaly
+      severity: medium
+      root_causes:
+        - code: DEMAND_SPIKE
+          description: "Unexpected increase in demand"
+          likelihood: 0.4
+        - code: SUPPLY_DELAY
+          description: "Supplier delivery delayed"
+          likelihood: 0.3
+        - code: FORECAST_ERROR
+          description: "Demand forecast was too low"
+          likelihood: 0.3
+      detection_hints:
+        field: quantity
+        operator: "<"
+        threshold: null  # Set per-SKU or use magnitude buckets
+        computed_field: days_of_supply
+        computation: "quantity / (sold_last_30_days / 30)"
+      investigation_steps:
+        - "Check recent sales velocity"
+        - "Verify supplier lead times"
+        - "Review forecast accuracy"
+      related_primitives:
+        - "velocity.high_velocity"
+        - "temporal.recent"
+      algebraic_note: "Often co-occurs with high_velocity - use bind to detect pattern"
+
+    high_stock:
+      seed: "primitive:inventory:high_stock:v1"
+      description: "Quantity significantly above optimal level"
+      category: anomaly
+      severity: warning
+      root_causes:
+        - code: OVERORDER
+          description: "Purchase order quantity too high"
+          likelihood: 0.4
+        - code: DEMAND_DROP
+          description: "Demand decreased unexpectedly"
+          likelihood: 0.35
+        - code: SEASON_END
+          description: "Seasonal product past peak"
+          likelihood: 0.25
+      detection_hints:
+        field: quantity
+        operator: ">"
+        computed_field: weeks_of_supply
+        computation: "quantity / (sold_last_30_days / 30 * 7)"
+      investigation_steps:
+        - "Calculate carrying cost"
+        - "Check for upcoming promotions"
+        - "Evaluate markdown potential"
+
+    dead_item:
+      seed: "primitive:inventory:dead_item:v1"
+      description: "Zero sales in extended period (90+ days)"
+      category: anomaly
+      severity: medium
+      root_causes:
+        - code: DISCONTINUED
+          description: "Product discontinued by vendor"
+          likelihood: 0.3
+        - code: OBSOLETE
+          description: "Product replaced by newer version"
+          likelihood: 0.25
+        - code: SEASONAL
+          description: "Off-season item"
+          likelihood: 0.25
+        - code: PRICING
+          description: "Price too high relative to market"
+          likelihood: 0.2
+      detection_hints:
+        field: sold
+        operator: "=="
+        threshold: 0
+        time_window_days: 90
+      investigation_steps:
+        - "Check when last sold"
+        - "Verify item still available from vendor"
+        - "Compare pricing to competitors"
+        - "Evaluate markdown or return options"
+      related_primitives:
+        - "inventory.high_stock"
+
+    negative_inventory:
+      seed: "primitive:inventory:negative_inventory:v1"
+      description: "System shows negative quantity (impossible physical state)"
+      category: anomaly
+      severity: critical
+      root_causes:
+        - code: RECEIVING_BYPASS
+          description: "Product sold without receiving into inventory"
+          likelihood: 0.4
+        - code: THEFT
+          description: "Inventory shrinkage/theft"
+          likelihood: 0.25
+        - code: DATA_ERROR
+          description: "Incorrect count adjustment"
+          likelihood: 0.2
+        - code: PO_NOT_ENTERED
+          description: "Purchase order received but not entered"
+          likelihood: 0.15
+      detection_hints:
+        field: quantity
+        operator: "<"
+        threshold: 0
+      investigation_steps:
+        - "Physical count immediately"
+        - "Review recent receiving records"
+        - "Check for unprocessed POs"
+        - "Review void/return transactions"
+      related_primitives:
+        - "velocity.high_velocity"
+
+  # ---------------------------------------------------------------------------
+  # MARGIN/PRICING ANOMALIES
+  # ---------------------------------------------------------------------------
+  margin:
+    high_margin_leak:
+      seed: "primitive:margin:high_margin_leak:v1"
+      description: "Actual margin below expected/target margin"
+      category: anomaly
+      severity: high
+      root_causes:
+        - code: COST_INCREASE
+          description: "Vendor cost increased without retail adjustment"
+          likelihood: 0.35
+        - code: PROMO_STUCK
+          description: "Promotional price not reverted"
+          likelihood: 0.3
+        - code: PRICE_MATCH
+          description: "Excessive competitor price matching"
+          likelihood: 0.2
+        - code: DISCOUNT_ABUSE
+          description: "Unauthorized discounting"
+          likelihood: 0.15
+      detection_hints:
+        computed_field: margin_percent
+        computation: "(revenue - cost) / revenue * 100"
+        operator: "<"
+        threshold: null  # Use magnitude buckets
+      investigation_steps:
+        - "Compare current vs historical cost"
+        - "Check promotional calendar"
+        - "Review override transactions"
+      related_primitives:
+        - "velocity.high_velocity"
+
+    negative_margin:
+      seed: "primitive:margin:negative_margin:v1"
+      description: "Selling below cost"
+      category: anomaly
+      severity: critical
+      root_causes:
+        - code: PRICING_ERROR
+          description: "Retail price set incorrectly"
+          likelihood: 0.4
+        - code: COST_UPDATE_DELAY
+          description: "Cost increased but price not updated"
+          likelihood: 0.35
+        - code: CLEARANCE
+          description: "Intentional clearance pricing"
+          likelihood: 0.25
+      detection_hints:
+        computed_field: margin
+        computation: "revenue - cost"
+        operator: "<"
+        threshold: 0
+
+  # ---------------------------------------------------------------------------
+  # VELOCITY PATTERNS
+  # Sales velocity indicators
+  # ---------------------------------------------------------------------------
+  velocity:
+    high_velocity:
+      seed: "primitive:velocity:high_velocity:v1"
+      description: "Sales rate significantly above average"
+      category: pattern
+      severity: info
+      detection_hints:
+        computed_field: daily_velocity
+        computation: "sold_last_7_days / 7"
+        operator: ">"
+      related_primitives:
+        - "inventory.low_stock"
+
+    low_velocity:
+      seed: "primitive:velocity:low_velocity:v1"
+      description: "Sales rate significantly below average"
+      category: pattern
+      severity: info
+      detection_hints:
+        computed_field: daily_velocity
+        computation: "sold_last_7_days / 7"
+        operator: "<"
+      related_primitives:
+        - "inventory.dead_item"
+        - "inventory.high_stock"
+
+    velocity_spike:
+      seed: "primitive:velocity:velocity_spike:v1"
+      description: "Sudden increase in sales rate"
+      category: pattern
+      severity: info
+      detection_hints:
+        computed_field: velocity_change
+        computation: "(sold_last_7_days / 7) / (sold_last_30_days / 30)"
+        operator: ">"
+        threshold: 2.0
+
+  # ---------------------------------------------------------------------------
+  # TEMPORAL MODIFIERS
+  # Time-based context primitives
+  # ---------------------------------------------------------------------------
+  temporal:
+    recent:
+      seed: "primitive:temporal:recent:v1"
+      description: "Occurred within last 7 days"
+      category: temporal
+      severity: normal
+      detection_hints:
+        time_window_days: 7
+
+    seasonal:
+      seed: "primitive:temporal:seasonal:v1"
+      description: "Seasonal variation expected"
+      category: temporal
+      severity: normal
+
+    end_of_month:
+      seed: "primitive:temporal:end_of_month:v1"
+      description: "End of month period"
+      category: temporal
+      severity: normal
+
+    holiday:
+      seed: "primitive:temporal:holiday:v1"
+      description: "Holiday period modifier"
+      category: temporal
+      severity: normal
+
+  # ---------------------------------------------------------------------------
+  # ENTITY ROLES
+  # Role vectors for structured binding
+  # ---------------------------------------------------------------------------
+  role:
+    sku:
+      seed: "role:sku:v1"
+      description: "SKU/product identifier role"
+      category: role
+      severity: normal
+      algebraic_note: "Bind with entity vector: bind(ROLE_SKU, sku_vec)"
+
+    vendor:
+      seed: "role:vendor:v1"
+      description: "Vendor/supplier role"
+      category: role
+      severity: normal
+
+    category:
+      seed: "role:category:v1"
+      description: "Product category role"
+      category: role
+      severity: normal
+
+    location:
+      seed: "role:location:v1"
+      description: "Store/warehouse location role"
+      category: role
+      severity: normal
+
+    anomaly:
+      seed: "role:anomaly:v1"
+      description: "Anomaly type role"
+      category: role
+      severity: normal
+
+    severity:
+      seed: "role:severity:v1"
+      description: "Severity level role"
+      category: role
+      severity: normal
+
+  # ---------------------------------------------------------------------------
+  # OPERATORS
+  # Algebraic operator markers
+  # ---------------------------------------------------------------------------
+  operator:
+    bind:
+      seed: "operator:bind:v1"
+      description: "Binding operation marker"
+      category: operator
+      severity: normal
+
+    bundle:
+      seed: "operator:bundle:v1"
+      description: "Bundling operation marker"
+      category: operator
+      severity: normal
+
+    sequence:
+      seed: "operator:sequence:v1"
+      description: "Sequence encoding marker"
+      category: operator
+      severity: normal
+
+# =============================================================================
+# COMPOSITE PATTERNS
+# Pre-defined combinations of primitives
+# =============================================================================
+composite_patterns:
+  stockout_risk:
+    description: "Low stock with high velocity - imminent stockout"
+    composition:
+      operator: bind
+      operands:
+        - "inventory.low_stock"
+        - "velocity.high_velocity"
+    severity: high
+
+  profit_bleed:
+    description: "Margin leak on high velocity item - significant loss"
+    composition:
+      operator: bind
+      operands:
+        - "margin.high_margin_leak"
+        - "velocity.high_velocity"
+    severity: critical
+
+  receiving_issue:
+    description: "Negative inventory with high velocity - receiving bypass"
+    composition:
+      operator: bind
+      operands:
+        - "inventory.negative_inventory"
+        - "velocity.high_velocity"
+    severity: critical
+
+  dead_capital:
+    description: "Dead item with high stock - capital tied up"
+    composition:
+      operator: bind
+      operands:
+        - "inventory.dead_item"
+        - "inventory.high_stock"
+    severity: medium
+
+# =============================================================================
+# ALIASES
+# Short names for common primitives
+# =============================================================================
+aliases:
+  low_stock: "inventory.low_stock"
+  high_stock: "inventory.high_stock"
+  dead: "inventory.dead_item"
+  negative: "inventory.negative_inventory"
+  margin_leak: "margin.high_margin_leak"
+  fast: "velocity.high_velocity"
+  slow: "velocity.low_velocity"
+  recent: "temporal.recent"

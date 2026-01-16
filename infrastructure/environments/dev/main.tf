@@ -8,7 +8,7 @@ module "alb" {
   name_prefix     = "profitsentinel-dev"
   vpc_id          = module.vpc.vpc_id
   public_subnets  = module.vpc.public_subnets
-  certificate_arn = "arn:aws:acm:us-east-1:PLACEHOLDER_AWS_ACCOUNT_ID:certificate/6c016bb3-b1f6-4928-b233-c5c690d4fbce"
+  certificate_arn = var.acm_certificate_arn
 }
 
 module "ecs" {
@@ -18,6 +18,7 @@ module "ecs" {
   private_subnets      = module.vpc.private_subnets
   alb_target_group_arn = module.alb.target_group_arn
   alb_sg_id            = module.alb.alb_sg_id
+  ecr_repository_url   = module.ecr.repository_url
 }
 
 module "rds" {

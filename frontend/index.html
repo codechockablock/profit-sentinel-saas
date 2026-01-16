@@ -132,14 +132,22 @@
     </section>
 
     <!-- Supabase Init -->
+    <!-- IMPORTANT: Set these values via environment variables at build time or server-side injection -->
     <script>
-        const { createClient } = supabase;
-        const supabaseClient = createClient(
-            'https://PLACEHOLDER_SUPABASE_PROJECT.supabase.co',
-            'sb_publishable_gocACZSOQvdZ6XV1qiu28A_W19nqgYc'
-        );
+        // Configuration - these should be injected at build/deploy time
+        // Do NOT hardcode real credentials here
+        const SUPABASE_URL = window.__ENV__?.SUPABASE_URL || '';
+        const SUPABASE_ANON_KEY = window.__ENV__?.SUPABASE_ANON_KEY || '';
+        const BACKEND_URL = window.__ENV__?.BACKEND_URL || 'https://api.profitsentinel.com';
 
-        const BACKEND_URL = 'https://api.profitsentinel.com';
+        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+            console.warn('Supabase configuration missing. Set window.__ENV__ with SUPABASE_URL and SUPABASE_ANON_KEY');
+        }
+
+        const { createClient } = supabase;
+        const supabaseClient = SUPABASE_URL && SUPABASE_ANON_KEY
+            ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+            : null;
 
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');

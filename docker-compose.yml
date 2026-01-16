@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: profit-sentinel-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app:/app/src:/packages/vsa-core/src:/packages/reasoning/src:/packages/sentinel-engine/src
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-profitsentinel-dev-uploads}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - GROK_API_KEY=${GROK_API_KEY}
+    volumes:
+      - ./apps/api:/app
+      - ./packages:/packages:ro
+      - ./config:/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Next.js Frontend (development)
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.dev
+    container_name: profit-sentinel-web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - XAI_API_KEY=${GROK_API_KEY}
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # Local PostgreSQL (optional, for development without Supabase)
+  # WARNING: Set DEV_POSTGRES_PASSWORD in your .env file before using
+  postgres:
+    image: postgres:16-alpine
+    container_name: profit-sentinel-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${DEV_POSTGRES_USER:-sentinel}
+      - POSTGRES_PASSWORD=${DEV_POSTGRES_PASSWORD:?Set DEV_POSTGRES_PASSWORD in .env}
+      - POSTGRES_DB=${DEV_POSTGRES_DB:-profit_sentinel}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    profiles:
+      - local-db
+    restart: unless-stopped
+
+  # Local MinIO (S3-compatible, for development without AWS)
+  # WARNING: Set DEV_MINIO_PASSWORD in your .env file before using
+  minio:
+    image: minio/minio:latest
+    container_name: profit-sentinel-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${DEV_MINIO_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${DEV_MINIO_PASSWORD:?Set DEV_MINIO_PASSWORD in .env}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    profiles:
+      - local-storage
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  minio_data:
+
+networks:
+  default:
+    name: profit-sentinel-network
