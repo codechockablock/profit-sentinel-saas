@@ -29,8 +29,10 @@ logger = logging.getLogger(__name__)
 
 
 # Vercel preview URL pattern: https://<project>-<hash>-<team>.vercel.app
+# Matches: profit-sentinel.vercel.app, profit-sentinel-saas.vercel.app,
+#          profit-sentinel-abc123-team.vercel.app, etc.
 VERCEL_PREVIEW_PATTERN = re.compile(
-    r"^https://profit-sentinel[a-z0-9-]*\.vercel\.app$"
+    r"^https://profit-sentinel[-a-z0-9]*\.vercel\.app$"
 )
 
 
@@ -76,6 +78,9 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Max-Age"] = "600"
                 return response
+            else:
+                # Log rejected preflight for debugging
+                logger.warning(f"CORS preflight rejected for origin: {origin}")
 
         # Process the actual request
         response = await call_next(request)
@@ -84,6 +89,9 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         if is_allowed_origin(origin, self.allowed_origins):
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
+        elif origin:
+            # Log rejected origin for non-OPTIONS requests
+            logger.debug(f"CORS headers not added for origin: {origin}")
 
         return response
 
