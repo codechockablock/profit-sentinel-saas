@@ -5,13 +5,151 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
     <link rel="icon" href="https://i.imgur.com/68NbW7U.png" type="image/png">
-    <!-- Tailwind CSS via CDN for static HTML deployment -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS client (optional - for authenticated features) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        /* =================================================================
+           Tailwind CSS Utility Classes (Production Build)
+           Generated from required utilities - replaces CDN script
+           ================================================================= */
+        *, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; }
+        html { line-height: 1.5; -webkit-text-size-adjust: 100%; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+        body { margin: 0; line-height: inherit; }
+        h2, h3, h4, p { margin: 0; }
+        button, input { font-family: inherit; font-size: 100%; font-weight: inherit; line-height: inherit; color: inherit; margin: 0; padding: 0; }
+        button { text-transform: none; cursor: pointer; background-color: transparent; background-image: none; }
+        img { display: block; max-width: 100%; height: auto; }
 
+        /* Utility classes */
+        .container { width: 100%; margin-left: auto; margin-right: auto; padding-left: 1rem; padding-right: 1rem; }
+        @media (min-width: 640px) { .container { max-width: 640px; } }
+        @media (min-width: 768px) { .container { max-width: 768px; } }
+        @media (min-width: 1024px) { .container { max-width: 1024px; } }
+        @media (min-width: 1280px) { .container { max-width: 1280px; } }
+
+        .relative { position: relative; }
+        .mx-auto { margin-left: auto; margin-right: auto; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .mb-8 { margin-bottom: 2rem; }
+        .mb-12 { margin-bottom: 3rem; }
+        .mb-16 { margin-bottom: 4rem; }
+        .mt-2 { margin-top: 0.5rem; }
+        .mt-8 { margin-top: 2rem; }
+        .mt-16 { margin-top: 4rem; }
+        .mt-20 { margin-top: 5rem; }
+        .mt-32 { margin-top: 8rem; }
+        .-mt-32 { margin-top: -8rem; }
+        .block { display: block; }
+        .flex { display: flex; }
+        .grid { display: grid; }
+        .hidden { display: none; }
+        .h-6 { height: 1.5rem; }
+        .h-full { height: 100%; }
+        .h-64 { height: 16rem; }
+        .max-w-full { max-width: 100%; }
+        .max-w-4xl { max-width: 56rem; }
+        .max-w-5xl { max-width: 64rem; }
+        .max-w-6xl { max-width: 72rem; }
+        .w-full { width: 100%; }
+        .w-0 { width: 0; }
+        .object-contain { object-fit: contain; }
+        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+        .justify-between { justify-content: space-between; }
+        .gap-6 { gap: 1.5rem; }
+        .gap-12 { gap: 3rem; }
+        .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+        .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+        .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.5rem; }
+        .space-y-10 > :not([hidden]) ~ :not([hidden]) { margin-top: 2.5rem; }
+        .space-y-12 > :not([hidden]) ~ :not([hidden]) { margin-top: 3rem; }
+        .space-y-16 > :not([hidden]) ~ :not([hidden]) { margin-top: 4rem; }
+        .space-y-20 > :not([hidden]) ~ :not([hidden]) { margin-top: 5rem; }
+        .overflow-hidden { overflow: hidden; }
+        .scroll-smooth { scroll-behavior: smooth; }
+        .rounded-full { border-radius: 9999px; }
+        .rounded-xl { border-radius: 0.75rem; }
+        .rounded-2xl { border-radius: 1rem; }
+        .rounded-3xl { border-radius: 1.5rem; }
+        .border-2 { border-width: 2px; }
+        .bg-white\/5 { background-color: rgb(255 255 255 / 0.05); }
+        .bg-gray-700 { background-color: #374151; }
+        .bg-gradient-to-r { background-image: linear-gradient(to right, var(--tw-gradient-stops)); }
+        .from-emerald-500 { --tw-gradient-from: #10b981; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgb(16 185 129 / 0)); }
+        .to-emerald-600 { --tw-gradient-to: #059669; }
+        .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+        .px-10 { padding-left: 2.5rem; padding-right: 2.5rem; }
+        .py-6 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+        .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+        .py-10 { padding-top: 2.5rem; padding-bottom: 2.5rem; }
+        .py-32 { padding-top: 8rem; padding-bottom: 8rem; }
+        .py-40 { padding-top: 10rem; padding-bottom: 10rem; }
+        .p-6 { padding: 1.5rem; }
+        .p-8 { padding: 2rem; }
+        .p-12 { padding: 3rem; }
+        .p-16 { padding: 4rem; }
+        .p-20 { padding: 5rem; }
+        .text-center { text-align: center; }
+        .font-sans { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+        .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+        .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+        .text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+        .text-2xl { font-size: 1.5rem; line-height: 2rem; }
+        .text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+        .text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
+        .text-5xl { font-size: 3rem; line-height: 1; }
+        .text-6xl { font-size: 3.75rem; line-height: 1; }
+        .font-medium { font-weight: 500; }
+        .font-semibold { font-weight: 600; }
+        .font-bold { font-weight: 700; }
+        .font-black { font-weight: 900; }
+        .capitalize { text-transform: capitalize; }
+        .text-white { color: #fff; }
+        .text-gray-400 { color: #9ca3af; }
+        .text-emerald-400 { color: #34d399; }
+        .text-red-400 { color: #f87171; }
+        .opacity-80 { opacity: 0.8; }
+        .opacity-90 { opacity: 0.9; }
+        .transition { transition-property: color, background-color, border-color, fill, stroke, opacity, box-shadow, transform; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+        .duration-300 { transition-duration: 300ms; }
+        .z-10 { z-index: 10; }
+
+        /* Focus states */
+        .focus\:border-emerald-400:focus { border-color: #34d399; }
+        .focus\:ring-8:focus { --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color); --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(8px + var(--tw-ring-offset-width)) var(--tw-ring-color); box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000); }
+        .focus\:ring-emerald-400\/20:focus { --tw-ring-color: rgb(52 211 153 / 0.2); }
+
+        /* Hover states */
+        .hover\:from-emerald-600:hover { --tw-gradient-from: #059669; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgb(5 150 105 / 0)); }
+        .hover\:to-emerald-700:hover { --tw-gradient-to: #047857; }
+        .hover\:scale-105:hover { transform: scale(1.05); }
+
+        /* Responsive variants */
+        @media (min-width: 768px) {
+            .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .md\:py-60 { padding-top: 15rem; padding-bottom: 15rem; }
+            .md\:h-96 { height: 24rem; }
+            .md\:text-2xl { font-size: 1.5rem; line-height: 2rem; }
+            .md\:text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+            .md\:text-5xl { font-size: 3rem; line-height: 1; }
+        }
+        @media (min-width: 1024px) {
+            .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .lg\:h-\[28rem\] { height: 28rem; }
+        }
+
+        /* Border colors */
+        .border-emerald-500\/40 { border-color: rgb(16 185 129 / 0.4); }
+        .border-gray-500\/40 { border-color: rgb(107 114 128 / 0.4); }
+
+        /* =================================================================
+           Custom Styles
+           ================================================================= */
         body {
             font-family: 'Inter', sans-serif;
             background: linear-gradient(to bottom, #0f172a, #1e293b);
@@ -142,19 +280,27 @@
 
         // Supabase configuration (optional - for authenticated features)
         // These are PUBLIC keys, safe for client-side use
-        // Set via Vercel/hosting environment or hardcode for static deployment
-        const SUPABASE_URL = '';  // e.g., 'https://xxx.supabase.co'
-        const SUPABASE_ANON_KEY = '';  // e.g., 'eyJ...'
+        // For static deployment: set values directly below
+        // For dynamic config: use env-config.js (see env-config.js.template)
+        const SUPABASE_URL = window.ENV_SUPABASE_URL || '';
+        const SUPABASE_ANON_KEY = window.ENV_SUPABASE_ANON_KEY || '';
 
         // Initialize Supabase client only if configured
-        const { createClient } = supabase;
-        const supabaseClient = (SUPABASE_URL && SUPABASE_ANON_KEY)
-            ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-            : null;
+        let supabaseClient = null;
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            try {
+                const { createClient } = supabase;
+                supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            } catch (err) {
+                console.warn('[Profit Sentinel] Failed to initialize Supabase:', err.message);
+            }
+        }
 
-        // Log configuration status (helpful for debugging)
-        console.log('[Profit Sentinel] Backend URL:', BACKEND_URL);
-        console.log('[Profit Sentinel] Supabase configured:', !!supabaseClient);
+        // Log configuration status only in development (check for localhost)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log('[Profit Sentinel] Backend URL:', BACKEND_URL);
+            console.log('[Profit Sentinel] Supabase configured:', !!supabaseClient);
+        }
 
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
@@ -184,10 +330,14 @@
             for (let file of files) formData.append('filenames', file.name);
 
             let headers = {};
-            try {
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
-            } catch (err) {}
+            if (supabaseClient) {
+                try {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
+                } catch (err) {
+                    // Silently fail - auth is optional
+                }
+            }
 
             try {
                 const presignRes = await fetch(`${BACKEND_URL}/uploads/presign`, {
