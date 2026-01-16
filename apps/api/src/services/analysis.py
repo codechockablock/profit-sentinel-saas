@@ -3,13 +3,40 @@ Analysis Service - Aggressive Profit Leak Detection.
 
 Runs VSA-based profit leak detection with 8 primitives, $ impact estimation,
 and actionable recommendations. Supports data from any POS system.
+
+CRITICAL: Uses request-scoped AnalysisContext to ensure isolation.
+Each analyze() call creates a fresh context - no cross-request contamination.
 """
 
 import logging
 import time
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sentinel_engine.context import AnalysisContext
 
 logger = logging.getLogger(__name__)
+
+
+def _record_metrics(
+    success: bool,
+    rows: int,
+    leaks: int,
+    duration_ms: float,
+    primitive_counts: Dict[str, int],
+):
+    """Record analysis metrics (best-effort, won't fail analysis)."""
+    try:
+        from ..routes.metrics import record_analysis_metrics
+        record_analysis_metrics(
+            success=success,
+            rows_processed=rows,
+            leaks_detected=leaks,
+            duration_ms=duration_ms,
+            primitive_counts=primitive_counts,
+        )
+    except Exception as e:
+        logger.debug(f"Failed to record metrics: {e}")
 
 
 # Leak type display metadata
@@ -88,25 +115,30 @@ class AnalysisService:
                 query_bundle,
                 get_primitive_metadata,
                 get_all_primitives,
-                reset_codebook,
                 LEAK_METADATA,
             )
+            from sentinel_engine.context import create_analysis_context
+
             self._bundle_pos_facts = bundle_pos_facts
             self._query_bundle = query_bundle
             self._get_primitive_metadata = get_primitive_metadata
             self._get_all_primitives = get_all_primitives
-            self._reset_codebook = reset_codebook
+            self._create_context = create_analysis_context
             self._leak_metadata = LEAK_METADATA
             self._engine_available = True
-            logger.info("Sentinel engine loaded successfully (8 primitives)")
+            logger.info("Sentinel engine loaded successfully (8 primitives, context-isolated)")
         except ImportError as e:
             logger.warning(f"Sentinel engine not available: {e}")
             self._engine_available = False
             self._leak_metadata = {}
+            self._create_context = None
 
     def analyze(self, rows: List[Dict]) -> Dict:
         """
         Analyze POS data for profit leaks using all 8 primitives.
+
+        CRITICAL: Creates a fresh AnalysisContext for each call.
+        This ensures complete isolation between concurrent requests.
 
         Args:
             rows: List of row dictionaries from POS data
@@ -122,77 +154,94 @@ class AnalysisService:
 
         start_time = time.time()
 
-        # Reset codebook for fresh analysis
-        self._reset_codebook()
+        # Create fresh context for this request - CRITICAL for isolation
+        ctx = self._create_context()
+        logger.debug(f"Created analysis context: {ctx.get_summary()}")
 
-        # Bundle facts with aggressive detection
-        bundle_start = time.time()
-        bundle = self._bundle_pos_facts(rows)
-        logger.info(f"Bundled {len(rows)} rows in {time.time() - bundle_start:.2f}s")
+        try:
+            # Bundle facts with aggressive detection
+            bundle_start = time.time()
+            bundle = self._bundle_pos_facts(ctx, rows)
+            logger.info(f"Bundled {len(rows)} rows in {time.time() - bundle_start:.2f}s")
 
-        # Query each primitive
-        leaks = {}
-        total_items_flagged = 0
-        critical_count = 0
-        high_count = 0
+            # Query each primitive
+            leaks = {}
+            total_items_flagged = 0
+            critical_count = 0
+            high_count = 0
 
-        for primitive in self.PRIMITIVES:
-            query_start = time.time()
-            items, scores = self._query_bundle(bundle, primitive)
+            for primitive in self.PRIMITIVES:
+                query_start = time.time()
+                items, scores = self._query_bundle(ctx, bundle, primitive)
 
-            # Filter to meaningful scores (> 0.1 similarity threshold)
-            filtered_items = []
-            filtered_scores = []
-            for item, score in zip(items, scores):
-                if score > 0.1:  # Threshold for relevance
-                    filtered_items.append(item)
-                    filtered_scores.append(float(score))
+                # Filter to meaningful scores (> 0.1 similarity threshold)
+                filtered_items = []
+                filtered_scores = []
+                for item, score in zip(items, scores):
+                    if score > 0.1:  # Threshold for relevance
+                        filtered_items.append(item)
+                        filtered_scores.append(float(score))
 
-            # Get metadata for this primitive
-            metadata = self._leak_metadata.get(primitive, {})
-            display = LEAK_DISPLAY.get(primitive, {})
+                # Get metadata for this primitive
+                metadata = self._leak_metadata.get(primitive, {})
+                display = LEAK_DISPLAY.get(primitive, {})
 
-            leaks[primitive] = {
-                "top_items": filtered_items[:20],
-                "scores": filtered_scores[:20],
-                "count": len(filtered_items),
-                "severity": metadata.get("severity", "info"),
-                "category": metadata.get("category", "Unknown"),
-                "recommendations": metadata.get("recommendations", []),
-                "title": display.get("title", primitive.replace("_", " ").title()),
-                "icon": display.get("icon", "alert"),
-                "color": display.get("color", "#6b7280"),
-                "priority": display.get("priority", 99),
+                leaks[primitive] = {
+                    "top_items": filtered_items[:20],
+                    "scores": filtered_scores[:20],
+                    "count": len(filtered_items),
+                    "severity": metadata.get("severity", "info"),
+                    "category": metadata.get("category", "Unknown"),
+                    "recommendations": metadata.get("recommendations", []),
+                    "title": display.get("title", primitive.replace("_", " ").title()),
+                    "icon": display.get("icon", "alert"),
+                    "color": display.get("color", "#6b7280"),
+                    "priority": display.get("priority", 99),
+                }
+
+                # Track summary stats
+                total_items_flagged += len(filtered_items)
+                if metadata.get("severity") == "critical":
+                    critical_count += len(filtered_items)
+                elif metadata.get("severity") == "high":
+                    high_count += len(filtered_items)
+
+                elapsed = time.time() - query_start
+                logger.info(f"Query {primitive}: {len(filtered_items)} items in {elapsed:.2f}s")
+
+            # Calculate estimated $ impact (simplified - based on available data)
+            estimated_impact = self._estimate_total_impact(rows, leaks)
+
+            total_time = time.time() - start_time
+            logger.info(f"Full analysis complete in {total_time:.2f}s")
+
+            # Record metrics (best-effort)
+            primitive_counts = {p: leaks[p]["count"] for p in leaks}
+            _record_metrics(
+                success=True,
+                rows=len(rows),
+                leaks=total_items_flagged,
+                duration_ms=total_time * 1000,
+                primitive_counts=primitive_counts,
+            )
+
+            return {
+                "leaks": leaks,
+                "summary": {
+                    "total_rows_analyzed": len(rows),
+                    "total_items_flagged": total_items_flagged,
+                    "critical_issues": critical_count,
+                    "high_issues": high_count,
+                    "estimated_impact": estimated_impact,
+                    "analysis_time_seconds": round(total_time, 2),
+                },
+                "primitives_used": self.PRIMITIVES,
             }
-
-            # Track summary stats
-            total_items_flagged += len(filtered_items)
-            if metadata.get("severity") == "critical":
-                critical_count += len(filtered_items)
-            elif metadata.get("severity") == "high":
-                high_count += len(filtered_items)
-
-            elapsed = time.time() - query_start
-            logger.info(f"Query {primitive}: {len(filtered_items)} items in {elapsed:.2f}s")
-
-        # Calculate estimated $ impact (simplified - based on available data)
-        estimated_impact = self._estimate_total_impact(rows, leaks)
-
-        total_time = time.time() - start_time
-        logger.info(f"Full analysis complete in {total_time:.2f}s")
-
-        return {
-            "leaks": leaks,
-            "summary": {
-                "total_rows_analyzed": len(rows),
-                "total_items_flagged": total_items_flagged,
-                "critical_issues": critical_count,
-                "high_issues": high_count,
-                "estimated_impact": estimated_impact,
-                "analysis_time_seconds": round(total_time, 2),
-            },
-            "primitives_used": self.PRIMITIVES,
-        }
+        finally:
+            # Cleanup context (optional - GC handles it, but explicit is better)
+            if ctx is not None:
+                ctx.reset()
+                logger.debug("Analysis context cleaned up")
 
     def _estimate_total_impact(self, rows: List[Dict], leaks: Dict) -> Dict:
         """
