@@ -172,7 +172,7 @@ if [ -z "$AWS_ACCOUNT_ID" ] && [ "$FRONTEND_ONLY" = false ]; then
     print_error "AWS_ACCOUNT_ID is not set!"
     echo ""
     echo "Set it with:"
-    echo "  export AWS_ACCOUNT_ID=\"PLACEHOLDER_AWS_ACCOUNT_ID\""
+    echo "  export AWS_ACCOUNT_ID=\"123456789012\""
     echo ""
     echo "Or find it in AWS Console (top-right dropdown)"
     exit 1
@@ -194,7 +194,7 @@ if [ "$FRONTEND_ONLY" = false ]; then
     print_info "Checking Docker daemon..."
     if ! docker info &> /dev/null; then
         print_error "Docker daemon is not running"
-        echo "Start Docker Desktop"
+        echo "Start Docker Desktop or run: sudo systemctl start docker"
         exit 1
     fi
     print_success "Docker is running"
@@ -210,6 +210,7 @@ print_header "STEP 1: SECURITY VERIFICATION"
 
 print_step "Checking for secrets in staged files..."
 
+# Check if there are any staged changes
 if git diff --cached --name-only | grep -qE '\.env$|\.env\.|\.tfvars$|credentials|\.pem$|\.key$|secret'; then
     print_error "DANGER: Potential secrets detected in staged files!"
     echo ""
@@ -222,6 +223,7 @@ fi
 
 print_success "No secrets detected in staged files"
 
+# Verify .gitignore has critical patterns
 print_step "Verifying .gitignore coverage..."
 
 REQUIRED_PATTERNS=(".env" "*.tfvars" "*.tfstate" "credentials.json" "*.pem" "*.key")
@@ -229,6 +231,7 @@ MISSING_PATTERNS=()
 
 for pattern in "${REQUIRED_PATTERNS[@]}"; do
     if ! grep -q "^${pattern}$\|^${pattern}/" .gitignore 2>/dev/null; then
+        # Check for similar patterns
         if ! grep -q "${pattern}" .gitignore 2>/dev/null; then
             MISSING_PATTERNS+=("$pattern")
         fi
@@ -258,8 +261,11 @@ if [ "$SKIP_TESTS" = false ]; then
     if [ -d "apps/api" ]; then
         (
             cd apps/api
+            if [ -f "venv/bin/activate" ]; then
+                source venv/bin/activate
+            fi
             export PYTHONPATH="$PWD:$PWD/src:$PWD/../../packages/vsa-core/src:$PWD/../../packages/sentinel-engine/src"
-            if poetry run pytest tests/ -v --tb=short 2>/dev/null; then
+            if python -m pytest tests/ -v --tb=short 2>/dev/null; then
                 print_success "Backend tests passed"
             else
                 print_error "Backend tests failed!"
@@ -298,9 +304,11 @@ fi
 
 print_header "STEP 3: GIT COMMIT AND PUSH"
 
+# Get current git status
 print_step "Checking git status..."
 git status --short
 
+# Get current branch
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 print_info "Current branch: $CURRENT_BRANCH"
 
@@ -311,10 +319,12 @@ if [ "$CURRENT_BRANCH" != "main" ]; then
     fi
 fi
 
+# Check for uncommitted changes
 if [ -n "$(git status --porcelain)" ]; then
     print_step "Staging changes..."
     git add -A
 
+    # Generate commit message
     IMAGE_TAG=$(git rev-parse --short HEAD 2>/dev/null || echo "initial")
     TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
 
@@ -346,6 +356,7 @@ else
     print_info "No changes to commit"
 fi
 
+# Push to remote
 if ! confirm "Push to origin/$CURRENT_BRANCH? (This triggers Vercel auto-deploy)"; then
     print_warning "Skipping git push"
 else
@@ -355,6 +366,7 @@ else
     print_info "Frontend deployment triggered on Vercel"
 fi
 
+# If frontend only, we're done
 if [ "$FRONTEND_ONLY" = true ]; then
     print_header "DEPLOYMENT COMPLETE (FRONTEND ONLY)"
     echo "Frontend will be deployed automatically by Vercel."
@@ -370,24 +382,29 @@ fi
 if [ "$BACKEND_ONLY" = true ] || [ "$FRONTEND_ONLY" = false ]; then
     print_header "STEP 4: DOCKER BUILD AND PUSH TO ECR"
 
+    # Get image tag from git commit
     IMAGE_TAG=$(git rev-parse --short HEAD)
     print_info "Image tag (from git commit): $IMAGE_TAG"
 
     ECR_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
     FULL_IMAGE_NAME="$ECR_URI/$ECR_REPO_NAME"
 
+    # Authenticate to ECR
     print_step "Authenticating to Amazon ECR..."
     aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_URI"
     print_success "ECR authentication successful"
 
+    # Build Docker image
     print_step "Building Docker image..."
     docker build --platform linux/amd64 -t "$ECR_REPO_NAME:$IMAGE_TAG" apps/api/
     print_success "Docker image built: $ECR_REPO_NAME:$IMAGE_TAG"
 
+    # Tag for ECR
     print_step "Tagging image for ECR..."
     docker tag "$ECR_REPO_NAME:$IMAGE_TAG" "$FULL_IMAGE_NAME:$IMAGE_TAG"
     docker tag "$ECR_REPO_NAME:$IMAGE_TAG" "$FULL_IMAGE_NAME:latest"
 
+    # Push to ECR
     print_step "Pushing image to ECR..."
     docker push "$FULL_IMAGE_NAME:$IMAGE_TAG"
     docker push "$FULL_IMAGE_NAME:latest"
@@ -396,60 +413,23 @@ if [ "$BACKEND_ONLY" = true ] || [ "$FRONTEND_ONLY" = false ]; then
 fi
 
 # ==============================================================================
-# REGISTER NEW TASK DEFINITION & UPDATE SERVICE (FIX FOR LATEST REVISION)
-# ==============================================================================
-
-if [ "$BACKEND_ONLY" = true ] || [ "$FRONTEND_ONLY" = false ]; then
-    print_header "STEP 5: REGISTER NEW TASK DEFINITION & UPDATE SERVICE"
-
-    # Get current task definition to use as template
-    CURRENT_TASK_DEF=$(aws ecs describe-services \
-      --cluster "$ECS_CLUSTER" \
-      --services "$ECS_SERVICE" \
-      --query 'services[0].taskDefinition' \
-      --output text \
-      --region "$AWS_REGION")
-
-    print_info "Current task definition: $CURRENT_TASK_DEF"
-
-    # Extract family from ARN
-    FAMILY=$(echo "$CURRENT_TASK_DEF" | cut -d'/' -f2 | cut -d':' -f1)
-
-    # Register new revision with the new image
-    print_step "Registering new task definition revision with latest image..."
-    NEW_TASK_DEF=$(aws ecs register-task-definition \
-      --cli-input-json file://<(aws ecs describe-task-definition --task-definition "$CURRENT_TASK_DEF" --query 'taskDefinition' --output json | jq ".containerDefinitions[0].image = \"$FULL_IMAGE_NAME:$IMAGE_TAG\" | .containerDefinitions[0].image = \"$FULL_IMAGE_NAME:latest\" | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)") \
-      --region "$AWS_REGION" \
-      --query 'taskDefinition.taskDefinitionArn' \
-      --output text)
-
-    print_success "New task definition registered: $NEW_TASK_DEF"
-
-    # Update service to new task definition
-    print_step "Updating ECS service to new task definition..."
-    aws ecs update-service \
-      --cluster "$ECS_CLUSTER" \
-      --service "$ECS_SERVICE" \
-      --task-definition "$NEW_TASK_DEF" \
-      --force-new-deployment \
-      --region "$AWS_REGION"
-
-    print_success "Service updated — new tasks launching with latest code/image"
-fi
-
-# ==============================================================================
 # TERRAFORM APPLY (Optional)
 # ==============================================================================
 
 if [ "$SKIP_TERRAFORM" = false ] && [ "$FRONTEND_ONLY" = false ]; then
-    print_header "STEP 6: TERRAFORM INFRASTRUCTURE UPDATE"
+    print_header "STEP 5: TERRAFORM INFRASTRUCTURE UPDATE"
 
     if [ -d "$TF_DIR" ]; then
         print_step "Changing to Terraform directory: $TF_DIR"
         cd "$TF_DIR"
 
+        # Check for terraform.tfvars
         if [ ! -f "$TF_VAR_FILE" ]; then
             print_warning "terraform.tfvars not found!"
+            echo ""
+            echo "Create it with your ACM certificate ARN:"
+            echo "  acm_certificate_arn = \"arn:aws:acm:$AWS_REGION:$AWS_ACCOUNT_ID:certificate/xxx\""
+            echo ""
             if ! confirm "Continue without terraform.tfvars?"; then
                 cd - > /dev/null
                 exit 1
@@ -459,9 +439,11 @@ if [ "$SKIP_TERRAFORM" = false ] && [ "$FRONTEND_ONLY" = false ]; then
             TF_VAR_ARG="-var-file=$TF_VAR_FILE"
         fi
 
+        # Terraform init
         print_step "Initializing Terraform..."
         terraform init -input=false
 
+        # Terraform plan
         print_step "Planning infrastructure changes..."
         terraform plan $TF_VAR_ARG -out=tfplan
 
@@ -479,6 +461,29 @@ if [ "$SKIP_TERRAFORM" = false ] && [ "$FRONTEND_ONLY" = false ]; then
     else
         print_warning "Terraform directory not found: $TF_DIR"
         print_info "Skipping Terraform step"
+    fi
+fi
+
+# ==============================================================================
+# FORCE ECS SERVICE UPDATE
+# ==============================================================================
+
+if [ "$FRONTEND_ONLY" = false ]; then
+    print_header "STEP 6: ECS SERVICE UPDATE"
+
+    if confirm "Force ECS service to deploy new image?"; then
+        print_step "Updating ECS service..."
+        aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --force-new-deployment \
+            --region "$AWS_REGION" \
+            --output text \
+            --query 'service.serviceName'
+        print_success "ECS service update triggered"
+        print_info "New tasks will be deployed with image: $IMAGE_TAG"
+    else
+        print_warning "Skipping ECS service update"
     fi
 fi
 
@@ -504,12 +509,12 @@ echo ""
 echo -e "${BOLD}Verification Commands:${NC}"
 echo ""
 echo "# Check frontend deployment (Vercel)"
-echo "curl -I https://profitsentinel.com"
+echo "curl -I https://your-vercel-domain.vercel.app"
 echo ""
 
 if [ "$FRONTEND_ONLY" = false ]; then
     echo "# Check backend health"
-    echo "curl https://api.profitsentinel.com/health"
+    echo "curl https://api.yourdomain.com/health"
     echo ""
     echo "# Check ECS service status"
     echo "aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --query 'services[0].{running:runningCount,desired:desiredCount}' --region $AWS_REGION"
@@ -526,7 +531,7 @@ echo ""
 echo "Next steps:"
 echo "  1. Check Vercel dashboard for frontend status"
 if [ "$FRONTEND_ONLY" = false ]; then
-    echo "  2. Check ECS console for backend task status (new revision running)"
+    echo "  2. Check ECS console for backend task status"
     echo "  3. Monitor CloudWatch logs for any errors"
     echo "  4. Run health checks on both endpoints"
 fi
