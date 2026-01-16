@@ -1,4 +1,5 @@
 # Profit Sentinel API Dockerfile
+# NOTE: Build from repo root with: docker build -f apps/api/Dockerfile .
 FROM python:3.12-slim
 
 # Set environment variables
@@ -17,13 +18,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for caching
-COPY requirements.txt .
+COPY apps/api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Install PyTorch CPU-only (required by vsa-core and sentinel-engine)
+# Using CPU-only to reduce image size; use cuda version if GPU needed
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-# Add packages to Python path
+# Copy local packages and install them
+COPY packages/reasoning /packages/reasoning
+RUN pip install --no-cache-dir /packages/reasoning
+
+COPY packages/vsa-core /packages/vsa-core
+RUN pip install --no-cache-dir /packages/vsa-core
+
+COPY packages/sentinel-engine /packages/sentinel-engine
+RUN pip install --no-cache-dir /packages/sentinel-engine
+
+# Copy application code
+COPY apps/api/ .
+
+# Add app source to Python path
 ENV PYTHONPATH="/app:/app/src:${PYTHONPATH}"
 
 # Expose port
