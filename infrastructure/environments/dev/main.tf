@@ -12,13 +12,17 @@ module "alb" {
 }
 
 module "ecs" {
-  source               = "../../modules/ecs"
-  name_prefix          = "profitsentinel-dev"
-  vpc_id               = module.vpc.vpc_id
-  private_subnets      = module.vpc.private_subnets
-  alb_target_group_arn = module.alb.target_group_arn
-  alb_sg_id            = module.alb.alb_sg_id
-  ecr_repository_url   = module.ecr.repository_url
+  source                          = "../../modules/ecs"
+  name_prefix                     = "profitsentinel-dev"
+  vpc_id                          = module.vpc.vpc_id
+  private_subnets                 = module.vpc.private_subnets
+  alb_target_group_arn            = module.alb.target_group_arn
+  alb_sg_id                       = module.alb.alb_sg_id
+  ecr_repository_url              = module.ecr.repository_url
+  s3_bucket_name                  = module.s3.bucket_name
+  xai_api_key_secret_arn          = var.xai_api_key_secret_arn
+  supabase_url                    = var.supabase_url
+  supabase_service_key_secret_arn = var.supabase_service_key_secret_arn
 }
 
 module "rds" {
