@@ -3,20 +3,26 @@ Analysis endpoints - Aggressive Profit Leak Detection.
 
 Handles profit leak analysis using VSA resonator with 8 detection primitives.
 Supports data from any major POS system (Paladin, Square, Lightspeed, etc.).
+
+Privacy features:
+- Auto-deletes uploaded files after processing
+- Stores only anonymized aggregated analytics
 """
 
+import asyncio
 import json
 import logging
 import time
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
-from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException
 
 from ..config import get_settings, STANDARD_FIELDS, SUPPORTED_POS_SYSTEMS
 from ..dependencies import get_current_user, get_s3_client
 from ..services.analysis import AnalysisService
 from ..services.s3 import S3Service
+from ..services.anonymization import get_anonymization_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -189,6 +195,7 @@ def _clean_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
 async def analyze_upload(
     key: str = Form(...),
     mapping: str = Form(...),  # JSON string
+    background_tasks: BackgroundTasks = None,
     user_id: Optional[str] = Depends(get_current_user),
 ) -> Dict:
     """
@@ -287,6 +294,26 @@ async def analyze_upload(
         result["status"] = "success"
         result["warnings"] = mapping_warnings if mapping_warnings else None
         result["supported_pos_systems"] = SUPPORTED_POS_SYSTEMS
+
+        # Schedule file cleanup after processing (privacy compliance)
+        # Delete raw file from S3 after a short delay to allow for any retries
+        if background_tasks:
+            anon_service = get_anonymization_service()
+            background_tasks.add_task(
+                anon_service.cleanup_s3_file,
+                s3_client,
+                settings.s3_bucket_name,
+                key,
+                delay_seconds=60  # 1 minute delay before deletion
+            )
+            logger.info(f"Scheduled S3 file cleanup for key: {key}")
+
+            # Store anonymized analytics
+            background_tasks.add_task(
+                anon_service.store_anonymized_analytics,
+                [result],
+                False  # report_sent=False (not sent via email yet)
+            )
 
         return result
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from .analysis import router as analysis_router
 from .health import router as health_router
 from .uploads import router as uploads_router
+from .reports import router as reports_router
 
 # Main API router
 api_router = APIRouter()
@@ -17,3 +18,4 @@ api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(uploads_router, prefix="/uploads", tags=["uploads"])
 api_router.include_router(analysis_router, prefix="/analysis", tags=["analysis"])
+api_router.include_router(reports_router, prefix="/reports", tags=["reports"])

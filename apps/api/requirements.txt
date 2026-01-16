@@ -11,6 +11,10 @@ openai>=1.10.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
+# Email service dependencies (choose one or both)
+resend>=2.0.0
+sendgrid>=6.11.0
+
 # ML dependencies (optional, install with: pip install -r requirements.txt && pip install torch torchvision torchaudio)
 # torch>=2.2.0
 # torchvision>=0.17.0
