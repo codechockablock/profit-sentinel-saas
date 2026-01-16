@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profit Sentinel - Uncover Hidden Profit Leaks</title>
     <link rel="icon" href="https://i.imgur.com/68NbW7U.png" type="image/png">
-    <!-- Tailwind CSS is now bundled via PostCSS build - CDN removed for production -->
-    <link rel="stylesheet" href="/styles/tailwind.css">
+    <!-- Tailwind CSS via CDN for static HTML deployment -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
@@ -132,25 +132,29 @@
         </div>
     </section>
 
-    <!-- Supabase Init -->
-    <!-- Configuration injected via env-config.js (generated at deploy time) or inline defaults -->
-    <script src="/env-config.js" onerror="console.log('env-config.js not found, using defaults')"></script>
+    <!-- Application Configuration -->
     <script>
-        // Configuration - loaded from env-config.js or window.__ENV__
-        // In production, env-config.js sets window.__ENV__ with real values
-        const SUPABASE_URL = window.__ENV__?.SUPABASE_URL || '';
-        const SUPABASE_ANON_KEY = window.__ENV__?.SUPABASE_ANON_KEY || '';
-        const BACKEND_URL = window.__ENV__?.BACKEND_URL || 'https://api.profitsentinel.com';
+        // =====================================================================
+        // CONFIGURATION
+        // =====================================================================
+        // Backend API URL - publicly accessible, not a secret
+        const BACKEND_URL = 'https://api.profitsentinel.com';
 
-        // Only warn in development if missing (production should have env-config.js)
-        if ((!SUPABASE_URL || !SUPABASE_ANON_KEY) && window.location.hostname === 'localhost') {
-            console.info('Supabase configuration not set. Create env-config.js with window.__ENV__ = { SUPABASE_URL, SUPABASE_ANON_KEY, BACKEND_URL }');
-        }
+        // Supabase configuration (optional - for authenticated features)
+        // These are PUBLIC keys, safe for client-side use
+        // Set via Vercel/hosting environment or hardcode for static deployment
+        const SUPABASE_URL = '';  // e.g., 'https://xxx.supabase.co'
+        const SUPABASE_ANON_KEY = '';  // e.g., 'eyJ...'
 
+        // Initialize Supabase client only if configured
         const { createClient } = supabase;
-        const supabaseClient = SUPABASE_URL && SUPABASE_ANON_KEY
+        const supabaseClient = (SUPABASE_URL && SUPABASE_ANON_KEY)
             ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
             : null;
+
+        // Log configuration status (helpful for debugging)
+        console.log('[Profit Sentinel] Backend URL:', BACKEND_URL);
+        console.log('[Profit Sentinel] Supabase configured:', !!supabaseClient);
 
         const form = document.getElementById('uploadForm');
         const status = document.getElementById('status');
