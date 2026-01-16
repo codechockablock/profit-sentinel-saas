@@ -1,7 +1,8 @@
 """
-Analysis endpoints.
+Analysis endpoints - Aggressive Profit Leak Detection.
 
-Handles profit leak analysis using VSA resonator.
+Handles profit leak analysis using VSA resonator with 8 detection primitives.
+Supports data from any major POS system (Paladin, Square, Lightspeed, etc.).
 """
 
 import json
@@ -12,13 +13,62 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 from fastapi import APIRouter, Depends, Form, HTTPException
 
-from ..config import get_settings
+from ..config import get_settings, STANDARD_FIELDS, SUPPORTED_POS_SYSTEMS
 from ..dependencies import get_current_user, get_s3_client
 from ..services.analysis import AnalysisService
 from ..services.s3 import S3Service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# COMPREHENSIVE NUMERIC COLUMN ALIASES
+# Covers all major POS systems: Paladin, Square, Lightspeed, Clover, Shopify,
+# NCR Counterpoint, Microsoft Dynamics RMS, Epicor, and generic exports
+# =============================================================================
+
+NUMERIC_COLUMN_ALIASES = [
+    # Quantity / Stock
+    'quantity', 'qty', 'qty.', 'qoh', 'on_hand', 'onhand', 'in_stock', 'instock',
+    'in stock qty.', 'stock', 'inventory', 'stockonhand', 'qty_on_hnd',
+    'qty_avail', 'net_qty', 'available', 'current_stock', 'variant_inventory_qty',
+    'new_quantity', 'qty_oh', 'physical_qty', 'book_qty', 'bal', 'balance',
+    # Quantity Difference / Variance
+    'qty_difference', 'qty. difference', 'difference', 'variance', 'qty_variance',
+    'shrinkage', 'adjustment', 'discrepancy', 'over_short',
+    # Inventoried
+    'inventoried_qty', 'inventoried', 'inventoried qty.', 'counted_qty', 'count',
+    # Cost
+    'cost', 'cogs', 'cost_price', 'unit_cost', 'unitcost', 'avg_cost', 'avgcost',
+    'average_cost', 'standard_cost', 'lst_cost', 'last_cost', 'default_cost',
+    'vendor_cost', 'supply_price', 'cost_per_item', 'posting_cost', 'mktcost',
+    'landed_cost', 'purchase_cost', 'buy_price', 'wholesale_cost',
+    # Revenue / Retail Price
+    'revenue', 'retail', 'retail_price', 'price', 'sell_price', 'selling_price',
+    'sale_price', 'unit_price', 'msrp', 'list_price', 'sug. retail', 'sug retail',
+    'suggested_retail', 'netprice', 'net_price', 'prc_1', 'reg_prc', 'regular_price',
+    'pricea', 'default_price', 'variant_price', 'compare_at_price', 'pos_price',
+    'ext_price', 'line_total', 'amount', 'gross_sales', 'total_sale',
+    # Sold
+    'sold', 'units_sold', 'qty_sold', 'quantity_sold', 'sales_qty', 'total_sold',
+    'sold_qty', 'sold_last_week', 'sold_last_month', 'sold_30_days', 'sold_7_days',
+    'sales_units', 'unit_sales', 'movement',
+    # Margin
+    'margin', 'profit_margin', 'margin_pct', 'margin_percent', 'gp', 'gross_profit',
+    'gp_pct', 'gp_percent', 'profit_pct', 'markup', 'markup_pct',
+    # Sub Total / Value
+    'sub_total', 'subtotal', 'total', 'ext_total', 'inventory_value', 'stock_value',
+    'on_hand_value', 'gl_val',
+    # Discount / Tax
+    'discount', 'discount_amt', 'discount_amount', 'discount_pct',
+    'tax', 'sales_tax', 'vat', 'tax_amount',
+    # Reorder
+    'reorder_point', 'reorder_level', 'min_qty', 'minimum_qty', 'safety_stock',
+    'par_level', 'minorderqty', 'stock_min', 'stock_alert',
+    # Package
+    'pkg_qty', 'package_qty', 'pack_size', 'case_qty',
+]
 
 
 def _validate_and_apply_mapping(
@@ -87,6 +137,54 @@ def _validate_and_apply_mapping(
     return df, warnings
 
 
+def _clean_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Clean and convert numeric columns from any POS system.
+
+    Handles:
+    - Currency symbols ($)
+    - Thousands separators (,)
+    - Percentage signs (%)
+    - Leading/trailing whitespace
+    - Non-numeric values -> 0
+    """
+    # Find existing numeric columns (case-insensitive match)
+    df_cols_lower = {col.lower().replace(' ', '').replace('.', ''): col for col in df.columns}
+    existing_numeric = []
+
+    for alias in NUMERIC_COLUMN_ALIASES:
+        normalized = alias.lower().replace(' ', '').replace('.', '')
+        if normalized in df_cols_lower:
+            existing_numeric.append(df_cols_lower[normalized])
+
+    # Also add original column names that match
+    for alias in NUMERIC_COLUMN_ALIASES:
+        if alias in df.columns and alias not in existing_numeric:
+            existing_numeric.append(alias)
+
+    # Remove duplicates while preserving order
+    existing_numeric = list(dict.fromkeys(existing_numeric))
+
+    if existing_numeric:
+        logger.info(f"Cleaning {len(existing_numeric)} numeric columns: {existing_numeric[:10]}...")
+
+        # Strip $ and , and %, convert to numeric
+        for col in existing_numeric:
+            try:
+                df[col] = (
+                    df[col]
+                    .astype(str)
+                    .str.replace(r'[$,\%]', '', regex=True)
+                    .str.strip()
+                )
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                df[col] = df[col].fillna(0.0)
+            except Exception as e:
+                logger.warning(f"Failed to clean column {col}: {e}")
+
+    return df
+
+
 @router.post("/analyze")
 async def analyze_upload(
     key: str = Form(...),
@@ -96,13 +194,28 @@ async def analyze_upload(
     """
     Analyze uploaded POS data for profit leaks.
 
+    Supports data from any major POS system including:
+    - Paladin POS
+    - Square POS
+    - Lightspeed Retail
+    - Clover POS
+    - Shopify POS
+    - NCR Counterpoint
+    - Microsoft Dynamics RMS
+    - Epicor Eagle
+    - And many more...
+
     Args:
         key: S3 object key
-        mapping: JSON string of column mappings
+        mapping: JSON string of column mappings {source: target}
         user_id: Current user ID (from auth)
 
     Returns:
-        Analysis results with detected anomalies
+        Comprehensive analysis results with:
+        - leaks: Dict of detected leak types with items, scores, metadata
+        - summary: Overall statistics and estimated $ impact
+        - primitives_used: List of 8 detection primitives used
+        - warnings: Any mapping warnings
     """
     # Parse mapping
     try:
@@ -122,7 +235,7 @@ async def analyze_upload(
 
     try:
         overall_start = time.time()
-        logger.info(f"Starting analysis for key: {key}")
+        logger.info(f"Starting aggressive analysis for key: {key}")
 
         settings = get_settings()
         s3_client = get_s3_client()
@@ -144,8 +257,10 @@ async def analyze_upload(
         if mapping_warnings:
             logger.info(f"Mapping applied with {len(mapping_warnings)} warnings")
 
-        # Clean numeric columns
+        # Clean numeric columns (aggressive - handles all POS systems)
+        clean_start = time.time()
         df = _clean_numeric_columns(df)
+        logger.info(f"Cleaned numeric columns in {time.time() - clean_start:.2f}s")
 
         # Drop duplicate columns (keep first occurrence)
         if df.columns.duplicated().any():
@@ -161,19 +276,19 @@ async def analyze_upload(
             f"in {time.time() - records_start:.2f}s"
         )
 
-        # Run analysis
+        # Run analysis with all 8 primitives
         analysis_service = AnalysisService()
-        leaks = analysis_service.analyze(rows)
+        result = analysis_service.analyze(rows)
 
-        logger.info(
-            f"Full analysis completed in {time.time() - overall_start:.2f}s"
-        )
+        total_time = time.time() - overall_start
+        logger.info(f"Full analysis pipeline completed in {total_time:.2f}s")
 
-        return {
-            "status": "success",
-            "leaks": leaks,
-            "warnings": mapping_warnings if mapping_warnings else None
-        }
+        # Add status and warnings to response
+        result["status"] = "success"
+        result["warnings"] = mapping_warnings if mapping_warnings else None
+        result["supported_pos_systems"] = SUPPORTED_POS_SYSTEMS
+
+        return result
 
     except HTTPException:
         # Re-raise HTTP exceptions as-is
@@ -196,29 +311,36 @@ async def analyze_upload(
         raise HTTPException(status_code=500, detail=f"Analysis failed: {error_msg}")
 
 
-def _clean_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Clean and convert numeric columns."""
-    numeric_aliases = [
-        'quantity', 'Qty.', 'In Stock Qty.', 'qty_difference', 'Qty. Difference',
-        'revenue', 'Retail', 'Sug. Retail', 'sale_price', 'price', 'ext_price',
-        'line_total', 'amount',
-        'cost', 'Cost', 'cogs', 'unit_cost',
-        'discount', 'tax',
-        'sold', 'Sold'
-    ]
+@router.get("/primitives")
+async def list_primitives() -> Dict:
+    """
+    List all available analysis primitives.
 
-    existing_numeric = [col for col in numeric_aliases if col in df.columns]
-    if existing_numeric:
-        # Strip $ and commas, convert to numeric
-        df[existing_numeric] = (
-            df[existing_numeric]
-            .astype(str)
-            .replace(r'[$,]', '', regex=True)
-            .apply(lambda x: x.str.strip())
-        )
-        df[existing_numeric] = df[existing_numeric].apply(
-            pd.to_numeric, errors='coerce'
-        )
-        df[existing_numeric] = df[existing_numeric].fillna(0.0)
+    Returns metadata about each of the 8 leak detection primitives.
+    """
+    analysis_service = AnalysisService()
+    primitives = {}
 
-    return df
+    for p in analysis_service.get_available_primitives():
+        info = analysis_service.get_primitive_info(p)
+        if info:
+            primitives[p] = info
+
+    return {
+        "primitives": primitives,
+        "count": len(primitives),
+    }
+
+
+@router.get("/supported-pos")
+async def list_supported_pos() -> Dict:
+    """
+    List all supported POS systems.
+
+    Returns list of POS systems whose export formats are supported.
+    """
+    return {
+        "supported_systems": SUPPORTED_POS_SYSTEMS,
+        "count": len(SUPPORTED_POS_SYSTEMS),
+        "notes": "Column mapping auto-detects formats from these systems",
+    }
