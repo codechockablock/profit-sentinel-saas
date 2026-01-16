@@ -23,12 +23,21 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = Field(default=False)
 
-    # CORS
+    # CORS - All allowed origins for frontend requests
+    # Includes production domains, Vercel previews, and local development
     cors_origins: List[str] = Field(default=[
+        # Production domains
         "https://profitsentinel.com",
         "https://www.profitsentinel.com",
+        # Vercel deployments (main + preview)
         "https://profit-sentinel-saas.vercel.app",
+        "https://profit-sentinel.vercel.app",
+        # Vercel preview URLs pattern (handled via regex in middleware if needed)
+        # Local development
         "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
     ])
 
     # AWS S3

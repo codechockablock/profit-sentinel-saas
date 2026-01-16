@@ -1116,6 +1116,34 @@ aws ecs update-service \
 | Vercel build fails | Vercel deployment logs | Check package.json scripts and dependencies |
 | CORS errors | Browser console | Add domain to CORS_ORIGINS in backend config |
 | Docker push denied | ECR authentication | Re-run `aws ecr get-login-password` |
+| tailwind.css 404 | Static HTML using wrong path | Use Tailwind CDN in static HTML |
+| env-config.js 404 | Old deployment pattern | Backend URL is hardcoded, Supabase is optional |
+
+### Static Frontend (Legacy HTML) Deployment
+
+The `frontend/index.html` file is a standalone static HTML page that can be deployed to any static hosting (S3, Netlify, Vercel static, etc.).
+
+**Key Configuration:**
+
+1. **Tailwind CSS**: Uses Tailwind CDN (`cdn.tailwindcss.com`) - no build step required
+2. **Backend URL**: Hardcoded to `https://api.profitsentinel.com`
+3. **Supabase** (optional): For authenticated features, set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in the script
+
+**Deployment:**
+```bash
+# Deploy to S3 static website hosting
+aws s3 sync frontend/ s3://your-bucket-name/ --delete
+```
+
+### CORS Configuration
+
+The backend accepts requests from:
+- `https://profitsentinel.com` and `www.profitsentinel.com`
+- `https://profit-sentinel-saas.vercel.app`
+- Any Vercel preview URL matching `profit-sentinel*.vercel.app`
+- `localhost:3000` and `localhost:5173` (development)
+
+To add new origins, edit `apps/api/src/config.py` → `cors_origins`.
 
 ---
 
