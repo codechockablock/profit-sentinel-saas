@@ -59,11 +59,20 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
     """
     Custom CORS middleware that supports dynamic Vercel preview URLs.
     Falls back to standard CORS for listed origins.
+
+    IMPORTANT: This middleware ensures CORS headers are added even when
+    exceptions occur, preventing browsers from blocking error responses.
     """
 
     def __init__(self, app, allowed_origins: list[str]):
         super().__init__(app)
         self.allowed_origins = allowed_origins
+
+    def _add_cors_headers(self, response: Response, origin: str) -> None:
+        """Add CORS headers to response if origin is allowed."""
+        if is_allowed_origin(origin, self.allowed_origins):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         origin = request.headers.get("origin", "")
@@ -82,14 +91,24 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
                 # Log rejected preflight for debugging
                 logger.warning(f"CORS preflight rejected for origin: {origin}")
 
-        # Process the actual request
-        response = await call_next(request)
+        # Process the actual request with exception handling
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            # Ensure CORS headers on error responses so browser can read error details
+            logger.error(f"Request failed: {e}")
+            from fastapi.responses import JSONResponse
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"}
+            )
+            self._add_cors_headers(response, origin)
+            return response
 
-        # Add CORS headers to response if origin is allowed
-        if is_allowed_origin(origin, self.allowed_origins):
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        elif origin:
+        # Add CORS headers to successful response if origin is allowed
+        self._add_cors_headers(response, origin)
+
+        if origin and not is_allowed_origin(origin, self.allowed_origins):
             # Log rejected origin for non-OPTIONS requests
             logger.debug(f"CORS headers not added for origin: {origin}")
 
