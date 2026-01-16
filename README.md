@@ -753,10 +753,19 @@ To add your domain, edit `apps/api/src/config.py` and add your domain to the lis
 |----------|-------|-------------|----------|
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://YOUR_PROJECT.supabase.co` | Production, Preview | **Yes** |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJ...` (your anon key) | Production, Preview | **Yes** |
-| `NEXT_PUBLIC_API_URL` | `https://api.yourdomain.com` | Production | **Yes** |
+| `NEXT_PUBLIC_API_URL` | `https://api.profitsentinel.com` | Production | **Yes** |
 | `XAI_API_KEY` | `xai-...` (your xAI key) | Production | Recommended |
 
-> **IMPORTANT**: The `NEXT_PUBLIC_` prefix is required for these variables to be available in the browser at runtime. Without them, the Supabase client will fail to initialize and you'll see console errors.
+> **IMPORTANT**: The `NEXT_PUBLIC_` prefix is required for these variables to be available in the browser at runtime. Without them, the Supabase client will fail to initialize and you'll see "Supabase configured: false" console errors.
+
+**Fixing Common Console Errors:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `cdn.tailwindcss.com should not be used in production` | Using static HTML instead of Next.js | Deploy the `apps/web/` Next.js app, not `frontend/index.html` |
+| `Supabase configured: false` | Missing `NEXT_PUBLIC_SUPABASE_*` vars | Add environment variables in Vercel dashboard |
+| `CORS policy block` | Backend not allowing frontend origin | Ensure frontend domain is in `apps/api/src/config.py` CORS origins |
+| `Failed to fetch` on `/uploads/presign` | CORS block or backend down | Fix CORS first; check backend health at `/health` |
 
 **Step 3: Redeploy** after adding variables.
 
