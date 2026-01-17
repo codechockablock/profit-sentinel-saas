@@ -94,13 +94,16 @@ jobs:
           SHORT_SHA=$(echo $IMAGE_TAG | cut -c1-7)
 
           echo "Building image with tag: $SHORT_SHA"
+          # Build from repo root with Dockerfile path specified
+          # (Dockerfile expects access to packages/ for local dependencies)
           docker build \
+            -f apps/api/Dockerfile \
             --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
             --build-arg GIT_COMMIT=$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            apps/api/
+            .
 
           echo "Pushing images to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
