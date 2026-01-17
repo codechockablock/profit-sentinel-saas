@@ -285,25 +285,36 @@ class HierarchicalResonator:
         # Simple k-means for coarse clustering
         k = min(self.coarse_clusters, n)
 
+        # Handle complex vectors by using magnitude for distance calculation
+        if vectors.is_complex():
+            vectors_real = torch.abs(vectors)  # Use magnitude for clustering
+        else:
+            vectors_real = vectors
+
         # Initialize centroids randomly
         indices = torch.randperm(n)[:k]
         centroids = vectors[indices].clone()
+        centroids_real = vectors_real[indices].clone()
 
         # K-means iterations
         for _ in range(20):
-            # Assign to nearest centroid
-            dists = torch.cdist(vectors.float(), centroids.float())
+            # Assign to nearest centroid using real-valued distances
+            dists = torch.cdist(vectors_real.float(), centroids_real.float())
             assignments = torch.argmin(dists, dim=1)
 
-            # Update centroids
+            # Update centroids (use original complex vectors)
             new_centroids = torch.zeros_like(centroids)
+            new_centroids_real = torch.zeros_like(centroids_real)
             for i in range(k):
                 mask = assignments == i
                 if mask.any():
                     new_centroids[i] = normalize(vectors[mask].sum(dim=0))
+                    new_centroids_real[i] = torch.abs(new_centroids[i]) if vectors.is_complex() else new_centroids[i]
                 else:
                     new_centroids[i] = centroids[i]
+                    new_centroids_real[i] = centroids_real[i]
             centroids = new_centroids
+            centroids_real = new_centroids_real
 
         self.coarse_centroids = centroids
         self.cluster_assignments = assignments.tolist()
@@ -334,9 +345,28 @@ class HierarchicalResonator:
 
         query = query.to(self._device)
 
-        # Find best cluster
+        # Find best cluster with non-empty codebook
         coarse_sims = batch_similarity(query, self.coarse_centroids)
-        best_cluster = int(torch.argmax(coarse_sims))
+
+        # Sort clusters by similarity and find first non-empty
+        sorted_clusters = torch.argsort(coarse_sims, descending=True)
+        best_cluster = None
+        for cluster_idx in sorted_clusters.tolist():
+            if len(self.fine_labels[cluster_idx]) > 0:
+                best_cluster = cluster_idx
+                break
+
+        # Fallback: if all clusters empty, return empty result
+        if best_cluster is None:
+            return ResonatorResult(
+                vector=query,
+                iterations=0,
+                converged=False,
+                convergence_delta=float('inf'),
+                elapsed_ms=0,
+                top_matches=[],
+                metadata={"error": "All clusters empty"}
+            )
 
         # Create temporary resonator for fine search
         fine_resonator = Resonator(self.config)
