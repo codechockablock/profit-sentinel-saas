@@ -35,17 +35,30 @@ VERCEL_PREVIEW_PATTERN = re.compile(
     r"^https://profit-sentinel[-a-z0-9]*\.vercel\.app$"
 )
 
+# Production domain patterns (handles www and non-www)
+PRODUCTION_DOMAIN_PATTERN = re.compile(
+    r"^https://(www\.)?profitsentinel\.com$"
+)
+
 
 def is_allowed_origin(origin: str, allowed_origins: list[str]) -> bool:
     """
     Check if an origin is allowed.
-    Supports exact matches and Vercel preview URL patterns.
+    Supports exact matches, Vercel preview URLs, and production domains.
     """
     if not origin:
         return False
 
-    # Exact match check
-    if origin in allowed_origins:
+    # Normalize origin (strip trailing slash, lowercase)
+    origin = origin.rstrip('/').lower()
+
+    # Exact match check (case-insensitive)
+    allowed_lower = [o.rstrip('/').lower() for o in allowed_origins]
+    if origin in allowed_lower:
+        return True
+
+    # Production domain pattern (www.profitsentinel.com or profitsentinel.com)
+    if PRODUCTION_DOMAIN_PATTERN.match(origin):
         return True
 
     # Vercel preview URL pattern match
@@ -77,19 +90,24 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         origin = request.headers.get("origin", "")
 
+        # Log all incoming requests with origin for debugging
+        if origin:
+            logger.debug(f"Request from origin: {origin}, path: {request.url.path}")
+
         # Handle preflight OPTIONS requests
         if request.method == "OPTIONS":
             if is_allowed_origin(origin, self.allowed_origins):
+                logger.info(f"CORS preflight APPROVED for origin: {origin}")
                 response = Response(status_code=200)
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-                response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept"
+                response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Requested-With"
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Max-Age"] = "600"
                 return response
             else:
                 # Log rejected preflight for debugging
-                logger.warning(f"CORS preflight rejected for origin: {origin}")
+                logger.warning(f"CORS preflight REJECTED for origin: {origin}")
 
         # Process the actual request with exception handling
         try:
