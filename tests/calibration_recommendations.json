@@ -1,0 +1,178 @@
+{
+  "timestamp": "2026-01-16T20:12:07Z",
+  "pipeline_version": "2.1.0",
+  "calibration_version": "v2.1",
+  "validation_dataset": {
+    "rows": 10000,
+    "anomaly_rate": 0.05,
+    "primitives": 8,
+    "total_anomalies": 4000
+  },
+  "overall_assessment": {
+    "baseline_avg_precision": 0.739,
+    "baseline_avg_recall": 0.971,
+    "baseline_avg_f1": 0.824,
+    "resonator_status": "ALL_PASS",
+    "production_ready": true,
+    "decision": "DEPLOY"
+  },
+  "primitive_assessments": {
+    "negative_inventory": {
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "status": "EXCELLENT",
+      "calibration_needed": false,
+      "notes": "Perfect detection - no changes needed"
+    },
+    "overstock": {
+      "f1": 0.999,
+      "precision": 1.0,
+      "recall": 0.998,
+      "status": "EXCELLENT",
+      "calibration_needed": false,
+      "notes": "Near-perfect detection with qty/sold ratio threshold"
+    },
+    "shrinkage_pattern": {
+      "f1": 0.981,
+      "precision": 1.0,
+      "recall": 0.962,
+      "status": "EXCELLENT",
+      "calibration_needed": false,
+      "notes": "High performance - 96.2% recall is acceptable"
+    },
+    "dead_item": {
+      "f1": 0.846,
+      "precision": 0.733,
+      "recall": 1.0,
+      "status": "GOOD",
+      "calibration_needed": false,
+      "notes": "Good balance - 73% precision acceptable for dead item flagging"
+    },
+    "high_margin_leak": {
+      "f1": 0.715,
+      "precision": 0.556,
+      "recall": 1.0,
+      "status": "ACCEPTABLE",
+      "calibration_needed": true,
+      "recommendation": "Add category-specific margin thresholds",
+      "notes": "100% recall ensures no margin leaks missed; FPs are acceptable for review"
+    },
+    "margin_erosion": {
+      "f1": 0.712,
+      "precision": 0.552,
+      "recall": 1.0,
+      "status": "ACCEPTABLE",
+      "calibration_needed": true,
+      "recommendation": "Consider dataset-adaptive erosion threshold",
+      "notes": "High recall prioritized over precision for profit protection"
+    },
+    "low_stock": {
+      "f1": 0.709,
+      "precision": 0.549,
+      "recall": 1.0,
+      "status": "ACCEPTABLE",
+      "calibration_needed": true,
+      "recommendation": "Add velocity-weighted thresholds",
+      "notes": "100% recall ensures no stockouts missed"
+    },
+    "price_discrepancy": {
+      "f1": 0.631,
+      "precision": 0.518,
+      "recall": 0.808,
+      "status": "NEEDS_IMPROVEMENT",
+      "calibration_needed": true,
+      "current_threshold": 0.30,
+      "recommended_actions": [
+        "Increase threshold to 0.35-0.40 to reduce FPs",
+        "Add category-specific price variance expectations",
+        "Consider seasonal price adjustment handling"
+      ],
+      "notes": "Lowest F1 - both precision and recall need improvement"
+    }
+  },
+  "production_thresholds": {
+    "description": "Current v2.1 thresholds in packages/sentinel-engine/src/sentinel_engine/core.py",
+    "values": {
+      "low_stock_qty": 10,
+      "low_stock_critical": 3,
+      "dead_item_days": 60,
+      "dead_item_sold_threshold": 2,
+      "margin_leak_threshold": 0.25,
+      "margin_critical_threshold": 0.10,
+      "overstock_qty_threshold": 100,
+      "overstock_qty_to_sold_ratio": 200,
+      "shrinkage_threshold": -1,
+      "price_discrepancy_threshold": 0.30
+    }
+  },
+  "recommendations": {
+    "immediate": [
+      {
+        "action": "DEPLOY_BASELINE",
+        "description": "Deploy baseline detector to production",
+        "rationale": "82.4% avg F1 with 97.1% recall is production-ready"
+      },
+      {
+        "action": "ENABLE_RESONATOR_INFRA",
+        "description": "Enable VSA resonator in infrastructure mode",
+        "rationale": "100% convergence, detects contradictions for review"
+      }
+    ],
+    "short_term": [
+      {
+        "primitive": "price_discrepancy",
+        "action": "ADD_CATEGORY_VARIANCE",
+        "description": "Implement category-specific price variance expectations",
+        "expected_improvement": "Reduce FPs by 30-40%"
+      },
+      {
+        "primitive": "high_margin_leak",
+        "action": "CATEGORY_MARGIN_THRESHOLDS",
+        "description": "Use per-category margin baselines instead of global",
+        "expected_improvement": "Reduce FPs by 20-30%"
+      }
+    ],
+    "long_term": [
+      {
+        "action": "FEEDBACK_LOOP",
+        "description": "Implement user feedback loop for threshold auto-tuning",
+        "notes": "Track user confirmations/rejections to optimize thresholds"
+      },
+      {
+        "action": "ADAPTIVE_THRESHOLDS",
+        "description": "Dataset-adaptive thresholds based on data distribution",
+        "notes": "Percentile-based thresholds instead of absolute values"
+      }
+    ]
+  },
+  "resonator_calibration": {
+    "status": "OPTIMAL",
+    "config": {
+      "convergence_threshold": 0.005,
+      "max_iterations": 100,
+      "top_k": 16,
+      "dimensions": 16384,
+      "batch_processing": true
+    },
+    "performance": {
+      "convergence_rate": "100%",
+      "avg_confidence": "~1.0",
+      "hallucinations_flagged": 0,
+      "contradictions_detected": 410
+    },
+    "notes": "Batch processing achieves 100% convergence; no changes needed"
+  },
+  "gpu_recommendations": {
+    "current_performance": {
+      "cpu_rows_per_sec": 21,
+      "cpu_time_10k_sec": 20
+    },
+    "production_recommendation": "AWS g4dn.xlarge",
+    "expected_gpu_performance": {
+      "speedup": "5-10x",
+      "estimated_10k_sec": "2-4"
+    },
+    "notes": "GPU recommended for datasets >10K rows"
+  }
+}

@@ -1,0 +1,508 @@
+{
+  "timestamp": "2026-01-16T20:40:05.877889",
+  "config": {
+    "convergence_threshold": 0.005,
+    "max_iterations": 300,
+    "top_k": 16
+  },
+  "results": {
+    "low_stock": {
+      "status": "PASS",
+      "candidates_checked": 98,
+      "convergence_passed": 98,
+      "convergence_failed": 0,
+      "hallucinations_flagged": 0,
+      "avg_confidence": 1.00000000912316
+    },
+    "high_margin_leak": {
+      "status": "PASS",
+      "candidates_checked": 96,
+      "convergence_passed": 96,
+      "convergence_failed": 0,
+      "hallucinations_flagged": 0,
+      "avg_confidence": 0.9999999708185593
+    },
+    "dead_item": {
+      "status": "PASS",
+      "candidates_checked": 71,
+      "convergence_passed": 71,
+      "convergence_failed": 0,
+      "hallucinations_flagged": 0,
+      "avg_confidence": 1.000000110814269
+    },
+    "negative_inventory": {
+      "status": "PASS",
+      "candidates_checked": 50,
+      "convergence_passed": 50,
+      "convergence_failed": 0,
+      "hallucinations_flagged": 0,
+      "avg_confidence": 0.9999999845027924
+    },
+    "overstock": {
+      "status": "PASS",
+      "candidates_checked": 50,
+      "convergence_passed": 50,
+      "convergence_failed": 0,
+      "hallucinations_flagged": 0,
+      "avg_confidence": 0.9999995672702789
+    },
+    "price_discrepancy": {
+      "status": "PASS",
+      "candidates_checked": 75,
+      "convergence_passed": 75,
+      "convergence_failed": 0,
+      "hallucinations_flagged": 0,
+      "avg_confidence": 1.0000000842412313
+    },
+    "shrinkage_pattern": {
+      "status": "PASS",
+      "candidates_checked": 49,
+      "convergence_passed": 49,
+      "convergence_failed": 0,
+      "hallucinations_flagged": 0,
+      "avg_confidence": 1.000000233552894
+    },
+    "margin_erosion": {
+      "status": "PASS",
+      "candidates_checked": 81,
+      "convergence_passed": 81,
+      "convergence_failed": 0,
+      "hallucinations_flagged": 0,
+      "avg_confidence": 0.9999996997691967
+    }
+  },
+  "contradictions": [
+    {
+      "sku": "negative_inventory_0014",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0019",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0018",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0040",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0011",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0000",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0029",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0044",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0034",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0037",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0041",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0048",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0047",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0038",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0028",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0042",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0026",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0024",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0046",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0030",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0010",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0049",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0035",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0007",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0031",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0032",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0039",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0020",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0045",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0023",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0006",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0001",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0009",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0016",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0025",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0004",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0033",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0027",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0003",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0043",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0036",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0021",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0015",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0013",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0012",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0008",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0022",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    },
+    {
+      "sku": "negative_inventory_0017",
+      "primitives": [
+        "negative_inventory",
+        "low_stock"
+      ],
+      "type": "logical_contradiction",
+      "recommendation": "manual_review"
+    }
+  ]
+}
