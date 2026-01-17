@@ -10,7 +10,7 @@ variable "private_subnets" {
   type = list(string)
 }
 
-variable "ecs_sg_id" {  # Allow access from ECS tasks
+variable "ecs_sg_id" { # Allow access from ECS tasks
   type = string
 }
 
@@ -52,19 +52,19 @@ resource "aws_rds_cluster" "aurora" {
   cluster_identifier          = "${var.name_prefix}-cluster"
   engine                      = "aurora-postgresql"
   engine_mode                 = "provisioned"
-  engine_version              = "15"  # Latest compatible
+  engine_version              = "15" # Latest compatible
   database_name               = "profitsentinel"
   master_username             = "adminuser"
-  manage_master_user_password = true  # Uses Secrets Manager automatically
+  manage_master_user_password = true # Uses Secrets Manager automatically
   db_subnet_group_name        = aws_db_subnet_group.main.name
   vpc_security_group_ids      = [aws_security_group.rds.id]
   storage_encrypted           = true
-  skip_final_snapshot         = true  # Dev only—set false in prod
+  skip_final_snapshot         = true # Dev only—set false in prod
   deletion_protection         = false
 
   serverlessv2_scaling_configuration {
     min_capacity = 0.5
-    max_capacity = 8.0  # Adjust for growth
+    max_capacity = 8.0 # Adjust for growth
   }
 
   tags = {
@@ -73,11 +73,11 @@ resource "aws_rds_cluster" "aurora" {
 }
 
 resource "aws_rds_cluster_instance" "aurora_instances" {
-  count              = 1  # Start with 1, scale later
-  identifier         = "${var.name_prefix}-instance-${count.index}"
-  cluster_identifier = aws_rds_cluster.aurora.id
-  instance_class     = "db.serverless"
-  engine             = "aurora-postgresql"
+  count               = 1 # Start with 1, scale later
+  identifier          = "${var.name_prefix}-instance-${count.index}"
+  cluster_identifier  = aws_rds_cluster.aurora.id
+  instance_class      = "db.serverless"
+  engine              = "aurora-postgresql"
   publicly_accessible = false
 
   tags = {

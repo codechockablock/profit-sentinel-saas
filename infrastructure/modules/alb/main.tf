@@ -40,7 +40,7 @@ resource "aws_lb_target_group" "api" {
   target_type = "ip"
 
   health_check {
-    path                = "/health"  # FastAPI health endpoint we'll add
+    path                = "/health" # FastAPI health endpoint we'll add
     protocol            = "HTTP"
     matcher             = "200"
     interval            = 30
@@ -84,8 +84,8 @@ resource "aws_lb_listener" "http_redirect" {
 }
 
 resource "aws_security_group" "alb" {
-  name        = "${var.name_prefix}-alb-sg"
-  vpc_id      = var.vpc_id
+  name   = "${var.name_prefix}-alb-sg"
+  vpc_id = var.vpc_id
 
   ingress {
     from_port   = 80
