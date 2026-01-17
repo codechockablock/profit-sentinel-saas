@@ -31,16 +31,21 @@ exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Starting Profit Sentinel GPU instance setup..."
 
 # -----------------------------------------------------------------------------
-# System Updates
+# System Updates (Ubuntu-based Deep Learning AMI)
 # -----------------------------------------------------------------------------
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Updating system packages..."
-yum update -y
+apt-get update -y
+apt-get install -y jq curl
 
 # -----------------------------------------------------------------------------
 # Install CloudWatch Agent
 # -----------------------------------------------------------------------------
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Installing CloudWatch agent..."
-yum install -y amazon-cloudwatch-agent
+if ! command -v amazon-cloudwatch-agent &> /dev/null; then
+  wget -q https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+  dpkg -i amazon-cloudwatch-agent.deb
+  rm amazon-cloudwatch-agent.deb
+fi
 
 # Configure CloudWatch agent
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<EOF
@@ -115,33 +120,36 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
 # -----------------------------------------------------------------------------
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Configuring Docker..."
 
-# Ensure Docker is installed and running
+# Ensure Docker is installed and running (Docker pre-installed on Deep Learning AMI)
 if ! command -v docker &> /dev/null; then
   echo "Installing Docker..."
-  amazon-linux-extras install docker -y
+  apt-get install -y docker.io
 fi
 
 # Start and enable Docker
 systemctl start docker
 systemctl enable docker
 
-# Add ec2-user to docker group
-usermod -aG docker ec2-user
+# Add ubuntu user to docker group
+usermod -aG docker ubuntu
 
 # Configure NVIDIA Container Toolkit (should be pre-installed on Deep Learning AMI)
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Configuring NVIDIA Container Toolkit..."
 
-# Verify nvidia-docker is available
+# Verify nvidia-docker is available (pre-installed on Deep Learning AMI Ubuntu)
 if ! docker info 2>/dev/null | grep -q "nvidia"; then
   echo "Installing NVIDIA Container Toolkit..."
 
   distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-  curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.repo | \
-    tee /etc/yum.repos.d/nvidia-docker.repo
+  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
-  yum clean expire-cache
-  yum install -y nvidia-docker2
+  apt-get update
+  apt-get install -y nvidia-container-toolkit
 
+  nvidia-ctk runtime configure --runtime=docker
   systemctl restart docker
 fi
 

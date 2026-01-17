@@ -122,15 +122,15 @@ RUN useradd --create-home --shell /bin/bash appuser
 # Set working directory
 WORKDIR /app
 
-# Copy application code
+# Copy application code as a proper package
 COPY apps/api/src ./src/
 COPY config ./config/
 
 # Copy configuration files
 COPY config/hybrid_pipeline_config.yaml ./config/
 
-# Set PYTHONPATH for local packages
-ENV PYTHONPATH="/app/src:/opt/venv/lib/python3.12/site-packages"
+# Set PYTHONPATH - include /app so src can be imported as a package
+ENV PYTHONPATH="/app:/opt/venv/lib/python3.12/site-packages"
 
 # NVIDIA runtime configuration
 ENV NVIDIA_VISIBLE_DEVICES=all
@@ -157,8 +157,8 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
-# Run application with uvicorn
-CMD ["python", "-m", "uvicorn", "main:app", \
+# Run application with uvicorn - use src.main to properly resolve relative imports
+CMD ["python", "-m", "uvicorn", "src.main:app", \
      "--host", "0.0.0.0", \
      "--port", "8000", \
      "--workers", "4", \
