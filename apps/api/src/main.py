@@ -159,10 +159,30 @@ def create_app() -> FastAPI:
         ]
     )
 
-    # CORS middleware - using custom middleware for dynamic Vercel preview support
-    # This handles:
-    # 1. Exact origin matches from settings.cors_origins
-    # 2. Vercel preview URLs matching pattern: profit-sentinel*.vercel.app
+    # CORS middleware - layered approach for maximum compatibility:
+    #
+    # Layer 1: FastAPI's built-in CORSMiddleware (added first, runs last)
+    # - Provides robust CORS handling for all standard origins
+    # - Handles preflight OPTIONS requests automatically
+    # - Works as a safety net for edge cases
+    #
+    # Layer 2: Custom DynamicCORSMiddleware (added second, runs first)
+    # - Adds support for dynamic Vercel preview URLs (regex matching)
+    # - Adds CORS headers to error responses
+    #
+    # Note: Middleware runs in reverse order of registration (LIFO)
+
+    # Layer 1: Built-in CORS for standard origins (safety net)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
+        max_age=600,
+    )
+
+    # Layer 2: Custom CORS for dynamic origins (Vercel previews, error handling)
     app.add_middleware(
         DynamicCORSMiddleware,
         allowed_origins=settings.cors_origins
