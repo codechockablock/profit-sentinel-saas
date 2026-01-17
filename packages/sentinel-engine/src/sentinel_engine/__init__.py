@@ -39,7 +39,7 @@ Example (Legacy - Deprecated):
     bundle = bundle_pos_facts(rows)  # Deprecated signature
 """
 
-__version__ = "2.1.0"
+__version__ = "3.0.0"
 
 # Context-based API (v2.1 - Recommended)
 from .context import (
@@ -114,6 +114,17 @@ from .contradiction_detector import (
     CONTRADICTORY_PAIRS,
 )
 
+# Streaming module for large files (v3.0.0)
+from .streaming import (
+    process_large_file,
+    process_dataframe,
+    StreamingResult,
+    StreamingStats,
+    read_file_chunked,
+    compute_streaming_stats,
+    bundle_pos_facts_streaming,
+)
+
 __all__ = [
     # Version
     "__version__",
@@ -165,4 +176,12 @@ __all__ = [
     "generate_contradiction_report",
     "Contradiction",
     "CONTRADICTORY_PAIRS",
+    # Streaming (v3.0.0)
+    "process_large_file",
+    "process_dataframe",
+    "StreamingResult",
+    "StreamingStats",
+    "read_file_chunked",
+    "compute_streaming_stats",
+    "bundle_pos_facts_streaming",
 ]

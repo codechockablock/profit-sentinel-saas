@@ -28,13 +28,13 @@ Modules:
     vsa_core.vectors           - Vector generation and normalization
     vsa_core.operators         - Algebraic operations (bind, bundle, permute)
     vsa_core.resonator         - Iterative query cleanup
-    vsa_core.geodesic_resonator- Riemannian geometry-aware resonator
-    vsa_core.manifolds         - Riemannian geometry operations
     vsa_core.loader            - YAML primitive/rule loading
     vsa_core.types             - Pydantic type definitions
+
+Note: geodesic_resonator and manifolds modules were removed in v3.0.0 (unused complexity).
 """
 
-__version__ = "2.0.0"
+__version__ = "3.0.0"
 
 # Core vector operations
 from .vectors import (
