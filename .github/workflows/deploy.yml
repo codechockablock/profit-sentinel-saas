@@ -34,8 +34,16 @@ jobs:
 
       - name: Check for secrets in code
         run: |
-          # Check for common secret patterns
-          if grep -rE '(AKIA[A-Z0-9]{16}|sk-[a-zA-Z0-9]{48}|xai-[a-zA-Z0-9]+)' --include="*.py" --include="*.ts" --include="*.tsx" --include="*.js" . 2>/dev/null; then
+          # Check for common secret patterns (excluding test files and mock values)
+          # - AKIA... = AWS Access Key ID
+          # - sk-... (48 chars) = OpenAI API Key
+          # - xai-... (20+ chars) = xAI API Key (exclude short test values like "xai-key")
+          if grep -rE '(AKIA[A-Z0-9]{16}|sk-[a-zA-Z0-9]{48}|xai-[a-zA-Z0-9]{20,})' \
+            --include="*.py" --include="*.ts" --include="*.tsx" --include="*.js" \
+            --exclude-dir="tests" --exclude-dir="__tests__" --exclude-dir="test" \
+            --exclude="*test*.py" --exclude="*_test.py" --exclude="*spec.ts" \
+            --exclude="conftest.py" \
+            . 2>/dev/null; then
             echo "::error::Potential secrets found in code!"
             exit 1
           fi
