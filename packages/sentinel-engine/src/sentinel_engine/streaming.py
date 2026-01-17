@@ -30,6 +30,13 @@ import io
 import torch
 
 from .context import AnalysisContext, create_analysis_context
+
+
+def _unbind(bound: torch.Tensor, key: torch.Tensor) -> torch.Tensor:
+    """Unbind using complex conjugate: unbind(a*b, a) ≈ b."""
+    return bound * torch.conj(key)
+
+
 from .core import (
     bundle_pos_facts,
     query_bundle,
@@ -45,9 +52,9 @@ from .core import (
 
 logger = logging.getLogger(__name__)
 
-# Chunk size calibrated for 8192-D complex64: ~1.8GB RAM for 150k rows
-# v3.1: Increased from 10k to 20k for better throughput
-DEFAULT_CHUNK_SIZE = 20000
+# Chunk size calibrated for 8192-D complex64: ~1.7GB RAM for 150k rows
+# v3.2: Back to 15k for faster codebook saturation
+DEFAULT_CHUNK_SIZE = 15000
 
 # Large file threshold for auto-optimizations
 LARGE_FILE_THRESHOLD = 30000  # Force SKU-only codebook above this
@@ -186,15 +193,23 @@ def read_file_chunked(
             yield chunk
 
 
+SKU_ALIASES = ['sku', 'item', 'product_id', 'productid', 'item_id', 'itemid', 'upc', 'barcode']
+
+
 def compute_streaming_stats(
     filepath: Union[str, Path],
     chunk_size: int = DEFAULT_CHUNK_SIZE,
-) -> Tuple[Dict[str, StreamingStats], CategoryStats]:
+    collect_skus: bool = False,
+    max_skus: int = 10000,
+) -> Tuple[Dict[str, StreamingStats], CategoryStats, Optional[List[str]]]:
     """
     First pass: Compute streaming statistics for adaptive thresholds.
 
+    v3.2: Optionally collects unique SKUs for batch codebook pre-population.
+
     Returns:
-        (field_stats, category_stats) tuple
+        (field_stats, category_stats, unique_skus) tuple
+        unique_skus is None if collect_skus=False
     """
     logger.info(f"Pass 1: Computing streaming statistics for {filepath}")
 
@@ -206,11 +221,20 @@ def compute_streaming_stats(
     }
     category_stats = CategoryStats()
 
+    # v3.2: Collect unique SKUs for batch pre-population
+    unique_skus: set = set() if collect_skus else None
+
     rows_scanned = 0
     for chunk in read_file_chunked(filepath, chunk_size):
         for row in chunk:
             rows_scanned += 1
             field_stats["rows"].update(1.0)  # Count every row
+
+            # v3.2: Collect SKU if enabled and under limit
+            if collect_skus and len(unique_skus) < max_skus:
+                sku = str(_get_field(row, SKU_ALIASES, '')).strip().lower()
+                if sku and sku not in ('unknown', 'unknown_sku', ''):
+                    unique_skus.add(sku)
 
             # Quantity
             qty = _safe_float(_get_field(row, QUANTITY_ALIASES, None))
@@ -233,14 +257,17 @@ def compute_streaming_stats(
             if sold is not None and sold >= 0:
                 field_stats["sold"].update(sold)
 
+    sku_count = len(unique_skus) if unique_skus else 0
     logger.info(
         f"Stats computed: {rows_scanned:,} rows, "
         f"avg_qty={field_stats['quantity'].mean:.1f}, "
         f"avg_margin={field_stats['margin'].mean:.2%}, "
         f"avg_sold={field_stats['sold'].mean:.1f}"
+        + (f", unique_skus={sku_count:,}" if collect_skus else "")
     )
 
-    return field_stats, category_stats
+    sku_list = list(unique_skus) if unique_skus else None
+    return field_stats, category_stats, sku_list
 
 
 def bundle_pos_facts_streaming(
@@ -271,7 +298,7 @@ def bundle_pos_facts_streaming(
 
     # Compute stats if not provided
     if field_stats is None:
-        field_stats, category_stats = compute_streaming_stats(filepath, chunk_size)
+        field_stats, category_stats, _ = compute_streaming_stats(filepath, chunk_size)
 
     # Update context with pre-computed stats
     ctx.update_stats(
@@ -361,8 +388,11 @@ def process_large_file(
     filepath = Path(filepath)
     logger.info(f"Processing large file: {filepath}")
 
-    # Pass 1: Statistics (also counts rows)
-    field_stats, category_stats = compute_streaming_stats(filepath, chunk_size)
+    # Pass 1: Statistics (also counts rows and collects SKUs for batch pre-pop)
+    from .context import DEFAULT_MAX_CODEBOOK_SIZE, HIERARCHICAL_CODEBOOK_THRESHOLD
+    field_stats, category_stats, unique_skus = compute_streaming_stats(
+        filepath, chunk_size, collect_skus=True, max_skus=DEFAULT_MAX_CODEBOOK_SIZE
+    )
     total_rows = field_stats["rows"].count  # Use dedicated row counter
 
     # v3.1: Auto-enable SKU-only codebook for large files
@@ -374,9 +404,16 @@ def process_large_file(
     if sku_only:
         logger.info(f"Large file detected ({total_rows:,} rows) - enabling SKU-only codebook")
 
-    # Pass 2: Bundling with optimized context
-    from .context import HIERARCHICAL_CODEBOOK_THRESHOLD
+    # Create context
     ctx = create_analysis_context(dimensions=dimensions, sku_only_codebook=sku_only)
+
+    # v3.2: Batch pre-populate codebook with collected SKUs (major speedup)
+    if unique_skus:
+        logger.info(f"Pre-populating codebook with {len(unique_skus):,} unique SKUs")
+        ctx.batch_add_to_codebook(unique_skus, is_sku=True)
+        logger.info(f"Codebook pre-populated: {len(ctx.codebook):,} entries")
+
+    # Pass 2: Bundling with optimized context
     bundle = bundle_pos_facts_streaming(
         ctx, filepath, chunk_size, field_stats, category_stats
     )
@@ -384,21 +421,43 @@ def process_large_file(
     # v3.1: Track codebook size for diagnostics
     codebook_size = len(ctx.codebook)
 
-    # Note: HierarchicalResonator disabled for now due to complex tensor compatibility
-    # The main speedup comes from SKU-only codebook reducing size from 50k to 30k
-    use_hierarchical = False  # TODO: Fix complex tensor support in HierarchicalResonator
+    # v3.2: HierarchicalResonator disabled - query phase is already fast (<1s)
+    # and the hierarchy building adds ~2GB memory overhead (triples codebook memory)
+    # Main bottleneck is bundling phase, not query phase
+    use_hierarchical = False
+    hierarchical_resonator = None
 
     if codebook_size > HIERARCHICAL_CODEBOOK_THRESHOLD:
         logger.info(
             f"Large codebook ({codebook_size:,} entries) - "
-            f"using direct query (hierarchical TBD)"
+            f"using direct query (hierarchical disabled for memory savings)"
         )
 
-    # Query for top leaks per primitive using standard query
+    # Query for top leaks per primitive
+    # v3.2: Use HierarchicalResonator for faster codebook lookup if available
     top_leaks: Dict[str, List[Tuple[str, float]]] = {}
-    for prim in primitives:
-        items, scores = query_bundle(ctx, bundle, prim, top_k=top_k_per_primitive)
-        top_leaks[prim] = list(zip(items, scores))
+
+    if hierarchical_resonator is not None:
+        # Use hierarchical query for each primitive
+        logger.info("Using HierarchicalResonator for fast primitive queries")
+        for prim in primitives:
+            # Get primitive vector from context
+            prim_vec = ctx.get_primitive(prim)
+            if prim_vec is None:
+                top_leaks[prim] = []
+                continue
+
+            # Unbind bundle with primitive to get query vector
+            query_vec = _unbind(bundle, prim_vec)
+
+            # Use hierarchical resonator for fast top-k
+            result = hierarchical_resonator.resonate(query_vec)
+            top_leaks[prim] = result.top_matches[:top_k_per_primitive]
+    else:
+        # Standard query
+        for prim in primitives:
+            items, scores = query_bundle(ctx, bundle, prim, top_k=top_k_per_primitive)
+            top_leaks[prim] = list(zip(items, scores))
 
     elapsed = time.time() - start_time
     peak_memory = process.memory_info().rss / (1024 * 1024)  # MB

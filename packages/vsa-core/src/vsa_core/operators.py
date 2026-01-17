@@ -463,6 +463,11 @@ def sparse_resonance_step(
 
     # Weighted combination of top-k
     selected = codebook[indices]
+
+    # Handle complex tensors: cast weights to match codebook dtype
+    if selected.is_complex():
+        weights = weights.to(selected.dtype)
+
     result = torch.einsum('n,nd->d', weights, selected)
 
     return normalize(result)
