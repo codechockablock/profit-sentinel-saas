@@ -38,8 +38,12 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 DEFAULT_DIMENSIONS = 8192   # Production v3.0: reduced from 16384 for 2x speed, <1% accuracy loss
-DEFAULT_MAX_CODEBOOK_SIZE = 50000
+DEFAULT_MAX_CODEBOOK_SIZE = 30000  # v3.1: reduced from 50k for memory efficiency
 DEFAULT_DTYPE = torch.complex64
+
+# Large file handling thresholds (v3.1)
+LARGE_FILE_THRESHOLD = 30000  # Force SKU-only codebook above this row count
+HIERARCHICAL_CODEBOOK_THRESHOLD = 18000  # Auto-enable HierarchicalResonator above this
 
 # Resonator parameters (calibrated v3.0 - optimized for 8192-D)
 RESONATOR_ALPHA = 0.85      # Blend factor (old vs new)
