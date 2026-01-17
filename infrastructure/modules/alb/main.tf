@@ -23,6 +23,10 @@ resource "aws_lb" "main" {
 
   enable_deletion_protection = false
 
+  # Increased idle timeout to support long-running analysis requests (156k+ rows)
+  # Default is 60s, increased to 300s (5 minutes) for heavy CSV processing
+  idle_timeout = 300
+
   tags = {
     Name = "${var.name_prefix}-alb"
   }
