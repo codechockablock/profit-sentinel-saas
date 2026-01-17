@@ -143,9 +143,6 @@ jobs:
     if: |
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event.inputs.deploy_frontend == 'true')
-    defaults:
-      run:
-        working-directory: apps/web
     outputs:
       deployment_url: ${{ steps.deploy.outputs.url }}
     steps:
@@ -159,15 +156,18 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
+        working-directory: apps/web
         run: npm ci
 
       - name: Run type check
+        working-directory: apps/web
         run: npm run type-check || echo "::warning::Type check had issues"
         continue-on-error: true
 
       - name: Install Vercel CLI
         run: npm install -g vercel
 
+      # Run Vercel commands from repo root - Vercel project has apps/web as root directory
       - name: Pull Vercel environment
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
