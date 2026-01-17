@@ -235,8 +235,8 @@ resource "aws_ecs_task_definition" "api" {
 data "aws_region" "current" {}
 
 resource "aws_security_group" "ecs" {
-  name        = "${var.name_prefix}-ecs-sg"
-  vpc_id      = var.vpc_id
+  name   = "${var.name_prefix}-ecs-sg"
+  vpc_id = var.vpc_id
 
   ingress {
     from_port       = 8000

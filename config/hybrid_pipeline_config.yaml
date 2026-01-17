@@ -1,0 +1,184 @@
+# Profit Sentinel Hybrid Pipeline Configuration
+# Version: 2.1.0
+# Last Updated: 2026-01-16
+#
+# This configuration defines the hybrid anomaly detection pipeline:
+# - Baseline Detector: SOURCE OF TRUTH (rule-based, fast)
+# - VSA Resonator: INFRASTRUCTURE MODE (symbolic validation)
+
+pipeline:
+  version: "2.1.0"
+  architecture: "hybrid_baseline_vsa"
+
+# =============================================================================
+# BASELINE DETECTOR CONFIGURATION (SOURCE OF TRUTH)
+# =============================================================================
+baseline:
+  enabled: true
+  calibration_version: "v2.1"
+
+  # Detection thresholds (validated on 10K synthetic dataset)
+  thresholds:
+    # Low Stock Detection
+    low_stock_qty: 10              # Flag if qty < this AND high velocity
+    low_stock_critical: 3          # Critical alert threshold
+
+    # Dead Item Detection
+    dead_item_days: 60             # Days since last sale
+    dead_item_sold_threshold: 2    # Items sold in period
+
+    # Margin Leak Detection
+    margin_leak_threshold: 0.25    # 25% margin minimum
+    margin_critical_threshold: 0.10  # 10% triggers critical alert
+    negative_margin_threshold: 0.0   # Selling at loss
+
+    # Overstock Detection (qty/sold ratio method)
+    overstock_qty_threshold: 100   # Minimum qty to consider
+    overstock_qty_to_sold_ratio: 200  # 200+ months of inventory
+
+    # Shrinkage Detection
+    shrinkage_threshold: -1        # Any negative variance
+    shrinkage_critical: -10        # Large shrinkage
+
+    # Price Discrepancy
+    price_discrepancy_threshold: 0.30  # 30% variance from MSRP
+
+  # Performance targets (from 10K validation)
+  targets:
+    avg_f1: 0.82                   # Target: 82%+
+    avg_recall: 0.95               # Target: 95%+ (catch all real anomalies)
+    avg_precision: 0.70            # Acceptable: 70%+ (users review flags)
+
+# =============================================================================
+# VSA RESONATOR CONFIGURATION (INFRASTRUCTURE MODE)
+# =============================================================================
+resonator:
+  enabled: true
+  mode: "infrastructure"           # Values: infrastructure, active_filter, disabled
+
+  # Resonator parameters (optimized for batch processing)
+  parameters:
+    dimensions: 16384              # Hypervector dimensions
+    convergence_threshold: 0.005   # Convergence check
+    max_iterations: 100            # Max iterations (100 for CPU, 300 for GPU)
+    top_k: 16                      # Sparse selection
+    alpha: 0.85                    # Momentum blend
+    power: 0.64                    # Resonance power
+
+  # Codebook configuration
+  codebook:
+    scope: "sku_only"              # Only SKUs in codebook for filtering
+    max_size: 100000               # Max codebook entries
+    persistence: true              # Persist across sessions
+
+  # Batch processing (enabled for performance)
+  batch:
+    enabled: true
+    max_batch_size: 1000           # Max candidates per batch
+
+  # Validation behavior
+  validation:
+    # Resonator does NOT override baseline - it annotates
+    override_baseline: false
+    flag_non_convergent: true      # Flag for review
+    flag_hallucinations: true      # Flag low-similarity results
+    hallucination_threshold: 0.01  # Below this = potential hallucination
+
+# =============================================================================
+# CONTRADICTION DETECTION
+# =============================================================================
+contradictions:
+  enabled: true
+  auto_resolve: false              # Manual review preferred
+
+  # Contradictory pairs (flagged for review)
+  pairs:
+    - ["low_stock", "overstock"]
+    - ["dead_item", "high_velocity"]
+    - ["negative_inventory", "overstock"]
+    - ["negative_inventory", "low_stock"]
+
+  # Resolution priority (if auto_resolve: true)
+  priority_order:
+    - "negative_inventory"         # Highest: data integrity
+    - "high_margin_leak"           # Profitability
+    - "shrinkage_pattern"          # Loss prevention
+    - "low_stock"                  # Lost sales
+    - "margin_erosion"             # Margin trends
+    - "dead_item"                  # Tied capital
+    - "price_discrepancy"          # Pricing issues
+    - "overstock"                  # Cash flow
+
+# =============================================================================
+# GPU ACCELERATION
+# =============================================================================
+gpu:
+  enabled: true                    # Use GPU if available
+  fallback_to_cpu: true           # Fall back to CPU if no GPU
+
+  # Device selection
+  device:
+    auto_select: true              # Auto-select best device
+    preferred: "cuda:0"            # Preferred GPU
+
+  # Memory management
+  memory:
+    max_batch_memory_mb: 4096      # Max GPU memory per batch
+    clear_cache_between_batches: true
+
+# =============================================================================
+# AWS DEPLOYMENT (Production)
+# =============================================================================
+aws:
+  # Recommended instance types
+  recommended_instances:
+    small: "g4dn.xlarge"           # < 50K rows
+    medium: "g4dn.2xlarge"         # 50K - 200K rows
+    large: "g4dn.4xlarge"          # 200K - 1M rows
+    xlarge: "g4dn.8xlarge"         # > 1M rows
+
+  # ECS configuration
+  ecs:
+    cpu: 4096                      # 4 vCPU
+    memory: 16384                  # 16 GB
+    gpu: 1                         # 1 GPU
+
+  # Scaling thresholds
+  scaling:
+    cpu_threshold: 70              # Scale up at 70% CPU
+    memory_threshold: 80           # Scale up at 80% memory
+    queue_depth_threshold: 100     # Scale up at 100 pending jobs
+
+# =============================================================================
+# LOGGING & MONITORING
+# =============================================================================
+logging:
+  level: "INFO"                    # DEBUG, INFO, WARNING, ERROR
+  structured: true                 # JSON logging for CloudWatch
+
+  # Metrics to track
+  metrics:
+    - "baseline_time_ms"
+    - "resonator_time_ms"
+    - "total_candidates"
+    - "convergence_rate"
+    - "contradiction_count"
+    - "f1_score"
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+output:
+  # Report generation
+  reports:
+    markdown: true
+    json: true
+
+  # Include in output
+  include:
+    executive_summary: true
+    per_primitive_metrics: true
+    contradiction_analysis: true
+    gpu_benchmark: true
+    architecture_diagram: true
+    calibration_recommendations: true

@@ -1,0 +1,432 @@
+# =============================================================================
+# Profit Sentinel v2.1.0 - GPU Deployment Workflow
+# =============================================================================
+# This workflow handles:
+# 1. Security scanning for hardcoded secrets
+# 2. Multi-stage Docker build with CUDA support
+# 3. Unit and integration tests
+# 4. Push to Amazon ECR
+# 5. Rolling deployment via ASG instance refresh
+# 6. Health check verification
+# 7. Deployment notification
+# =============================================================================
+
+name: Deploy GPU Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/sentinel-engine/**'
+      - 'Dockerfile.gpu'
+      - 'config/**'
+      - '.github/workflows/deploy-gpu.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      image_tag:
+        description: 'Custom image tag (leave empty for commit SHA)'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: profit-sentinel-gpu
+  DOCKERFILE: Dockerfile.gpu
+
+# Prevent concurrent deployments
+concurrency:
+  group: deploy-gpu-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ===========================================================================
+  # Stage 1: Security Scan
+  # ===========================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Gitleaks (Secret Detection)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+
+  # ===========================================================================
+  # Stage 2: Build and Test
+  # ===========================================================================
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    needs: security-scan
+    outputs:
+      image_tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e packages/sentinel-engine[dev]
+          pip install pytest pytest-cov
+
+      - name: Run unit tests
+        run: |
+          pytest packages/sentinel-engine/tests/ \
+            --cov=sentinel_engine \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+
+      - name: Set image tag
+        id: set-tag
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: false
+          load: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.set-tag.outputs.tag }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=2.1.0
+
+      - name: Run Trivy vulnerability scanner (image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.set-tag.outputs.tag }}'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Push to ECR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.set-tag.outputs.tag }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+
+  # ===========================================================================
+  # Stage 3: Deploy to Production
+  # ===========================================================================
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'prod' }}
+    runs-on: ubuntu-latest
+    needs: build
+    environment: ${{ github.event.inputs.environment || 'prod' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get ASG name
+        id: get-asg
+        run: |
+          ASG_NAME=$(aws autoscaling describe-auto-scaling-groups \
+            --query "AutoScalingGroups[?contains(Tags[?Key=='Environment'].Value, '${{ github.event.inputs.environment || 'prod' }}') && contains(Tags[?Key=='Application'].Value, 'profit-sentinel')].AutoScalingGroupName" \
+            --output text)
+          echo "asg_name=$ASG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Update Launch Template with new image
+        id: update-template
+        run: |
+          # Get current launch template
+          TEMPLATE_ID=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names "${{ steps.get-asg.outputs.asg_name }}" \
+            --query "AutoScalingGroups[0].LaunchTemplate.LaunchTemplateId" \
+            --output text)
+
+          # Get current version
+          CURRENT_VERSION=$(aws ec2 describe-launch-templates \
+            --launch-template-ids "$TEMPLATE_ID" \
+            --query "LaunchTemplates[0].LatestVersionNumber" \
+            --output text)
+
+          # Get current launch template data
+          aws ec2 describe-launch-template-versions \
+            --launch-template-id "$TEMPLATE_ID" \
+            --versions "$CURRENT_VERSION" \
+            --query "LaunchTemplateVersions[0].LaunchTemplateData" \
+            > /tmp/template-data.json
+
+          # Update image tag in user data
+          USER_DATA=$(jq -r '.UserData' /tmp/template-data.json | base64 -d)
+          UPDATED_USER_DATA=$(echo "$USER_DATA" | sed "s/IMAGE_TAG=.*/IMAGE_TAG=${{ needs.build.outputs.image_tag }}/")
+          ENCODED_USER_DATA=$(echo "$UPDATED_USER_DATA" | base64 -w 0)
+
+          # Create new version
+          NEW_VERSION=$(aws ec2 create-launch-template-version \
+            --launch-template-id "$TEMPLATE_ID" \
+            --source-version "$CURRENT_VERSION" \
+            --launch-template-data "{\"UserData\": \"$ENCODED_USER_DATA\"}" \
+            --query "LaunchTemplateVersion.VersionNumber" \
+            --output text)
+
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "template_id=$TEMPLATE_ID" >> $GITHUB_OUTPUT
+
+      - name: Update ASG to use new Launch Template version
+        run: |
+          aws autoscaling update-auto-scaling-group \
+            --auto-scaling-group-name "${{ steps.get-asg.outputs.asg_name }}" \
+            --launch-template "LaunchTemplateId=${{ steps.update-template.outputs.template_id }},Version=${{ steps.update-template.outputs.new_version }}"
+
+      - name: Start Instance Refresh
+        id: instance-refresh
+        run: |
+          REFRESH_ID=$(aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name "${{ steps.get-asg.outputs.asg_name }}" \
+            --preferences '{
+              "MinHealthyPercentage": 50,
+              "InstanceWarmup": 300,
+              "CheckpointPercentages": [50, 100],
+              "CheckpointDelay": 120
+            }' \
+            --query "InstanceRefreshId" \
+            --output text)
+          echo "refresh_id=$REFRESH_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for Instance Refresh to complete
+        run: |
+          echo "Starting instance refresh monitoring..."
+          MAX_WAIT=1800  # 30 minutes
+          ELAPSED=0
+          INTERVAL=30
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            STATUS=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "${{ steps.get-asg.outputs.asg_name }}" \
+              --instance-refresh-ids "${{ steps.instance-refresh.outputs.refresh_id }}" \
+              --query "InstanceRefreshes[0].Status" \
+              --output text)
+
+            PERCENTAGE=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "${{ steps.get-asg.outputs.asg_name }}" \
+              --instance-refresh-ids "${{ steps.instance-refresh.outputs.refresh_id }}" \
+              --query "InstanceRefreshes[0].PercentageComplete" \
+              --output text)
+
+            echo "Status: $STATUS | Progress: $PERCENTAGE%"
+
+            if [ "$STATUS" = "Successful" ]; then
+              echo "Instance refresh completed successfully!"
+              exit 0
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+              echo "Instance refresh failed with status: $STATUS"
+              exit 1
+            fi
+
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          echo "Timeout waiting for instance refresh"
+          exit 1
+
+  # ===========================================================================
+  # Stage 4: Health Check
+  # ===========================================================================
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get ALB DNS
+        id: get-alb
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --query "LoadBalancers[?contains(LoadBalancerName, 'profit-sentinel')].DNSName" \
+            --output text)
+          echo "alb_dns=$ALB_DNS" >> $GITHUB_OUTPUT
+
+      - name: Wait for healthy response
+        run: |
+          echo "Checking health endpoint..."
+          MAX_RETRIES=20
+          RETRY_INTERVAL=15
+          HEALTH_URL="https://${{ steps.get-alb.outputs.alb_dns }}/health"
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed! (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+
+            echo "Attempt $i/$MAX_RETRIES: HTTP $HTTP_CODE, retrying in $RETRY_INTERVAL seconds..."
+            sleep $RETRY_INTERVAL
+          done
+
+          echo "Health check failed after $MAX_RETRIES attempts"
+          exit 1
+
+      - name: Verify GPU metrics endpoint
+        run: |
+          METRICS_URL="https://${{ steps.get-alb.outputs.alb_dns }}/v1/metrics"
+          RESPONSE=$(curl -s "$METRICS_URL")
+
+          if echo "$RESPONSE" | jq -e '.gpu_available' > /dev/null 2>&1; then
+            GPU_AVAILABLE=$(echo "$RESPONSE" | jq -r '.gpu_available')
+            echo "GPU Available: $GPU_AVAILABLE"
+
+            if [ "$GPU_AVAILABLE" = "true" ]; then
+              echo "GPU is properly configured!"
+            else
+              echo "WARNING: GPU not available, running in CPU fallback mode"
+            fi
+          else
+            echo "Could not verify GPU metrics endpoint"
+          fi
+
+  # ===========================================================================
+  # Stage 5: Notification
+  # ===========================================================================
+  notify:
+    name: Send Notification
+    runs-on: ubuntu-latest
+    needs: [build, deploy, health-check]
+    if: always()
+    steps:
+      - name: Determine deployment status
+        id: status
+        run: |
+          if [ "${{ needs.health-check.result }}" = "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+            echo "message=Deployment completed successfully" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+            echo "message=Deployment failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.status.outputs.emoji }} **Status:** ${{ steps.status.outputs.message }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment || 'prod' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Tag | ${{ needs.build.outputs.image_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run ID | ${{ github.run_id }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Send Slack notification (optional)
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ steps.status.outputs.emoji }} Profit Sentinel GPU Deployment"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Status:*\n${{ steps.status.outputs.message }}"},
+                    {"type": "mrkdwn", "text": "*Environment:*\n${{ github.event.inputs.environment || 'prod' }}"},
+                    {"type": "mrkdwn", "text": "*Image Tag:*\n${{ needs.build.outputs.image_tag }}"},
+                    {"type": "mrkdwn", "text": "*Commit:*\n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {"type": "plain_text", "text": "View Run"},
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }'

@@ -30,7 +30,7 @@ module "rds" {
   name_prefix     = "profitsentinel-dev"
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
-  ecs_sg_id       = module.ecs.ecs_sg_id  # ECS must output this
+  ecs_sg_id       = module.ecs.ecs_sg_id # ECS must output this
 }
 
 module "ecr" {
