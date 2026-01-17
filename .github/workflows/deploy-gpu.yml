@@ -95,6 +95,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # Install local packages in dependency order
+          pip install -e packages/vsa-core
+          pip install -e packages/reasoning
           pip install -e packages/sentinel-engine[dev]
           pip install pytest pytest-cov
 
