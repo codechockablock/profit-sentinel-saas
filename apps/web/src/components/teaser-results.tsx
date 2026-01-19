@@ -149,10 +149,12 @@ function TeaserLeakCard({
                       key={i}
                       className="relative flex items-center justify-between py-2 px-3 bg-white/5 rounded-lg overflow-hidden"
                     >
-                      {/* Anonymized or Real Item */}
+                      {/* Anonymized or Real Item - Show first item's real SKU as teaser */}
                       <div className="flex items-center gap-3">
-                        {isUnlocked ? (
-                          <span className="font-mono text-sm text-slate-200">{item || 'Unknown'}</span>
+                        {isUnlocked || i === 0 ? (
+                          <span className={`font-mono text-sm ${i === 0 && !isUnlocked ? 'text-emerald-400 font-semibold' : 'text-slate-200'}`}>
+                            {item || 'Unknown'}
+                          </span>
                         ) : (
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-sm text-amber-400">
@@ -174,8 +176,8 @@ function TeaserLeakCard({
                         </span>
                       </div>
 
-                      {/* Blur overlay for locked items */}
-                      {!isUnlocked && (
+                      {/* Blur overlay for locked items - skip first item to show real SKU */}
+                      {!isUnlocked && i !== 0 && (
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-slate-900/80 pointer-events-none" />
                       )}
                     </div>
