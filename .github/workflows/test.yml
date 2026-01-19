@@ -153,8 +153,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Install pytest from PyPI first, then torch from CPU-only index
-          pip install pytest pytest-cov pyyaml pydantic
+          # Install pytest and other deps from PyPI first, then torch from CPU-only index
+          pip install pytest pytest-cov pyyaml pydantic numpy
           pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Set PYTHONPATH
