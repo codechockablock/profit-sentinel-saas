@@ -76,10 +76,13 @@ class TestS3Service:
         excel_buffer = io.BytesIO()
         pd.DataFrame({'col1': [1, 2], 'col2': ['a', 'b']}).to_excel(excel_buffer, index=False)
         excel_buffer.seek(0)
+        excel_data = excel_buffer.getvalue()
 
         mock_body = MagicMock()
-        mock_body.read.return_value = excel_buffer.getvalue()
+        mock_body.read.return_value = excel_data
         mock_s3_client.get_object.return_value = {'Body': mock_body}
+        # Mock head_object for get_object_size
+        mock_s3_client.head_object.return_value = {'ContentLength': len(excel_data)}
 
         service = S3Service(mock_s3_client, "test-bucket")
         df = service.load_dataframe("test/data.xlsx")
@@ -226,8 +229,9 @@ class TestMappingService:
             service = MappingService()
             result = service.suggest_mapping(df, "test.csv")
 
-        # Should fall back to heuristic
-        assert "Grok failed" in result.get("notes", "")
+        # Should fall back to heuristic (notes may say "Grok failed" or "AI failed")
+        notes = result.get("notes", "")
+        assert "failed" in notes.lower()
         assert result["suggestions"]["sku"] == "sku"
 
 
@@ -327,12 +331,14 @@ class TestConfig:
 
     def test_ai_api_key_fallback(self, monkeypatch):
         """Test fallback to GROK_API_KEY when XAI_API_KEY not set."""
-        from apps.api.src.config import Settings
+        from apps.api.src.config import Settings, get_settings
 
-        monkeypatch.delenv("XAI_API_KEY", raising=False)
-        monkeypatch.setenv("GROK_API_KEY", "grok-key")
+        # Clear cached settings first
+        get_settings.cache_clear()
 
-        settings = Settings()
+        # Force empty XAI_API_KEY by setting to empty string, then create settings
+        # that explicitly sets the values (bypassing .env file)
+        settings = Settings(xai_api_key=None, grok_api_key="grok-key")
         assert settings.ai_api_key == "grok-key"
 
     def test_has_ai_key_true(self, monkeypatch):
@@ -343,14 +349,12 @@ class TestConfig:
         settings = Settings()
         assert settings.has_ai_key is True
 
-    def test_has_ai_key_false(self, monkeypatch):
+    def test_has_ai_key_false(self):
         """Test has_ai_key returns False when no key configured."""
         from apps.api.src.config import Settings
 
-        monkeypatch.delenv("XAI_API_KEY", raising=False)
-        monkeypatch.delenv("GROK_API_KEY", raising=False)
-
-        settings = Settings()
+        # Create settings with explicit None values (bypassing .env file)
+        settings = Settings(xai_api_key=None, grok_api_key=None)
         assert settings.has_ai_key is False
 
     def test_standard_fields_defined(self):
@@ -386,30 +390,30 @@ class TestDependencies:
             get_s3_client()
             mock_boto.assert_called_once_with("s3")
 
-    def test_get_supabase_client_none_without_config(self, monkeypatch):
+    def test_get_supabase_client_none_without_config(self):
         """Test Supabase client returns None without config."""
-        monkeypatch.delenv("SUPABASE_URL", raising=False)
-        monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
-
-        # Need to clear cached settings
-        from apps.api.src.config import get_settings
-        get_settings.cache_clear()
-
+        from apps.api.src.config import Settings, get_settings
         from apps.api.src.dependencies import get_supabase_client
-        result = get_supabase_client()
+
+        # Create mock settings with no supabase config
+        mock_settings = Settings(supabase_url=None, supabase_service_key=None)
+
+        # Patch get_settings to return our mock settings
+        with patch('apps.api.src.dependencies.get_settings', return_value=mock_settings):
+            result = get_supabase_client()
         assert result is None
 
-    def test_get_grok_client_none_without_key(self, monkeypatch):
+    def test_get_grok_client_none_without_key(self):
         """Test Grok client returns None without API key."""
-        monkeypatch.delenv("XAI_API_KEY", raising=False)
-        monkeypatch.delenv("GROK_API_KEY", raising=False)
-
-        # Clear cached settings
-        from apps.api.src.config import get_settings
-        get_settings.cache_clear()
-
+        from apps.api.src.config import Settings
         from apps.api.src.dependencies import get_grok_client
-        result = get_grok_client()
+
+        # Create mock settings with no AI API key
+        mock_settings = Settings(xai_api_key=None, grok_api_key=None)
+
+        # Patch get_settings to return our mock settings
+        with patch('apps.api.src.dependencies.get_settings', return_value=mock_settings):
+            result = get_grok_client()
         assert result is None
 
     @pytest.mark.asyncio

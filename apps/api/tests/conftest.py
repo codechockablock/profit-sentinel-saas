@@ -80,6 +80,9 @@ def mock_s3_client_with_data(mock_s3_client: MagicMock, sample_pos_csv_data: byt
     mock_body.read.return_value = sample_pos_csv_data
     mock_s3_client.get_object.return_value = {'Body': mock_body}
 
+    # Mock head_object for get_object_size (returns small size to pass size check)
+    mock_s3_client.head_object.return_value = {'ContentLength': len(sample_pos_csv_data)}
+
     return mock_s3_client
 
 
