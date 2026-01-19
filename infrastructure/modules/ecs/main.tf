@@ -159,14 +159,15 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
 }
 
 # ECS Task Definition with environment variables and secrets
-# Memory increased to 8GB to handle 156k+ row CSVs with VSA processing
-# Valid Fargate combos: 2048 CPU supports 4096-16384 memory
+# COST OPTIMIZED: Reduced from 2048/8192 to 1024/2048
+# For large CSV processing, use GPU instances instead
+# Valid Fargate combos: 1024 CPU supports 2048-8192 memory
 resource "aws_ecs_task_definition" "api" {
   family                   = "${var.name_prefix}-api"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "2048"
-  memory                   = "8192"
+  cpu                      = "1024"   # Reduced from 2048 (~50% savings)
+  memory                   = "2048"   # Reduced from 8192 (~75% savings)
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 

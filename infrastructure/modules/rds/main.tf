@@ -62,9 +62,12 @@ resource "aws_rds_cluster" "aurora" {
   skip_final_snapshot         = true # Dev only—set false in prod
   deletion_protection         = false
 
+  # COST OPTIMIZED: Aurora Serverless v2 scaling
+  # min 0.5 ACU = ~$43/mo baseline (can't go lower)
+  # max reduced from 8 to 2 ACUs for cost control
   serverlessv2_scaling_configuration {
-    min_capacity = 0.5
-    max_capacity = 8.0 # Adjust for growth
+    min_capacity = 0.5  # Minimum allowed (~$0.06/hour)
+    max_capacity = 2.0  # Reduced from 8.0 (~75% savings on burst)
   }
 
   tags = {
