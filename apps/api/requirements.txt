@@ -1,6 +1,6 @@
 # Core dependencies - pinned for reproducibility
 fastapi==0.115.0
-starlette==0.40.0
+# starlette version is managed by fastapi - don't pin separately
 uvicorn[standard]==0.32.0
 python-multipart==0.0.17
 pandas==2.2.3
