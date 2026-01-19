@@ -13,7 +13,7 @@ All submissions are emailed to the support team.
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, EmailStr, Field
 
 from ..services.email import get_email_service

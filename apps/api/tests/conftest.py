@@ -184,9 +184,7 @@ def client_with_mocks(
     mock_grok_client: MagicMock,
 ) -> Generator[TestClient, None, None]:
     """Test client with all external services mocked."""
-    with patch(
-        "src.dependencies.get_s3_client", return_value=mock_s3_client_with_data
-    ):
+    with patch("src.dependencies.get_s3_client", return_value=mock_s3_client_with_data):
         with patch(
             "src.dependencies.get_supabase_client",
             return_value=mock_supabase_client,
