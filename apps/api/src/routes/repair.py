@@ -53,15 +53,18 @@ try:
     ENGINE_AVAILABLE = True
 except ImportError:
     ENGINE_AVAILABLE = False
+    # Define placeholder type for annotation when engine not available
+    RepairDiagnosisEngine = None  # type: ignore
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Global engine instance (singleton)
-_engine: Optional[RepairDiagnosisEngine] = None
+# Use Any type to avoid issues when sentinel_engine not installed
+_engine: Optional["RepairDiagnosisEngine"] = None  # type: ignore
 
 
-def get_engine() -> RepairDiagnosisEngine:
+def get_engine() -> "RepairDiagnosisEngine":  # type: ignore
     """Get or create the repair diagnosis engine."""
     global _engine
     if _engine is None:
