@@ -153,7 +153,7 @@ class AnalysisService:
             - summary statistics
         """
         if not self._engine_available:
-            return self._mock_analysis()
+            return self._mock_analysis(rows)
 
         start_time = time.time()
 
@@ -378,31 +378,55 @@ class AnalysisService:
         except (ValueError, TypeError):
             return 0.0
 
-    def _mock_analysis(self) -> dict:
+    def _mock_analysis(self, rows: list[dict]) -> dict:
         """
-        Return realistic mock analysis results when engine is unavailable.
+        Return heuristic-based analysis results when engine is unavailable.
 
-        Useful for frontend development and testing.
+        Uses actual data from uploaded rows to identify potential issues
+        based on simple heuristic rules.
         """
-        logger.warning("Using mock analysis - sentinel engine not available")
+        logger.warning(
+            f"Using heuristic analysis - sentinel engine not available. "
+            f"Analyzing {len(rows)} rows."
+        )
 
-        mock_items = [
-            "SKU-001",
-            "SKU-002",
-            "SKU-003",
-            "SKU-004",
-            "SKU-005",
-            "ITEM-A100",
-            "ITEM-B200",
-            "PROD-X1",
-            "PROD-Y2",
-            "PROD-Z3",
-        ]
-        mock_scores = [0.95, 0.87, 0.82, 0.78, 0.71, 0.65, 0.58, 0.52, 0.45, 0.38]
+        # Extract real SKUs and data from uploaded rows
+        items_with_data = []
+        for row in rows:
+            sku = self._get_sku(row)
+            if sku:
+                items_with_data.append(
+                    {
+                        "sku": sku.strip(),
+                        "cost": self._safe_float(row.get("Cost", row.get("cost", 0))),
+                        "revenue": self._safe_float(
+                            row.get("Retail", row.get("retail", row.get("revenue", 0)))
+                        ),
+                        "quantity": self._safe_float(
+                            row.get(
+                                "In Stock Qty.", row.get("quantity", row.get("Qty.", 0))
+                            )
+                        ),
+                        "sold": self._safe_float(row.get("Sold", row.get("sold", 0))),
+                        "margin": self._safe_float(
+                            row.get("Profit Margin %", row.get("margin", 0))
+                        ),
+                        "sub_total": self._safe_float(
+                            row.get("Sub Total", row.get("sub_total", 0))
+                        ),
+                        "description": str(
+                            row.get("Description", row.get("description", ""))
+                        )[:50],
+                    }
+                )
 
         leaks = {}
+
+        # Heuristic analysis for each primitive using real data
         for primitive in self.PRIMITIVES:
             display = LEAK_DISPLAY.get(primitive, {})
+            flagged_items = self._heuristic_detect(primitive, items_with_data)
+
             metadata = {
                 "severity": (
                     "high"
@@ -410,17 +434,13 @@ class AnalysisService:
                     else "medium"
                 ),
                 "category": primitive.replace("_", " ").title(),
-                "recommendations": [
-                    "Review flagged items",
-                    "Verify data accuracy",
-                    "Take corrective action",
-                ],
+                "recommendations": self._get_recommendations(primitive),
             }
 
             leaks[primitive] = {
-                "top_items": mock_items[:5],
-                "scores": mock_scores[:5],
-                "count": 5,
+                "top_items": [item["sku"] for item in flagged_items[:20]],
+                "scores": [item["score"] for item in flagged_items[:20]],
+                "count": len(flagged_items),
                 "severity": metadata["severity"],
                 "category": metadata["category"],
                 "recommendations": metadata["recommendations"],
@@ -430,24 +450,199 @@ class AnalysisService:
                 "priority": display.get("priority", 99),
             }
 
+        # Calculate summary stats
+        total_items_flagged = sum(leaks[p]["count"] for p in leaks)
+        critical_count = sum(
+            leaks[p]["count"]
+            for p in leaks
+            if leaks[p]["severity"] == "high"
+            and p in ["high_margin_leak", "negative_inventory"]
+        )
+        high_count = sum(
+            leaks[p]["count"]
+            for p in leaks
+            if leaks[p]["severity"] == "high"
+            and p not in ["high_margin_leak", "negative_inventory"]
+        )
+
+        # Estimate impact based on flagged items
+        estimated_impact = self._estimate_mock_impact(leaks, items_with_data)
+
         return {
             "leaks": leaks,
             "summary": {
-                "total_rows_analyzed": 0,
-                "total_items_flagged": 40,
-                "critical_issues": 10,
-                "high_issues": 15,
-                "estimated_impact": {
-                    "currency": "USD",
-                    "low_estimate": 5000.00,
-                    "high_estimate": 15000.00,
-                    "breakdown": {p: 1000.0 for p in self.PRIMITIVES[:5]},
-                },
-                "analysis_time_seconds": 0.01,
+                "total_rows_analyzed": len(rows),
+                "total_items_flagged": total_items_flagged,
+                "critical_issues": critical_count,
+                "high_issues": high_count,
+                "estimated_impact": estimated_impact,
+                "analysis_time_seconds": 0.05,
             },
             "primitives_used": self.PRIMITIVES,
             "mock": True,
         }
+
+    def _heuristic_detect(self, primitive: str, items: list[dict]) -> list[dict]:
+        """
+        Apply heuristic rules to detect potential issues.
+
+        Returns list of items with scores, sorted by severity.
+        """
+        flagged = []
+
+        for item in items:
+            score = 0.0
+            sku = item["sku"]
+            cost = item["cost"]
+            revenue = item["revenue"]
+            quantity = item["quantity"]
+            sold = item["sold"]
+            margin = item["margin"]
+            sub_total = item["sub_total"]
+
+            if primitive == "high_margin_leak":
+                # Flag items with low or negative margin
+                if revenue > 0 and cost > 0:
+                    actual_margin = (revenue - cost) / revenue * 100
+                    if actual_margin < 20:  # Less than 20% margin
+                        score = min(0.95, (20 - actual_margin) / 20)
+                elif margin > 0 and margin < 30:
+                    score = min(0.85, (30 - margin) / 30)
+
+            elif primitive == "negative_inventory":
+                # Flag items with negative quantity
+                if quantity < 0:
+                    score = min(0.99, abs(quantity) / 100)
+
+            elif primitive == "low_stock":
+                # Flag items with low stock but good sales
+                if 0 < quantity < 10 and sold > 50:
+                    score = min(0.90, (10 - quantity) / 10 * (sold / 100))
+                elif 0 < quantity < 5:
+                    score = min(0.80, (5 - quantity) / 5)
+
+            elif primitive == "dead_item":
+                # Flag items with high stock but no sales
+                if quantity > 100 and sold == 0:
+                    score = min(0.95, quantity / 1000)
+                elif quantity > 50 and sold < 5:
+                    score = min(0.75, quantity / 500)
+
+            elif primitive == "overstock":
+                # Flag items with excessive inventory relative to sales
+                if sold > 0 and quantity > sold * 12:  # More than 12 months supply
+                    score = min(0.90, (quantity / sold) / 24)
+                elif quantity > 500 and sold < 10:
+                    score = min(0.85, quantity / 1000)
+
+            elif primitive == "shrinkage_pattern":
+                # Flag items with high value and low/no margin (potential theft)
+                if sub_total > 1000 and margin < 10 and sold < 10:
+                    score = min(0.80, sub_total / 10000)
+
+            elif primitive == "margin_erosion":
+                # Flag items where cost approaches revenue
+                if revenue > 0 and cost > 0:
+                    if cost >= revenue * 0.85:  # Cost is 85%+ of revenue
+                        score = min(0.90, cost / revenue)
+
+            elif primitive == "price_discrepancy":
+                # Flag items with unusual margin patterns
+                if margin == 100 and cost == 0:
+                    score = 0.70  # Suspicious zero cost
+                elif margin < 0:
+                    score = 0.85  # Selling below cost
+
+            if score > 0.1:  # Threshold for relevance
+                flagged.append({"sku": sku, "score": round(score, 2)})
+
+        # Sort by score descending
+        flagged.sort(key=lambda x: x["score"], reverse=True)
+        return flagged
+
+    def _get_recommendations(self, primitive: str) -> list[str]:
+        """Get actionable recommendations for each primitive."""
+        recommendations = {
+            "high_margin_leak": [
+                "Review pricing strategy for flagged items",
+                "Check for incorrect cost entries",
+                "Consider discontinuing chronically unprofitable items",
+            ],
+            "negative_inventory": [
+                "Audit physical inventory immediately",
+                "Check for data entry errors",
+                "Investigate potential shrinkage or theft",
+            ],
+            "low_stock": [
+                "Reorder flagged items urgently",
+                "Review reorder points and safety stock levels",
+                "Check supplier lead times",
+            ],
+            "dead_item": [
+                "Consider clearance pricing or promotions",
+                "Evaluate product placement and visibility",
+                "Review for discontinuation",
+            ],
+            "overstock": [
+                "Review purchasing patterns",
+                "Consider promotional pricing to move excess",
+                "Adjust reorder quantities",
+            ],
+            "shrinkage_pattern": [
+                "Conduct physical inventory count",
+                "Review security measures",
+                "Analyze transaction patterns for anomalies",
+            ],
+            "margin_erosion": [
+                "Review recent cost increases",
+                "Evaluate competitive pricing pressure",
+                "Consider price adjustments",
+            ],
+            "price_discrepancy": [
+                "Verify cost and price data accuracy",
+                "Check for promotional pricing errors",
+                "Review vendor pricing agreements",
+            ],
+        }
+        return recommendations.get(primitive, ["Review flagged items"])
+
+    def _estimate_mock_impact(self, leaks: dict, items_with_data: list[dict]) -> dict:
+        """Estimate $ impact based on heuristic analysis."""
+        # Build lookup for quick access
+        item_lookup = {item["sku"]: item for item in items_with_data}
+
+        impact = {
+            "currency": "USD",
+            "low_estimate": 0.0,
+            "high_estimate": 0.0,
+            "breakdown": {},
+        }
+
+        for primitive, data in leaks.items():
+            primitive_impact = 0.0
+            for sku in data.get("top_items", [])[:10]:
+                item = item_lookup.get(sku)
+                if item:
+                    # Simple impact estimation
+                    if primitive in ["high_margin_leak", "margin_erosion"]:
+                        primitive_impact += item["revenue"] * 0.1 * max(item["sold"], 1)
+                    elif primitive == "negative_inventory":
+                        primitive_impact += abs(item["quantity"]) * item["cost"]
+                    elif primitive == "dead_item":
+                        primitive_impact += item["quantity"] * item["cost"] * 0.2
+                    elif primitive == "overstock":
+                        primitive_impact += item["sub_total"] * 0.05
+                    else:
+                        primitive_impact += item["sub_total"] * 0.02
+
+            impact["breakdown"][primitive] = round(primitive_impact, 2)
+            impact["low_estimate"] += primitive_impact * 0.7
+            impact["high_estimate"] += primitive_impact * 1.3
+
+        impact["low_estimate"] = round(impact["low_estimate"], 2)
+        impact["high_estimate"] = round(impact["high_estimate"], 2)
+
+        return impact
 
     def get_available_primitives(self) -> list[str]:
         """Return list of available analysis primitives."""
