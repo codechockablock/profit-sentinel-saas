@@ -45,9 +45,9 @@ export default function TermsPage() {
           <section className="mb-10">
             <h2 className="text-2xl font-bold text-emerald-400 mb-4">3. Your Data</h2>
             <p className="text-slate-300 leading-relaxed">
-              <strong className="text-white">Privacy:</strong> Your inventory data is processed
-              locally in your browser and is not uploaded to our servers. We only store
-              anonymized, aggregate statistics. See our{' '}
+              <strong className="text-white">Privacy:</strong> Your inventory data is uploaded
+              securely to encrypted storage for analysis, then automatically deleted within 1 hour.
+              We only retain anonymized, aggregate statistics - never your actual SKUs or item names. See our{' '}
               <Link href="/privacy" className="text-emerald-400 hover:text-emerald-300">
                 Privacy Policy
               </Link>{' '}
