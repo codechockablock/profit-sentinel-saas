@@ -79,28 +79,121 @@ resource "aws_subnet" "private_b" {
   }
 }
 
-# Elastic IP for NAT Gateway
-resource "aws_eip" "nat" {
-  domain = "vpc"
+# -----------------------------------------------------------------------------
+# VPC Endpoints (COST OPTIMIZATION: Replace NAT Gateway ~$32/mo)
+# VPC Endpoints are free for S3/DynamoDB, ~$7/mo each for interface endpoints
+# This saves NAT Gateway costs AND data processing fees
+# -----------------------------------------------------------------------------
+
+# S3 Gateway Endpoint (FREE)
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.private.id]
 
   tags = {
-    Name = "${var.name_prefix}-nat-eip"
+    Name = "${var.name_prefix}-s3-endpoint"
   }
-
-  depends_on = [aws_internet_gateway.main]
 }
 
-# NAT Gateway
-resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public_a.id
+# ECR API Endpoint (for docker pull)
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.ecr.api"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
 
   tags = {
-    Name = "${var.name_prefix}-nat"
+    Name = "${var.name_prefix}-ecr-api-endpoint"
+  }
+}
+
+# ECR DKR Endpoint (for docker pull)
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.ecr.dkr"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name = "${var.name_prefix}-ecr-dkr-endpoint"
+  }
+}
+
+# CloudWatch Logs Endpoint
+resource "aws_vpc_endpoint" "logs" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.logs"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name = "${var.name_prefix}-logs-endpoint"
+  }
+}
+
+# Secrets Manager Endpoint
+resource "aws_vpc_endpoint" "secretsmanager" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.secretsmanager"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name = "${var.name_prefix}-secretsmanager-endpoint"
+  }
+}
+
+# Security Group for VPC Endpoints
+resource "aws_security_group" "vpc_endpoints" {
+  name        = "${var.name_prefix}-vpc-endpoints-sg"
+  description = "Security group for VPC endpoints"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "HTTPS from VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
   }
 
-  depends_on = [aws_internet_gateway.main]
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.name_prefix}-vpc-endpoints-sg"
+  }
 }
+
+# NOTE: NAT Gateway REMOVED for cost savings
+# If you need internet access for instances (rare), uncomment below:
+#
+# resource "aws_eip" "nat" {
+#   domain = "vpc"
+#   tags = { Name = "${var.name_prefix}-nat-eip" }
+#   depends_on = [aws_internet_gateway.main]
+# }
+#
+# resource "aws_nat_gateway" "main" {
+#   allocation_id = aws_eip.nat.id
+#   subnet_id     = aws_subnet.public_a.id
+#   tags = { Name = "${var.name_prefix}-nat" }
+#   depends_on = [aws_internet_gateway.main]
+# }
 
 # Public Route Table
 resource "aws_route_table" "public" {
@@ -126,14 +219,12 @@ resource "aws_route_table_association" "public_b" {
   route_table_id = aws_route_table.public.id
 }
 
-# Private Route Table
+# Private Route Table (no NAT Gateway - using VPC endpoints)
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
-  }
+  # NOTE: No default route to NAT Gateway for cost savings
+  # All AWS services accessed via VPC endpoints instead
 
   tags = {
     Name = "${var.name_prefix}-private-rt"
@@ -320,20 +411,18 @@ module "gpu_asg" {
   supabase_url        = var.supabase_url
   supabase_secret_arn = data.aws_secretsmanager_secret.supabase.arn
 
-  # Instance Configuration - Cost optimized
+  # Instance Configuration - COST OPTIMIZED via terraform.tfvars
   instance_type    = var.instance_type
-  desired_capacity = 1  # Start with 1 for cost savings
-  min_size         = 1
-  max_size         = 3
+  desired_capacity = var.desired_capacity
+  min_size         = var.min_size
+  max_size         = var.max_size
 
-  # Using On-Demand instances (Spot quota exceeded)
-  # To switch back to Spot instances for cost savings, request quota increase:
-  # https://console.aws.amazon.com/servicequotas/home/services/ec2/quotas
-  on_demand_base_capacity = 1
-  on_demand_percentage    = 100
+  # Spot instances for ~70% cost savings (configured in tfvars)
+  on_demand_base_capacity = var.on_demand_base_capacity
+  on_demand_percentage    = var.on_demand_percentage
 
-  # Storage
-  root_volume_size = 100  # Reduced from 125
+  # Storage - reduced for cost savings
+  root_volume_size = var.root_volume_size
 
   # Logging
   log_group_name     = var.log_group_name
