@@ -12,13 +12,16 @@ Verifies:
     - Compatibility checking
     - Retail schema template
 """
+
 import os
 import sys
 
 import pytest
 
 # Add parent to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from vsa_core import seed_hash, similarity
 from vsa_core.schema import (
@@ -36,6 +39,7 @@ from vsa_core.vectors import get_config
 # =============================================================================
 # FIXTURES
 # =============================================================================
+
 
 @pytest.fixture(scope="module")
 def config():
@@ -77,6 +81,7 @@ def cost_vec():
 # =============================================================================
 # SCHEMA REGISTRY TESTS
 # =============================================================================
+
 
 class TestSchemaRegistry:
     """Tests for SchemaRegistry class."""
@@ -210,6 +215,7 @@ class TestSchemaRegistry:
 # FIELD TRANSFORM TESTS
 # =============================================================================
 
+
 class TestFieldTransforms:
     """Tests for field transformation functions."""
 
@@ -236,6 +242,7 @@ class TestFieldTransforms:
 
         def transform(v):
             return v * 2
+
         registry.add_field("quantity", transform=transform)
         registry.add_field("price")  # No transform
 
@@ -246,6 +253,7 @@ class TestFieldTransforms:
 # =============================================================================
 # SE_BIND / SE_UNBIND TESTS
 # =============================================================================
+
 
 class TestSEBind:
     """Tests for schema-evolution-aware binding."""
@@ -318,16 +326,22 @@ class TestSEBind:
 # CREATE_SCHEMA_RECORD TESTS
 # =============================================================================
 
+
 class TestCreateSchemaRecord:
     """Tests for bundled record creation."""
 
-    def test_create_record_basic(self, basic_registry, qty_vec, price_vec, cost_vec, dims):
+    def test_create_record_basic(
+        self, basic_registry, qty_vec, price_vec, cost_vec, dims
+    ):
         """create_schema_record should bundle field bindings."""
-        record = create_schema_record({
-            "qty": qty_vec,
-            "price": price_vec,
-            "cost": cost_vec,
-        }, basic_registry)
+        record = create_schema_record(
+            {
+                "qty": qty_vec,
+                "price": price_vec,
+                "cost": cost_vec,
+            },
+            basic_registry,
+        )
 
         assert record.shape == (dims,)
 
@@ -338,10 +352,13 @@ class TestCreateSchemaRecord:
 
     def test_create_record_query(self, basic_registry, qty_vec, price_vec):
         """Record should be queryable via unbinding."""
-        record = create_schema_record({
-            "qty": qty_vec,
-            "price": price_vec,
-        }, basic_registry)
+        record = create_schema_record(
+            {
+                "qty": qty_vec,
+                "price": price_vec,
+            },
+            basic_registry,
+        )
 
         # Unbind to get quantity
         basic_registry.get_vector("quantity")
@@ -355,10 +372,14 @@ class TestCreateSchemaRecord:
         """create_schema_record with auto_add should create fields."""
         registry = SchemaRegistry("v1", dimensions=dims)
 
-        create_schema_record({
-            "qty": qty_vec,
-            "price": price_vec,
-        }, registry, auto_add=True)
+        create_schema_record(
+            {
+                "qty": qty_vec,
+                "price": price_vec,
+            },
+            registry,
+            auto_add=True,
+        )
 
         assert registry.has_field("qty")
         assert registry.has_field("price")
@@ -368,15 +389,19 @@ class TestCreateSchemaRecord:
 # MIGRATION TESTS
 # =============================================================================
 
+
 class TestMigration:
     """Tests for schema migration."""
 
     def test_migrate_same_schema(self, basic_registry, qty_vec, price_vec):
         """Migrating to same schema should preserve data."""
-        record = create_schema_record({
-            "qty": qty_vec,
-            "price": price_vec,
-        }, basic_registry)
+        record = create_schema_record(
+            {
+                "qty": qty_vec,
+                "price": price_vec,
+            },
+            basic_registry,
+        )
 
         migrated = migrate_bundle(record, basic_registry, basic_registry)
 
@@ -397,8 +422,7 @@ class TestMigration:
 
         # Migrate with explicit mapping
         migrated = migrate_bundle(
-            record, v1, v2,
-            field_mapping={"qty": "quantity_on_hand"}
+            record, v1, v2, field_mapping={"qty": "quantity_on_hand"}
         )
 
         # Query with new field name
@@ -412,6 +436,7 @@ class TestMigration:
 # =============================================================================
 # COMPATIBILITY CHECK TESTS
 # =============================================================================
+
 
 class TestCompatibilityCheck:
     """Tests for schema compatibility checking."""
@@ -474,6 +499,7 @@ class TestCompatibilityCheck:
 # RETAIL SCHEMA TESTS
 # =============================================================================
 
+
 class TestRetailSchema:
     """Tests for retail schema template."""
 
@@ -488,7 +514,16 @@ class TestRetailSchema:
         """Retail schema should have common inventory fields."""
         schema = create_retail_schema()
 
-        expected = ["sku", "quantity", "cost", "price", "margin", "sold", "category", "vendor"]
+        expected = [
+            "sku",
+            "quantity",
+            "cost",
+            "price",
+            "margin",
+            "sold",
+            "category",
+            "vendor",
+        ]
         for field in expected:
             assert schema.has_field(field), f"Missing expected field: {field}"
 
@@ -524,6 +559,7 @@ class TestRetailSchema:
 # FIELD SPEC TESTS
 # =============================================================================
 
+
 class TestFieldSpec:
     """Tests for FieldSpec dataclass."""
 
@@ -555,6 +591,7 @@ class TestFieldSpec:
 # INTEGRATION TESTS
 # =============================================================================
 
+
 class TestSchemaIntegration:
     """End-to-end integration tests."""
 
@@ -569,10 +606,13 @@ class TestSchemaIntegration:
         qty_val = seed_hash("qty:100")
         price_val = seed_hash("price:9.99")
 
-        record = create_schema_record({
-            "qty": qty_val,
-            "price": price_val,
-        }, v1)
+        record = create_schema_record(
+            {
+                "qty": qty_val,
+                "price": price_val,
+            },
+            v1,
+        )
 
         # Create v2 schema (same seed = same field vectors, easier migration)
         v2 = SchemaRegistry("v2", dimensions=dims, seed=42)
@@ -585,11 +625,10 @@ class TestSchemaIntegration:
 
         # Migrate with explicit mapping
         migrated = migrate_bundle(
-            record, v1, v2,
-            field_mapping={
-                "qty": "quantity_on_hand",
-                "price": "retail_price"
-            }
+            record,
+            v1,
+            v2,
+            field_mapping={"qty": "quantity_on_hand", "price": "retail_price"},
         )
 
         # Verify migration produced valid vector
@@ -620,7 +659,10 @@ class TestSchemaIntegration:
         lightspeed_record = create_schema_record(lightspeed_data, schema)
 
         # Both records can be queried with canonical names
-        for record, name in [(idosoft_record, "idosoft"), (lightspeed_record, "lightspeed")]:
+        for record, name in [
+            (idosoft_record, "idosoft"),
+            (lightspeed_record, "lightspeed"),
+        ]:
             qty_recovered = se_unbind(record, "quantity", schema)
             cost_recovered = se_unbind(record, "cost", schema)
 

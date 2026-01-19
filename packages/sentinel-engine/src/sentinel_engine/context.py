@@ -37,26 +37,35 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION CONSTANTS (Immutable - safe to share)
 # =============================================================================
 
-DEFAULT_DIMENSIONS = 2048   # v3.2: reduced from 8192 for 150k+ row files (<60s, <2GB target)
+DEFAULT_DIMENSIONS = (
+    2048  # v3.2: reduced from 8192 for 150k+ row files (<60s, <2GB target)
+)
 DEFAULT_MAX_CODEBOOK_SIZE = 10000  # v3.2: reduced from 30k for time (<60s target)
 DEFAULT_DTYPE = torch.complex64
 
 # Large file handling thresholds (v3.1)
 LARGE_FILE_THRESHOLD = 30000  # Force SKU-only codebook above this row count
-HIERARCHICAL_CODEBOOK_THRESHOLD = 15000  # v3.2: Auto-enable HierarchicalResonator (was 18k)
+HIERARCHICAL_CODEBOOK_THRESHOLD = (
+    15000  # v3.2: Auto-enable HierarchicalResonator (was 18k)
+)
 
 # Resonator parameters (calibrated v3.0 - optimized for 8192-D)
-RESONATOR_ALPHA = 0.85      # Blend factor (old vs new)
-RESONATOR_POWER = 0.64      # Resonance power
-RESONATOR_ITERS = 100       # Production v3.0: reduced from 300 (early-stopping handles convergence)
-RESONATOR_MULTI_STEPS = 3   # Multi-step cycles
-RESONATOR_TOP_K = 32        # Production v3.0: reduced from 64 for efficiency
-RESONATOR_CONVERGENCE_THRESHOLD = 0.0001  # Production v3.0: tighter threshold with early-stopping
+RESONATOR_ALPHA = 0.85  # Blend factor (old vs new)
+RESONATOR_POWER = 0.64  # Resonance power
+RESONATOR_ITERS = (
+    100  # Production v3.0: reduced from 300 (early-stopping handles convergence)
+)
+RESONATOR_MULTI_STEPS = 3  # Multi-step cycles
+RESONATOR_TOP_K = 32  # Production v3.0: reduced from 64 for efficiency
+RESONATOR_CONVERGENCE_THRESHOLD = (
+    0.0001  # Production v3.0: tighter threshold with early-stopping
+)
 
 
 # =============================================================================
 # ANALYSIS CONTEXT
 # =============================================================================
+
 
 @dataclass
 class AnalysisContext:
@@ -149,8 +158,14 @@ class AnalysisContext:
         entity = entity.strip().lower()
 
         # Skip invalid entities
-        if not entity or entity in ('unknown', 'unknown_sku', 'unknown_desc',
-                                     'unknown_vendor', 'unknown_category', ''):
+        if not entity or entity in (
+            "unknown",
+            "unknown_sku",
+            "unknown_desc",
+            "unknown_vendor",
+            "unknown_category",
+            "",
+        ):
             return None
 
         # SKU-only filtering: skip non-SKU entities if enabled
@@ -185,8 +200,14 @@ class AnalysisContext:
             entity = entity.strip().lower()
 
             # Skip invalid
-            if not entity or entity in ('unknown', 'unknown_sku', 'unknown_desc',
-                                         'unknown_vendor', 'unknown_category', ''):
+            if not entity or entity in (
+                "unknown",
+                "unknown_sku",
+                "unknown_desc",
+                "unknown_vendor",
+                "unknown_category",
+                "",
+            ):
                 continue
 
             # SKU-only filtering
@@ -284,17 +305,21 @@ class AnalysisContext:
             Normalized complex phasor hypervector
         """
         hash_obj = hashlib.sha256(string.encode())
-        seed = int.from_bytes(hash_obj.digest(), 'big') % (2**32)
+        seed = int.from_bytes(hash_obj.digest(), "big") % (2**32)
 
         # Use context's generator for isolation
         self._generator.manual_seed(seed)
 
-        phases = torch.rand(
-            self.dimensions,
-            device=self.device,
-            generator=self._generator,
-            dtype=torch.float32
-        ) * 2 * torch.pi
+        phases = (
+            torch.rand(
+                self.dimensions,
+                device=self.device,
+                generator=self._generator,
+                dtype=torch.float32,
+            )
+            * 2
+            * torch.pi
+        )
 
         v = torch.exp(1j * phases).to(self.dtype)
         return self.normalize(v)
@@ -321,7 +346,7 @@ class AnalysisContext:
         seeds = []
         for s in strings:
             hash_obj = hashlib.sha256(s.encode())
-            seed = int.from_bytes(hash_obj.digest(), 'big') % (2**32)
+            seed = int.from_bytes(hash_obj.digest(), "big") % (2**32)
             seeds.append(seed)
 
         # Generate all phases in one batch operation
@@ -329,12 +354,16 @@ class AnalysisContext:
         phases_list = []
         for seed in seeds:
             self._generator.manual_seed(seed)
-            phases = torch.rand(
-                self.dimensions,
-                device=self.device,
-                generator=self._generator,
-                dtype=torch.float32
-            ) * 2 * torch.pi
+            phases = (
+                torch.rand(
+                    self.dimensions,
+                    device=self.device,
+                    generator=self._generator,
+                    dtype=torch.float32,
+                )
+                * 2
+                * torch.pi
+            )
             phases_list.append(phases)
 
         # Stack and compute complex phasors in one operation
@@ -461,6 +490,7 @@ class AnalysisContext:
 # FACTORY FUNCTION
 # =============================================================================
 
+
 def create_analysis_context(
     dimensions: int = DEFAULT_DIMENSIONS,
     max_codebook_size: int = DEFAULT_MAX_CODEBOOK_SIZE,
@@ -514,7 +544,9 @@ def create_analysis_context(
         iters=iters,
     )
 
-    logger.debug(f"Created analysis context: device={torch_device}, dims={dimensions}, sku_only={sku_only_codebook}")
+    logger.debug(
+        f"Created analysis context: device={torch_device}, dims={dimensions}, sku_only={sku_only_codebook}"
+    )
 
     return ctx
 
@@ -522,6 +554,7 @@ def create_analysis_context(
 # =============================================================================
 # CONTEXT MANAGER (Alternative usage pattern)
 # =============================================================================
+
 
 class analysis_context:
     """

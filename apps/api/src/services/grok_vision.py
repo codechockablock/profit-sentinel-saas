@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 # GUARDRAILS & VALIDATION
 # =============================================================================
 
+
 class VisionGuardrails:
     """
     Security guardrails for Grok Vision prompts and responses.
@@ -83,9 +84,16 @@ class VisionGuardrails:
 
     # Valid category values
     VALID_CATEGORIES = {
-        "plumbing", "electrical", "hvac", "carpentry",
-        "painting", "flooring", "roofing", "appliances",
-        "outdoor", "automotive",
+        "plumbing",
+        "electrical",
+        "hvac",
+        "carpentry",
+        "painting",
+        "flooring",
+        "roofing",
+        "appliances",
+        "outdoor",
+        "automotive",
     }
 
     # Valid severity values
@@ -109,11 +117,11 @@ class VisionGuardrails:
             return None
 
         # Truncate to max length
-        text = text[:cls.MAX_TEXT_CONTEXT_LENGTH]
+        text = text[: cls.MAX_TEXT_CONTEXT_LENGTH]
 
         # Strip dangerous characters
         text = text.replace("\x00", "")  # Null bytes
-        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)  # Control chars
+        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)  # Control chars
 
         # Check for blocked patterns
         text_lower = text.lower()
@@ -151,7 +159,10 @@ class VisionGuardrails:
 
         # Check for reasonable base64 length
         if len(image_base64) > cls.MAX_IMAGE_SIZE_BYTES * 1.37:  # Base64 overhead
-            return False, f"Image exceeds {cls.MAX_IMAGE_SIZE_BYTES // (1024*1024)}MB limit"
+            return (
+                False,
+                f"Image exceeds {cls.MAX_IMAGE_SIZE_BYTES // (1024*1024)}MB limit",
+            )
 
         try:
             # Decode to verify valid base64
@@ -161,23 +172,28 @@ class VisionGuardrails:
 
         # Check actual size after decode
         if len(image_bytes) > cls.MAX_IMAGE_SIZE_BYTES:
-            return False, f"Decoded image exceeds {cls.MAX_IMAGE_SIZE_BYTES // (1024*1024)}MB limit"
+            return (
+                False,
+                f"Decoded image exceeds {cls.MAX_IMAGE_SIZE_BYTES // (1024*1024)}MB limit",
+            )
 
         # Check for valid image magic bytes
-        if image_bytes[:2] == b'\xff\xd8':
+        if image_bytes[:2] == b"\xff\xd8":
             # JPEG
             return True, ""
-        elif image_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+        elif image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
             # PNG
             return True, ""
-        elif image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
+        elif image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
             # WebP
             return True, ""
         else:
             return False, "Invalid image format. Supported: JPEG, PNG, WebP"
 
     @classmethod
-    def validate_response(cls, data: dict[str, Any]) -> tuple[bool, str, dict[str, Any]]:
+    def validate_response(
+        cls, data: dict[str, Any]
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate and sanitize API response.
 
@@ -217,8 +233,8 @@ class VisionGuardrails:
         subcategory = data.get("subcategory")
         if subcategory:
             subcategory = str(subcategory).lower()
-            subcategory = re.sub(r'[^a-z0-9\-]', '-', subcategory)
-            subcategory = re.sub(r'-+', '-', subcategory).strip('-')
+            subcategory = re.sub(r"[^a-z0-9\-]", "-", subcategory)
+            subcategory = re.sub(r"-+", "-", subcategory).strip("-")
             sanitized["subcategory"] = subcategory[:50]  # Max length
         else:
             sanitized["subcategory"] = None
@@ -234,8 +250,8 @@ class VisionGuardrails:
         # Description - sanitize text
         description = str(data.get("description", ""))[:500]
         # Remove any embedded JSON/code
-        description = re.sub(r'```.*?```', '', description, flags=re.DOTALL)
-        description = re.sub(r'\{[^}]*\}', '', description)
+        description = re.sub(r"```.*?```", "", description, flags=re.DOTALL)
+        description = re.sub(r"\{[^}]*\}", "", description)
         sanitized["description"] = description.strip() or "Unable to analyze image"
 
         # Lists - sanitize to simple strings
@@ -256,7 +272,7 @@ class VisionGuardrails:
             for item in raw_list[:20]:  # Max 20 items
                 if isinstance(item, str):
                     # Remove special chars, limit length
-                    clean = re.sub(r'[^\w\s\-/]', '', str(item))[:50]
+                    clean = re.sub(r"[^\w\s\-/]", "", str(item))[:50]
                     if clean.strip():
                         clean_list.append(clean.strip())
             sanitized[list_field] = clean_list
@@ -269,16 +285,14 @@ class VisionGuardrails:
 
         # Booleans
         sanitized["diy_feasible"] = bool(data.get("diy_feasible", True))
-        sanitized["professional_recommended"] = bool(data.get("professional_recommended", False))
+        sanitized["professional_recommended"] = bool(
+            data.get("professional_recommended", False)
+        )
 
         return True, "", sanitized
 
     @classmethod
-    def build_safe_prompt(
-        cls,
-        user_context: str | None,
-        base_prompt: str
-    ) -> str:
+    def build_safe_prompt(cls, user_context: str | None, base_prompt: str) -> str:
         """
         Build a safe prompt with clear boundaries.
 
@@ -301,16 +315,18 @@ class VisionGuardrails:
         ]
 
         if user_context:
-            prompt_parts.extend([
-                "",
-                "<user_description>",
-                "The user provided this additional context:",
-                user_context,
-                "</user_description>",
-                "",
-                "Use the user's description to help identify the problem, but base your",
-                "analysis primarily on what you can see in the image.",
-            ])
+            prompt_parts.extend(
+                [
+                    "",
+                    "<user_description>",
+                    "The user provided this additional context:",
+                    user_context,
+                    "</user_description>",
+                    "",
+                    "Use the user's description to help identify the problem, but base your",
+                    "analysis primarily on what you can see in the image.",
+                ]
+            )
 
         return "\n".join(prompt_parts)
 
@@ -497,9 +513,7 @@ Respond with this exact JSON structure:
         return self._client
 
     def analyze_image(
-        self,
-        image_base64: str,
-        text_context: str | None = None
+        self, image_base64: str, text_context: str | None = None
     ) -> VisionAnalysisResult:
         """
         Analyze a repair problem image with full guardrails.
@@ -524,9 +538,7 @@ Respond with this exact JSON structure:
             raise ValueError(f"Invalid image: {error_msg}")
 
         # Compute hash for deduplication (NOT for storage)
-        image_hash = hashlib.sha256(
-            base64.b64decode(image_base64)
-        ).hexdigest()[:16]
+        image_hash = hashlib.sha256(base64.b64decode(image_base64)).hexdigest()[:16]
 
         # === GUARDRAIL: Sanitize user text ===
         safe_text_context = VisionGuardrails.sanitize_user_text(text_context)
@@ -535,18 +547,17 @@ Respond with this exact JSON structure:
 
         # === GUARDRAIL: Build safe prompt ===
         user_prompt = VisionGuardrails.build_safe_prompt(
-            safe_text_context,
-            self.ANALYSIS_PROMPT
+            safe_text_context, self.ANALYSIS_PROMPT
         )
 
         # Determine image type from magic bytes
         try:
             image_bytes = base64.b64decode(image_base64)
-            if image_bytes[:2] == b'\xff\xd8':
+            if image_bytes[:2] == b"\xff\xd8":
                 image_type = "image/jpeg"
-            elif image_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+            elif image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
                 image_type = "image/png"
-            elif image_bytes[:4] == b'RIFF':
+            elif image_bytes[:4] == b"RIFF":
                 image_type = "image/webp"
             else:
                 image_type = "image/jpeg"  # Default fallback
@@ -557,28 +568,22 @@ Respond with this exact JSON structure:
             response = self.client.chat.completions.create(
                 model="grok-vision-beta",  # Grok Vision model
                 messages=[
-                    {
-                        "role": "system",
-                        "content": self.SYSTEM_PROMPT
-                    },
+                    {"role": "system", "content": self.SYSTEM_PROMPT},
                     {
                         "role": "user",
                         "content": [
-                            {
-                                "type": "text",
-                                "text": user_prompt
-                            },
+                            {"type": "text", "text": user_prompt},
                             {
                                 "type": "image_url",
                                 "image_url": {
                                     "url": f"data:{image_type};base64,{image_base64}"
-                                }
-                            }
-                        ]
-                    }
+                                },
+                            },
+                        ],
+                    },
                 ],
                 temperature=0.3,
-                max_tokens=1024
+                max_tokens=1024,
             )
 
             content = response.choices[0].message.content.strip()
@@ -595,9 +600,7 @@ Respond with this exact JSON structure:
             return self._fallback_analysis(safe_text_context, image_hash, str(e))
 
     def _parse_vision_response_safe(
-        self,
-        content: str,
-        image_hash: str
+        self, content: str, image_hash: str
     ) -> VisionAnalysisResult:
         """
         Parse Grok Vision JSON response with full guardrails.
@@ -607,13 +610,13 @@ Respond with this exact JSON structure:
         # Clean JSON from markdown
         json_content = content
         if "```json" in content:
-            match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
+            match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
             if match:
                 json_content = match.group(1)
             else:
                 raise ValueError("Could not extract JSON from response")
         elif "```" in content:
-            match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
+            match = re.search(r"```\s*(.*?)\s*```", content, re.DOTALL)
             if match:
                 json_content = match.group(1)
 
@@ -652,18 +655,13 @@ Respond with this exact JSON structure:
         )
 
     def _parse_vision_response(
-        self,
-        content: str,
-        image_hash: str
+        self, content: str, image_hash: str
     ) -> VisionAnalysisResult:
         """Legacy parser - redirects to safe version."""
         return self._parse_vision_response_safe(content, image_hash)
 
     def _fallback_analysis(
-        self,
-        text_context: str | None,
-        image_hash: str,
-        error: str
+        self, text_context: str | None, image_hash: str, error: str
     ) -> VisionAnalysisResult:
         """Provide fallback analysis when vision API fails."""
         # Try to infer category from text context
@@ -680,7 +678,7 @@ Respond with this exact JSON structure:
                     break
 
             # Extract simple keywords
-            keywords = re.findall(r'\b\w{4,}\b', text_lower)[:10]
+            keywords = re.findall(r"\b\w{4,}\b", text_lower)[:10]
 
             # Infer basic parts/tools from keywords
             parts_hints = {
@@ -704,7 +702,7 @@ Respond with this exact JSON structure:
                     tools.extend(t)
 
         # Sanitize error message
-        safe_error = re.sub(r'[^\w\s\-.]', '', str(error))[:50]
+        safe_error = re.sub(r"[^\w\s\-.]", "", str(error))[:50]
 
         return VisionAnalysisResult(
             primary_category=category,
@@ -722,10 +720,7 @@ Respond with this exact JSON structure:
             keywords=keywords,
         )
 
-    def extract_features_for_vsa(
-        self,
-        result: VisionAnalysisResult
-    ) -> ImageFeatures:
+    def extract_features_for_vsa(self, result: VisionAnalysisResult) -> ImageFeatures:
         """
         Extract features suitable for VSA encoding.
 
@@ -750,11 +745,11 @@ Respond with this exact JSON structure:
         description_for_encoding = " ".join(filter(None, description_parts))
 
         # Combine keywords with parts and components for richer encoding
-        all_keywords = list(set(
-            result.keywords +
-            result.visible_components +
-            result.likely_parts_needed
-        ))
+        all_keywords = list(
+            set(
+                result.keywords + result.visible_components + result.likely_parts_needed
+            )
+        )
 
         return ImageFeatures(
             image_hash="",  # Not stored
@@ -788,9 +783,9 @@ Respond with this exact JSON structure:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def analyze_repair_image(
-    image_base64: str,
-    text_context: str | None = None
+    image_base64: str, text_context: str | None = None
 ) -> VisionAnalysisResult:
     """
     Convenience function to analyze a repair image.
@@ -807,9 +802,7 @@ def analyze_repair_image(
 
 
 def get_image_vsa_vector(
-    image_base64: str,
-    text_encoder,
-    text_context: str | None = None
+    image_base64: str, text_encoder, text_context: str | None = None
 ) -> tuple[torch.Tensor, VisionAnalysisResult]:
     """
     Get VSA vector from repair image.

@@ -50,6 +50,7 @@ try:
         calculate_level,
         xp_for_next_level,
     )
+
     ENGINE_AVAILABLE = True
 except ImportError:
     ENGINE_AVAILABLE = False
@@ -69,10 +70,7 @@ def get_engine() -> "RepairDiagnosisEngine":  # type: ignore
     global _engine
     if _engine is None:
         if not ENGINE_AVAILABLE:
-            raise HTTPException(
-                status_code=503,
-                detail="Repair engine not available"
-            )
+            raise HTTPException(status_code=503, detail="Repair engine not available")
         _engine = create_engine(dimensions=4096, device="cpu")
     return _engine
 
@@ -81,8 +79,10 @@ def get_engine() -> "RepairDiagnosisEngine":  # type: ignore
 # REQUEST/RESPONSE MODELS (API-specific)
 # =============================================================================
 
+
 class DiagnoseRequestAPI(BaseModel):
     """API request model for diagnosis."""
+
     text_description: str | None = Field(None, max_length=2000)
     voice_transcript: str | None = Field(None, max_length=2000)
     image_base64: str | None = Field(None, description="Base64-encoded image")
@@ -93,6 +93,7 @@ class DiagnoseRequestAPI(BaseModel):
 
 class RefineRequestAPI(BaseModel):
     """API request for refining diagnosis."""
+
     problem_id: str
     additional_text: str | None = Field(None, max_length=1000)
     additional_image_base64: str | None = None
@@ -102,6 +103,7 @@ class RefineRequestAPI(BaseModel):
 
 class CorrectionRequestAPI(BaseModel):
     """API request for employee correction."""
+
     problem_id: str
     employee_id: str
     correct_category_slug: str
@@ -110,6 +112,7 @@ class CorrectionRequestAPI(BaseModel):
 
 class HypothesisAPI(BaseModel):
     """Hypothesis in API response."""
+
     category_slug: str
     category_name: str
     probability: float
@@ -119,6 +122,7 @@ class HypothesisAPI(BaseModel):
 
 class DiagnoseResponseAPI(BaseModel):
     """API response for diagnosis."""
+
     problem_id: str
     status: str
 
@@ -141,6 +145,7 @@ class DiagnoseResponseAPI(BaseModel):
 
 class SolutionPartAPI(BaseModel):
     """Part in solution response."""
+
     part_name: str
     part_description: str | None = None
     quantity: int = 1
@@ -156,6 +161,7 @@ class SolutionPartAPI(BaseModel):
 
 class SolutionStepAPI(BaseModel):
     """Step in solution response."""
+
     order: int
     instruction: str
     tip: str | None = None
@@ -164,6 +170,7 @@ class SolutionStepAPI(BaseModel):
 
 class SolutionResponseAPI(BaseModel):
     """API response for repair solution."""
+
     solution_id: str
     problem_id: str
     category_slug: str
@@ -186,6 +193,7 @@ class SolutionResponseAPI(BaseModel):
 
 class CorrectionResultAPI(BaseModel):
     """API response for correction submission."""
+
     correction_id: str
     problem_id: str
     employee_id: str
@@ -202,6 +210,7 @@ class CorrectionResultAPI(BaseModel):
 
 class CategoryAPI(BaseModel):
     """Problem category in API response."""
+
     category_id: str
     name: str
     slug: str
@@ -217,6 +226,7 @@ CategoryAPI.model_rebuild()
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
+
 
 @router.post("/diagnose", response_model=DiagnoseResponseAPI)
 async def diagnose_problem(
@@ -234,10 +244,12 @@ async def diagnose_problem(
     Returns hypothesis probabilities and follow-up questions if needed.
     """
     # Validate at least one input
-    if not any([request.text_description, request.voice_transcript, request.image_base64]):
+    if not any(
+        [request.text_description, request.voice_transcript, request.image_base64]
+    ):
         raise HTTPException(
             status_code=400,
-            detail="At least one input (text, voice, or image) required"
+            detail="At least one input (text, voice, or image) required",
         )
 
     engine = get_engine()
@@ -250,13 +262,12 @@ async def diagnose_problem(
             vision_service = GrokVisionService()
             vision_result = vision_service.analyze_image(
                 request.image_base64,
-                text_context=request.text_description or request.voice_transcript
+                text_context=request.text_description or request.voice_transcript,
             )
             # Get VSA vector from vision
             features = vision_service.extract_features_for_vsa(vision_result)
             image_features = vision_service.encode_to_vsa_vector(
-                features,
-                engine.text_encoder
+                features, engine.text_encoder
             )
         except ValueError as e:
             logger.warning(f"Image analysis failed: {e}")
@@ -273,10 +284,7 @@ async def diagnose_problem(
         )
     except Exception as e:
         logger.error(f"Diagnosis failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Diagnosis failed"
-        )
+        raise HTTPException(status_code=500, detail="Diagnosis failed")
 
     # Generate problem ID
     problem_id = str(uuid.uuid4())
@@ -344,7 +352,7 @@ async def refine_diagnosis(
 
     raise HTTPException(
         status_code=501,
-        detail="Diagnosis refinement requires database persistence (coming soon)"
+        detail="Diagnosis refinement requires database persistence (coming soon)",
     )
 
 
@@ -367,7 +375,7 @@ async def get_solution(
 
     raise HTTPException(
         status_code=501,
-        detail="Solution generation requires database persistence (coming soon)"
+        detail="Solution generation requires database persistence (coming soon)",
     )
 
 
@@ -390,8 +398,7 @@ async def submit_correction(
     # Validate employee
     if not request.employee_id:
         raise HTTPException(
-            status_code=400,
-            detail="Employee ID required for corrections"
+            status_code=400, detail="Employee ID required for corrections"
         )
 
     # TODO: Verify employee exists and retrieve their profile
@@ -440,25 +447,29 @@ async def list_categories():
         for sub_slug in engine.codebook.get_all_slugs():
             sub_info = engine.codebook.get_info(sub_slug)
             if sub_info.get("parent_slug") == slug:
-                subcategories.append(CategoryAPI(
-                    category_id=sub_slug,
-                    name=sub_info.get("name", sub_slug),
-                    slug=sub_slug,
-                    description=sub_info.get("description"),
-                    icon=sub_info.get("icon"),
-                    parent_slug=slug,
-                    subcategories=[],
-                ))
+                subcategories.append(
+                    CategoryAPI(
+                        category_id=sub_slug,
+                        name=sub_info.get("name", sub_slug),
+                        slug=sub_slug,
+                        description=sub_info.get("description"),
+                        icon=sub_info.get("icon"),
+                        parent_slug=slug,
+                        subcategories=[],
+                    )
+                )
 
-        categories.append(CategoryAPI(
-            category_id=slug,
-            name=info.get("name", slug),
-            slug=slug,
-            description=info.get("description"),
-            icon=info.get("icon"),
-            parent_slug=None,
-            subcategories=subcategories,
-        ))
+        categories.append(
+            CategoryAPI(
+                category_id=slug,
+                name=info.get("name", slug),
+                slug=slug,
+                description=info.get("description"),
+                icon=info.get("icon"),
+                parent_slug=None,
+                subcategories=subcategories,
+            )
+        )
 
     return categories
 

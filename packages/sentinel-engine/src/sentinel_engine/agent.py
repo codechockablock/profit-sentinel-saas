@@ -77,6 +77,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
+
 @dataclass
 class AgentConfig:
     """Configuration for always-on agent."""
@@ -106,25 +107,29 @@ class AgentConfig:
     chunk_size: int = 15000
 
     # Primitives to track
-    primitives: list[str] = field(default_factory=lambda: [
-        "low_stock",
-        "high_margin_leak",
-        "dead_item",
-        "negative_inventory",
-        "overstock",
-        "price_discrepancy",
-        "shrinkage_pattern",
-        "margin_erosion",
-    ])
+    primitives: list[str] = field(
+        default_factory=lambda: [
+            "low_stock",
+            "high_margin_leak",
+            "dead_item",
+            "negative_inventory",
+            "overstock",
+            "price_discrepancy",
+            "shrinkage_pattern",
+            "margin_erosion",
+        ]
+    )
 
 
 # =============================================================================
 # TEMPORAL WORKING MEMORY
 # =============================================================================
 
+
 @dataclass
 class TemporalEvent:
     """Single event in temporal memory."""
+
     timestamp: float
     primitive: str
     sku: str
@@ -149,7 +154,7 @@ class TemporalWorkingMemory:
         dimensions: int = 16384,
         window_days: int = 30,
         decay_rate: float = 0.1,
-        max_events: int = 10000
+        max_events: int = 10000,
     ):
         """Initialize temporal working memory.
 
@@ -175,7 +180,7 @@ class TemporalWorkingMemory:
         sku: str,
         score: float,
         fact_vector: torch.Tensor,
-        timestamp: float | None = None
+        timestamp: float | None = None,
     ) -> None:
         """Add timestamped fact to temporal memory.
 
@@ -195,16 +200,13 @@ class TemporalWorkingMemory:
             primitive=primitive,
             sku=sku,
             score=score,
-            vector=fact_vector
+            vector=fact_vector,
         )
         self.events.append(event)
 
         # Encode with temporal binding
         t_encoded = t_bind(
-            fact_vector,
-            timestamp,
-            self.reference_time,
-            decay_rate=self.decay_rate
+            fact_vector, timestamp, self.reference_time, decay_rate=self.decay_rate
         )
 
         # Update bundle
@@ -230,7 +232,9 @@ class TemporalWorkingMemory:
 
         # Limit to max_events (keep most recent)
         if len(self.events) > self.max_events:
-            self.events = sorted(self.events, key=lambda e: e.timestamp)[-self.max_events:]
+            self.events = sorted(self.events, key=lambda e: e.timestamp)[
+                -self.max_events :
+            ]
 
         # Rebuild bundle
         self._rebuild_bundle()
@@ -252,7 +256,7 @@ class TemporalWorkingMemory:
                 event.vector,
                 event.timestamp,
                 self.reference_time,
-                decay_rate=self.decay_rate
+                decay_rate=self.decay_rate,
             )
             vectors.append(t_encoded)
             confidences.append(event.score)
@@ -260,9 +264,7 @@ class TemporalWorkingMemory:
         self.temporal_bundle, _ = cw_bundle(vectors, confidences)
 
     def query_recent(
-        self,
-        query_vector: torch.Tensor,
-        days_back: int = 7
+        self, query_vector: torch.Tensor, days_back: int = 7
     ) -> list[tuple[TemporalEvent, float]]:
         """Query for matching events in recent window.
 
@@ -288,7 +290,7 @@ class TemporalWorkingMemory:
         query_vector: torch.Tensor,
         start_time: float,
         end_time: float,
-        num_samples: int = 20
+        num_samples: int = 20,
     ) -> list[tuple[float, float]]:
         """Query for pattern across time range.
 
@@ -307,16 +309,14 @@ class TemporalWorkingMemory:
             return []
 
         import numpy as np
+
         time_points = np.linspace(start_time, end_time, num_samples)
 
         results = []
         for t in time_points:
             # Unbind at this time point
             probe = t_unbind(
-                self.temporal_bundle,
-                t,
-                self.reference_time,
-                decay_rate=self.decay_rate
+                self.temporal_bundle, t, self.reference_time, decay_rate=self.decay_rate
             )
             sim = float(similarity(probe, query_vector).real)
             results.append((float(t), sim))
@@ -324,9 +324,7 @@ class TemporalWorkingMemory:
         return results
 
     def get_primitive_trend(
-        self,
-        primitive_vector: torch.Tensor,
-        days_back: int = 14
+        self, primitive_vector: torch.Tensor, days_back: int = 14
     ) -> dict[str, Any]:
         """Analyze trend for a primitive over time.
 
@@ -345,6 +343,7 @@ class TemporalWorkingMemory:
             return {"direction": "unknown", "strength": 0, "recent_avg": 0}
 
         import numpy as np
+
         times = np.array([s[0] for s in scores])
         sims = np.array([s[1] for s in scores])
 
@@ -368,7 +367,7 @@ class TemporalWorkingMemory:
         return {
             "direction": direction,
             "strength": float(abs(slope)),
-            "recent_avg": recent_avg
+            "recent_avg": recent_avg,
         }
 
     def size(self) -> int:
@@ -385,6 +384,7 @@ class TemporalWorkingMemory:
 # HYPOTHESIS ENGINE
 # =============================================================================
 
+
 class HypothesisEngine:
     """Manages probabilistic hypotheses about detected anomalies.
 
@@ -392,11 +392,7 @@ class HypothesisEngine:
     evidence is sufficient to collapse to a conclusion.
     """
 
-    def __init__(
-        self,
-        ctx: AnalysisContext,
-        collapse_threshold: float = 0.85
-    ):
+    def __init__(self, ctx: AnalysisContext, collapse_threshold: float = 0.85):
         """Initialize hypothesis engine.
 
         Args:
@@ -409,9 +405,7 @@ class HypothesisEngine:
         self.collapsed_conclusions: list[dict[str, Any]] = []
 
     def create_hypothesis_bundle(
-        self,
-        sku: str,
-        candidate_primitives: list[tuple[str, float]]
+        self, sku: str, candidate_primitives: list[tuple[str, float]]
     ) -> HypothesisBundle:
         """Create hypothesis bundle for SKU anomaly.
 
@@ -434,9 +428,7 @@ class HypothesisEngine:
         return p_sup(hypotheses)
 
     def update_with_evidence(
-        self,
-        sku: str,
-        evidence_vector: torch.Tensor
+        self, sku: str, evidence_vector: torch.Tensor
     ) -> str | None:
         """Update hypothesis bundle with new evidence.
 
@@ -452,24 +444,26 @@ class HypothesisEngine:
 
         # Update probabilities
         self.active_hypotheses[sku] = p_sup_update(
-            self.active_hypotheses[sku],
-            evidence_vector
+            self.active_hypotheses[sku], evidence_vector
         )
 
         # Check for collapse
         winner = p_sup_collapse(
-            self.active_hypotheses[sku],
-            threshold=self.collapse_threshold
+            self.active_hypotheses[sku], threshold=self.collapse_threshold
         )
 
         if winner:
             # Record conclusion
-            self.collapsed_conclusions.append({
-                "sku": sku,
-                "conclusion": winner,
-                "confidence": float(self.active_hypotheses[sku].probabilities.max()),
-                "timestamp": time.time()
-            })
+            self.collapsed_conclusions.append(
+                {
+                    "sku": sku,
+                    "conclusion": winner,
+                    "confidence": float(
+                        self.active_hypotheses[sku].probabilities.max()
+                    ),
+                    "timestamp": time.time(),
+                }
+            )
             del self.active_hypotheses[sku]
 
         return winner
@@ -491,9 +485,11 @@ class HypothesisEngine:
 # ALERT DISPATCHER
 # =============================================================================
 
+
 @dataclass
 class Alert:
     """Alert generated by the agent."""
+
     alert_type: str
     sku: str
     confidence: float
@@ -535,6 +531,7 @@ class AlertDispatcher:
 # SENTINEL AGENT
 # =============================================================================
 
+
 class SentinelAgent:
     """Always-on agent for retail anomaly detection.
 
@@ -574,12 +571,11 @@ class SentinelAgent:
         self.working_memory = TemporalWorkingMemory(
             dimensions=config.dimensions,
             window_days=config.working_memory_window_days,
-            decay_rate=config.decay_rate
+            decay_rate=config.decay_rate,
         )
 
         self.hypothesis_engine = HypothesisEngine(
-            ctx=self.ctx,
-            collapse_threshold=config.collapse_threshold
+            ctx=self.ctx, collapse_threshold=config.collapse_threshold
         )
 
         self.alert_dispatcher = AlertDispatcher()
@@ -640,7 +636,7 @@ class SentinelAgent:
 
             for change_type, path in changes:
                 path = Path(path)
-                if path.suffix in ('.csv', '.tsv') and path not in self.processed_files:
+                if path.suffix in (".csv", ".tsv") and path not in self.processed_files:
                     await self._process_file(path)
 
     async def _process_file(self, filepath: Path) -> None:
@@ -653,7 +649,7 @@ class SentinelAgent:
                 filepath,
                 dimensions=self.config.dimensions,
                 chunk_size=self.config.chunk_size,
-                primitives=self.config.primitives
+                primitives=self.config.primitives,
             )
 
             self.latest_result = result
@@ -662,7 +658,9 @@ class SentinelAgent:
             # Update working memory with findings
             await self._integrate_findings(result)
 
-            logger.info(f"Processed {filepath}: {sum(result.leak_counts.values())} detections")
+            logger.info(
+                f"Processed {filepath}: {sum(result.leak_counts.values())} detections"
+            )
 
         except Exception as e:
             logger.error(f"Failed to process {filepath}: {e}")
@@ -690,7 +688,7 @@ class SentinelAgent:
                     sku=sku,
                     score=score,
                     fact_vector=fact_vec,
-                    timestamp=timestamp
+                    timestamp=timestamp,
                 )
 
                 # Check for hypothesis collapse
@@ -704,7 +702,7 @@ class SentinelAgent:
                         confidence=score,
                         primitive=winner,
                         timestamp=timestamp,
-                        metadata={"source": "hypothesis_collapse"}
+                        metadata={"source": "hypothesis_collapse"},
                     )
                     await self.alert_dispatcher.dispatch(alert)
 
@@ -767,8 +765,8 @@ class SentinelAgent:
                     metadata={
                         "trend_direction": trend["direction"],
                         "trend_strength": trend["strength"],
-                        "source": "pattern_detection"
-                    }
+                        "source": "pattern_detection",
+                    },
                 )
                 await self.alert_dispatcher.dispatch(alert)
 
@@ -784,16 +782,18 @@ class SentinelAgent:
             "active_hypotheses": len(self.hypothesis_engine.active_hypotheses),
             "files_processed": len(self.processed_files),
             "recent_conclusions": self.hypothesis_engine.get_recent_conclusions(5),
-            "latest_result": {
-                "total_rows": self.latest_result.total_rows,
-                "leak_counts": self.latest_result.leak_counts,
-            } if self.latest_result else None
+            "latest_result": (
+                {
+                    "total_rows": self.latest_result.total_rows,
+                    "leak_counts": self.latest_result.leak_counts,
+                }
+                if self.latest_result
+                else None
+            ),
         }
 
     def query_memory(
-        self,
-        primitive: str,
-        days_back: int = 7
+        self, primitive: str, days_back: int = 7
     ) -> list[tuple[TemporalEvent, float]]:
         """Query working memory for primitive matches.
 
@@ -823,7 +823,7 @@ class SentinelAgent:
             filepath,
             dimensions=self.config.dimensions,
             chunk_size=self.config.chunk_size,
-            primitives=self.config.primitives
+            primitives=self.config.primitives,
         )
 
         await self._integrate_findings(result)

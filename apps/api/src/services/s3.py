@@ -22,15 +22,15 @@ DEFAULT_MAX_ROWS = 500_000  # 500K rows max
 # Magic bytes for file type validation
 # Prevents malicious files disguised with safe extensions
 MAGIC_BYTES = {
-    'csv': [
+    "csv": [
         # CSV files typically start with printable ASCII or UTF-8 BOM
         # We check for common patterns
     ],
-    'xlsx': [
-        b'PK\x03\x04',  # XLSX is a ZIP archive (PKZIP magic)
+    "xlsx": [
+        b"PK\x03\x04",  # XLSX is a ZIP archive (PKZIP magic)
     ],
-    'xls': [
-        b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1',  # Microsoft Compound Document (OLE)
+    "xls": [
+        b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",  # Microsoft Compound Document (OLE)
     ],
 }
 
@@ -49,29 +49,33 @@ def _validate_magic_bytes(content: bytes, extension: str) -> tuple[bool, str]:
     if len(content) < 8:
         return False, "File too small to validate"
 
-    ext = extension.lower().lstrip('.')
+    ext = extension.lower().lstrip(".")
 
-    if ext == 'xlsx':
+    if ext == "xlsx":
         # XLSX must start with ZIP magic
-        if not content.startswith(b'PK\x03\x04'):
+        if not content.startswith(b"PK\x03\x04"):
             return False, "Invalid XLSX file: not a valid Office Open XML format"
         return True, ""
 
-    elif ext == 'xls':
+    elif ext == "xls":
         # XLS must start with OLE magic
-        if not content.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'):
+        if not content.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
             return False, "Invalid XLS file: not a valid legacy Excel format"
         return True, ""
 
-    elif ext == 'csv':
+    elif ext == "csv":
         # CSV is tricky - check for printable ASCII or UTF-8 BOM
         # Reject binary content that's clearly not text
-        utf8_bom = b'\xef\xbb\xbf'
-        utf16_le_bom = b'\xff\xfe'
-        utf16_be_bom = b'\xfe\xff'
+        utf8_bom = b"\xef\xbb\xbf"
+        utf16_le_bom = b"\xff\xfe"
+        utf16_be_bom = b"\xfe\xff"
 
         # Allow UTF BOMs
-        if content.startswith(utf8_bom) or content.startswith(utf16_le_bom) or content.startswith(utf16_be_bom):
+        if (
+            content.startswith(utf8_bom)
+            or content.startswith(utf16_le_bom)
+            or content.startswith(utf16_be_bom)
+        ):
             return True, ""
 
         # Check first 1000 bytes for non-printable characters (excluding common ones)
@@ -130,23 +134,19 @@ class S3Service:
             Size limit is advisory for simple PUT presigned URLs.
             For strict enforcement, use presigned POST with conditions.
         """
-        params = {
-            'Bucket': self.bucket_name,
-            'Key': key,
-            'ContentType': content_type
-        }
+        params = {"Bucket": self.bucket_name, "Key": key, "ContentType": content_type}
 
         # Note: Simple presigned PUT URLs don't enforce size limits server-side.
         # We rely on client-side validation + head object check after upload.
         # For strict enforcement, migrate to presigned POST with conditions.
 
         if max_size_mb:
-            logger.debug(f"Generating presigned URL for {key} with {max_size_mb}MB limit advisory")
+            logger.debug(
+                f"Generating presigned URL for {key} with {max_size_mb}MB limit advisory"
+            )
 
         return self.client.generate_presigned_url(
-            'put_object',
-            Params=params,
-            ExpiresIn=expires_in
+            "put_object", Params=params, ExpiresIn=expires_in
         )
 
     def get_object_size(self, key: str) -> int:
@@ -160,7 +160,7 @@ class S3Service:
             File size in bytes
         """
         response = self.client.head_object(Bucket=self.bucket_name, Key=key)
-        return response.get('ContentLength', 0)
+        return response.get("ContentLength", 0)
 
     def load_dataframe(
         self,
@@ -194,7 +194,9 @@ class S3Service:
         file_size_mb = file_size / (1024 * 1024)
 
         if file_size_mb > max_size_mb:
-            logger.warning(f"File {key} exceeds size limit: {file_size_mb:.1f}MB > {max_size_mb}MB")
+            logger.warning(
+                f"File {key} exceeds size limit: {file_size_mb:.1f}MB > {max_size_mb}MB"
+            )
             raise ValueError(
                 f"File too large ({file_size_mb:.1f}MB). "
                 f"Maximum allowed size is {max_size_mb}MB."
@@ -204,10 +206,10 @@ class S3Service:
             logger.info(f"Loading large file: {key} ({file_size_mb:.1f}MB)")
 
         obj = self.client.get_object(Bucket=self.bucket_name, Key=key)
-        contents = obj['Body'].read()
+        contents = obj["Body"].read()
 
         # Validate magic bytes to prevent spoofed extensions
-        extension = key.rsplit('.', 1)[-1] if '.' in key else ''
+        extension = key.rsplit(".", 1)[-1] if "." in key else ""
         is_valid, error_msg = _validate_magic_bytes(contents, extension)
         if not is_valid:
             logger.warning(f"Magic byte validation failed for {key}: {error_msg}")
@@ -216,22 +218,15 @@ class S3Service:
         read_kwargs = {"dtype": str}
 
         # Apply row limit (use smaller of sample_rows and max_rows)
-        effective_rows = min(
-            sample_rows if sample_rows else max_rows,
-            max_rows
-        )
+        effective_rows = min(sample_rows if sample_rows else max_rows, max_rows)
         read_kwargs["nrows"] = effective_rows
         read_kwargs["keep_default_na"] = False
 
-        if key.lower().endswith('.csv'):
+        if key.lower().endswith(".csv"):
             try:
                 df = pd.read_csv(io.BytesIO(contents), **read_kwargs)
             except UnicodeDecodeError:
-                df = pd.read_csv(
-                    io.BytesIO(contents),
-                    encoding='latin1',
-                    **read_kwargs
-                )
+                df = pd.read_csv(io.BytesIO(contents), encoding="latin1", **read_kwargs)
         else:
             # Excel files
             df = pd.read_excel(io.BytesIO(contents), **read_kwargs)
@@ -244,7 +239,9 @@ class S3Service:
 
         return df
 
-    def upload_file(self, key: str, data: bytes, content_type: str = "application/octet-stream"):
+    def upload_file(
+        self, key: str, data: bytes, content_type: str = "application/octet-stream"
+    ):
         """
         Upload a file to S3.
 
@@ -254,10 +251,7 @@ class S3Service:
             content_type: Content type
         """
         self.client.put_object(
-            Bucket=self.bucket_name,
-            Key=key,
-            Body=data,
-            ContentType=content_type
+            Bucket=self.bucket_name, Key=key, Body=data, ContentType=content_type
         )
 
     def delete_file(self, key: str):

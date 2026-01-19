@@ -11,6 +11,7 @@ Key operations:
 
 This is the foundation for pattern matching in inference.
 """
+
 from __future__ import annotations
 
 from .terms import Atom, Term, TermLike, Var
@@ -20,9 +21,7 @@ Substitution = dict[str, TermLike]
 
 
 def unify(
-    t1: TermLike,
-    t2: TermLike,
-    theta: Substitution | None = None
+    t1: TermLike, t2: TermLike, theta: Substitution | None = None
 ) -> Substitution | None:
     """Unify two terms and return most general unifier (MGU).
 
@@ -152,10 +151,7 @@ def substitute(term: TermLike, theta: Substitution) -> TermLike:
     return term
 
 
-def compose_substitutions(
-    theta1: Substitution,
-    theta2: Substitution
-) -> Substitution:
+def compose_substitutions(theta1: Substitution, theta2: Substitution) -> Substitution:
     """Compose two substitutions.
 
     (θ1 ∘ θ2)(t) = θ1(θ2(t))
@@ -181,10 +177,7 @@ def compose_substitutions(
     return result
 
 
-def rename_apart(
-    terms: list[Term],
-    suffix: str
-) -> tuple[list[Term], Substitution]:
+def rename_apart(terms: list[Term], suffix: str) -> tuple[list[Term], Substitution]:
     """Rename variables in terms to avoid capture.
 
     Creates fresh variable names by adding suffix.
@@ -227,7 +220,7 @@ def is_instance_of(specific: TermLike, general: TermLike) -> bool:
         return False
 
     # Check that substitution only binds variables in general
-    general_vars = general.variables() if hasattr(general, 'variables') else set()
+    general_vars = general.variables() if hasattr(general, "variables") else set()
     for var in theta:
         if var not in general_vars:
             return False
@@ -257,10 +250,7 @@ def most_general_instance(t1: TermLike, t2: TermLike) -> TermLike | None:
 
 
 def _anti_unify(
-    t1: TermLike,
-    t2: TermLike,
-    mapping: dict[tuple, Var],
-    fresh_var
+    t1: TermLike, t2: TermLike, mapping: dict[tuple, Var], fresh_var
 ) -> TermLike:
     """Anti-unification helper."""
     # Same term
@@ -289,6 +279,6 @@ def _anti_unify(
 def ground_term(term: TermLike, theta: Substitution) -> bool:
     """Check if term becomes ground after substitution."""
     result = substitute(term, theta)
-    if hasattr(result, 'is_ground'):
+    if hasattr(result, "is_ground"):
         return result.is_ground()
     return True

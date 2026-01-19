@@ -25,6 +25,7 @@ except ImportError:
         class AuthApiError(Exception):
             pass
 
+
 from .config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -47,10 +48,7 @@ def get_grok_client() -> OpenAI | None:
     """Get Grok AI client (OpenAI-compatible)."""
     settings = get_settings()
     if settings.ai_api_key:
-        return OpenAI(
-            api_key=settings.ai_api_key,
-            base_url="https://api.x.ai/v1"
-        )
+        return OpenAI(api_key=settings.ai_api_key, base_url="https://api.x.ai/v1")
     return None
 
 
@@ -75,8 +73,7 @@ async def get_current_user(
     if not authorization.startswith("Bearer "):
         logger.warning("Malformed Authorization header (missing Bearer prefix)")
         raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format"
+            status_code=401, detail="Invalid authorization header format"
         )
 
     token = authorization[7:]  # Remove "Bearer " prefix
@@ -88,8 +85,7 @@ async def get_current_user(
     if not supabase:
         logger.error("Supabase client not configured - auth service unavailable")
         raise HTTPException(
-            status_code=503,
-            detail="Authentication service unavailable"
+            status_code=503, detail="Authentication service unavailable"
         )
 
     try:
@@ -119,10 +115,7 @@ async def get_current_user(
     except Exception as e:
         # Unexpected errors - log full details but return generic message
         logger.error(f"Unexpected auth error: {type(e).__name__}: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail="Authentication service error"
-        )
+        raise HTTPException(status_code=503, detail="Authentication service error")
 
 
 async def require_user(
@@ -137,7 +130,7 @@ async def require_user(
         raise HTTPException(
             status_code=401,
             detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     user_id = await get_current_user(authorization)
@@ -145,6 +138,6 @@ async def require_user(
         raise HTTPException(
             status_code=401,
             detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return user_id

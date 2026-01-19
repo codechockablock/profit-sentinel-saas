@@ -29,10 +29,10 @@ logger = logging.getLogger(__name__)
 MAX_FILES_PER_REQUEST = 5
 MAX_FILENAME_LENGTH = 255
 MAX_FILE_SIZE_MB = 50  # 50 MB limit
-ALLOWED_EXTENSIONS = {'.csv', '.xlsx', '.xls'}
+ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 
 # Sanitization: alphanumeric, dash, dot, underscore, space only
-SAFE_FILENAME_PATTERN = re.compile(r'^[\w\-. ()]+$')
+SAFE_FILENAME_PATTERN = re.compile(r"^[\w\-. ()]+$")
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -58,7 +58,7 @@ def _sanitize_filename(filename: str) -> str:
     if len(filename) > MAX_FILENAME_LENGTH:
         raise HTTPException(
             status_code=400,
-            detail=f"Filename too long (max {MAX_FILENAME_LENGTH} characters)"
+            detail=f"Filename too long (max {MAX_FILENAME_LENGTH} characters)",
         )
 
     # Check extension
@@ -66,14 +66,14 @@ def _sanitize_filename(filename: str) -> str:
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"File type not allowed. Supported: {', '.join(ALLOWED_EXTENSIONS)}"
+            detail=f"File type not allowed. Supported: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
     # Check for safe characters
     name_without_ext = os.path.splitext(filename)[0]
     if not SAFE_FILENAME_PATTERN.match(name_without_ext):
         # Replace unsafe characters with underscore
-        safe_name = re.sub(r'[^\w\-. ()]', '_', name_without_ext)
+        safe_name = re.sub(r"[^\w\-. ()]", "_", name_without_ext)
         filename = f"{safe_name}{ext}"
         logger.warning(f"Sanitized filename to: {filename}")
 
@@ -105,7 +105,7 @@ async def presign_upload(
     if len(filenames) > MAX_FILES_PER_REQUEST:
         raise HTTPException(
             status_code=400,
-            detail=f"Too many files. Maximum {MAX_FILES_PER_REQUEST} files per request."
+            detail=f"Too many files. Maximum {MAX_FILES_PER_REQUEST} files per request.",
         )
 
     if not filenames:
@@ -124,27 +124,28 @@ async def presign_upload(
         key = f"{user_id or 'anonymous'}/{uuid.uuid4()}-{safe_filename}"
 
         # Generate presigned URL with size limit
-        url = s3_service.generate_presigned_url(
-            key,
-            max_size_mb=MAX_FILE_SIZE_MB
+        url = s3_service.generate_presigned_url(key, max_size_mb=MAX_FILE_SIZE_MB)
+
+        presigned_urls.append(
+            {
+                "filename": filename,
+                "safe_filename": safe_filename,
+                "key": key,
+                "url": url,
+                "max_size_mb": MAX_FILE_SIZE_MB,
+            }
         )
 
-        presigned_urls.append({
-            "filename": filename,
-            "safe_filename": safe_filename,
-            "key": key,
-            "url": url,
-            "max_size_mb": MAX_FILE_SIZE_MB,
-        })
-
-    logger.info(f"Generated {len(presigned_urls)} presigned URLs for user {user_id or 'anonymous'}")
+    logger.info(
+        f"Generated {len(presigned_urls)} presigned URLs for user {user_id or 'anonymous'}"
+    )
 
     return {
         "presigned_urls": presigned_urls,
         "limits": {
             "max_file_size_mb": MAX_FILE_SIZE_MB,
             "allowed_extensions": list(ALLOWED_EXTENSIONS),
-        }
+        },
     }
 
 
@@ -182,14 +183,11 @@ async def suggest_mapping(
 
     except ValueError as e:
         # Known validation errors - safe to expose message
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         # Unknown errors - log but don't expose internal details
         logger.error(f"Column mapping failed for {key}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Column mapping failed. Please check your file format and try again."
+            detail="Column mapping failed. Please check your file format and try again.",
         )

@@ -24,8 +24,10 @@ logger = logging.getLogger(__name__)
 # REQUEST/RESPONSE MODELS
 # =============================================================================
 
+
 class EmployeeRegisterRequest(BaseModel):
     """Request to register a new employee."""
+
     employee_id: str = Field(..., min_length=1)
     store_id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1, max_length=100)
@@ -35,6 +37,7 @@ class EmployeeRegisterRequest(BaseModel):
 
 class EmployeeResponse(BaseModel):
     """Employee profile response."""
+
     employee_id: str
     store_id: str
     name: str
@@ -46,6 +49,7 @@ class EmployeeResponse(BaseModel):
 
 class EmployeeStatsResponse(BaseModel):
     """Employee activity statistics."""
+
     employee_id: str
     total_assists: int
     total_corrections: int
@@ -57,6 +61,7 @@ class EmployeeStatsResponse(BaseModel):
 
 class CorrectionHistoryItem(BaseModel):
     """Single correction in history."""
+
     correction_id: str
     problem_id: str
     original_category: str
@@ -68,6 +73,7 @@ class CorrectionHistoryItem(BaseModel):
 
 class CorrectionHistoryResponse(BaseModel):
     """Response for correction history."""
+
     employee_id: str
     corrections: list[CorrectionHistoryItem]
     total_count: int
@@ -85,6 +91,7 @@ _corrections: dict[str, list[dict]] = {}
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
+
 
 # Health endpoint MUST come before /{employee_id} routes to avoid being matched as an ID
 @router.get("/health")
@@ -160,13 +167,16 @@ async def get_employee_stats(
     if employee_id not in _employees:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    stats = _employee_stats.get(employee_id, {
-        "total_assists": 0,
-        "total_corrections": 0,
-        "corrections_accepted": 0,
-        "categories_helped": [],
-        "last_activity": None,
-    })
+    stats = _employee_stats.get(
+        employee_id,
+        {
+            "total_assists": 0,
+            "total_corrections": 0,
+            "corrections_accepted": 0,
+            "categories_helped": [],
+            "last_activity": None,
+        },
+    )
 
     # Calculate accuracy rate
     total = stats["total_corrections"]
@@ -201,7 +211,7 @@ async def get_correction_history(
     total = len(all_corrections)
 
     # Paginate
-    paginated = all_corrections[offset:offset + limit]
+    paginated = all_corrections[offset : offset + limit]
 
     items = [CorrectionHistoryItem(**c) for c in paginated]
 
@@ -232,6 +242,7 @@ async def deactivate_employee(
 # INTERNAL HELPERS (called by other routes)
 # =============================================================================
 
+
 def record_assist(employee_id: str, category_slug: str):
     """Record an assist for stats tracking."""
     if employee_id in _employee_stats:
@@ -260,12 +271,14 @@ def record_correction(
         stats["last_activity"] = datetime.utcnow().isoformat()
 
     if employee_id in _corrections:
-        _corrections[employee_id].append({
-            "correction_id": correction_id,
-            "problem_id": problem_id,
-            "original_category": original_category,
-            "corrected_category": corrected_category,
-            "correction_notes": notes,
-            "created_at": datetime.utcnow().isoformat(),
-            "was_accepted": True,
-        })
+        _corrections[employee_id].append(
+            {
+                "correction_id": correction_id,
+                "problem_id": problem_id,
+                "original_category": original_category,
+                "corrected_category": corrected_category,
+                "correction_notes": notes,
+                "created_at": datetime.utcnow().isoformat(),
+                "was_accepted": True,
+            }
+        )

@@ -88,15 +88,17 @@ def test_calibrated_resonator():
         # Convert rows for resonator
         resonator_rows = []
         for row in rows[:1000]:
-            resonator_rows.append({
-                "sku": row.get("sku", ""),
-                "description": row.get("description", ""),
-                "vendor": row.get("vendor", ""),
-                "quantity": float(row.get("quantity", 0)),
-                "sold": float(row.get("sold", 0)),
-                "cost": float(row.get("cost", 0)),
-                "revenue": float(row.get("revenue", 0)),
-            })
+            resonator_rows.append(
+                {
+                    "sku": row.get("sku", ""),
+                    "description": row.get("description", ""),
+                    "vendor": row.get("vendor", ""),
+                    "quantity": float(row.get("quantity", 0)),
+                    "sold": float(row.get("sold", 0)),
+                    "cost": float(row.get("cost", 0)),
+                    "revenue": float(row.get("revenue", 0)),
+                }
+            )
 
         print(f"  Bundling {len(resonator_rows)} rows...")
         t0 = time.time()
@@ -110,8 +112,12 @@ def test_calibrated_resonator():
             items, scores = core.query_bundle(ctx, bundle, primitive, top_k=50)
             if scores:
                 avg_score = sum(scores) / len(scores)
-                above_threshold = sum(1 for s in scores if s >= ctx.convergence_threshold)
-                print(f"    {primitive}: avg_score={avg_score:.4f}, above_threshold={above_threshold}/{len(scores)}")
+                above_threshold = sum(
+                    1 for s in scores if s >= ctx.convergence_threshold
+                )
+                print(
+                    f"    {primitive}: avg_score={avg_score:.4f}, above_threshold={above_threshold}/{len(scores)}"
+                )
 
         ctx.reset()
         print("  ✅ Calibrated resonator working")
@@ -121,6 +127,7 @@ def test_calibrated_resonator():
     except Exception as e:
         print(f"  ❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
 
     print()

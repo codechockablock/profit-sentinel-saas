@@ -20,6 +20,7 @@ Mathematical Foundation:
     For complex phasors, convergence means phase alignment with
     codebook entries that explain the query.
 """
+
 from __future__ import annotations
 
 import time
@@ -36,6 +37,7 @@ from .vectors import batch_similarity, get_device, normalize
 @dataclass
 class ResonatorResult:
     """Result from resonator processing."""
+
     vector: torch.Tensor
     iterations: int
     converged: bool
@@ -71,11 +73,7 @@ class Resonator:
         self.labels: list[str] = []
         self._device = get_device()
 
-    def set_codebook(
-        self,
-        labels: list[str],
-        vectors: torch.Tensor
-    ) -> None:
+    def set_codebook(self, labels: list[str], vectors: torch.Tensor) -> None:
         """Set the codebook for resonator queries.
 
         Args:
@@ -101,16 +99,11 @@ class Resonator:
             self.codebook = vector.unsqueeze(0)
             self.labels = [label]
         else:
-            self.codebook = torch.cat([
-                self.codebook,
-                vector.unsqueeze(0)
-            ], dim=0)
+            self.codebook = torch.cat([self.codebook, vector.unsqueeze(0)], dim=0)
             self.labels.append(label)
 
     def resonate(
-        self,
-        query: torch.Tensor,
-        return_trajectory: bool = False
+        self, query: torch.Tensor, return_trajectory: bool = False
     ) -> ResonatorResult:
         """Run convergence-lock resonator on query.
 
@@ -134,21 +127,20 @@ class Resonator:
         trajectory = [x.clone()] if return_trajectory else []
 
         converged = False
-        final_delta = float('inf')
+        final_delta = float("inf")
 
         for iteration in range(self.config.iterations):
             # Multi-step update
             for _ in range(self.config.multi_steps):
                 # Sparse resonance step
                 x_new = sparse_resonance_step(
-                    x,
-                    self.codebook,
-                    top_k=self.config.top_k,
-                    power=self.config.power
+                    x, self.codebook, top_k=self.config.top_k, power=self.config.power
                 )
 
                 # Apply momentum
-                momentum = self.config.alpha * momentum + (1 - self.config.alpha) * (x_new - x)
+                momentum = self.config.alpha * momentum + (1 - self.config.alpha) * (
+                    x_new - x
+                )
                 x = normalize(x + momentum)
 
             # Check convergence
@@ -191,13 +183,10 @@ class Resonator:
             convergence_delta=final_delta,
             elapsed_ms=elapsed,
             top_matches=top_matches,
-            metadata=metadata
+            metadata=metadata,
         )
 
-    def batch_resonate(
-        self,
-        queries: torch.Tensor
-    ) -> list[ResonatorResult]:
+    def batch_resonate(self, queries: torch.Tensor) -> list[ResonatorResult]:
         """Process multiple queries.
 
         Args:
@@ -209,8 +198,7 @@ class Resonator:
         return [self.resonate(q) for q in queries]
 
     def resonator_attention(
-        self,
-        query: torch.Tensor
+        self, query: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Get attention weights without full resonation.
 
@@ -248,9 +236,7 @@ class HierarchicalResonator:
     """
 
     def __init__(
-        self,
-        config: ResonatorConfig | None = None,
-        coarse_clusters: int = 100
+        self, config: ResonatorConfig | None = None, coarse_clusters: int = 100
     ):
         """Initialize hierarchical resonator.
 
@@ -267,11 +253,7 @@ class HierarchicalResonator:
         self.cluster_assignments: list[int] = []
         self._device = get_device()
 
-    def build_hierarchy(
-        self,
-        labels: list[str],
-        vectors: torch.Tensor
-    ) -> None:
+    def build_hierarchy(self, labels: list[str], vectors: torch.Tensor) -> None:
         """Build hierarchical codebook structure.
 
         Uses k-means to create coarse clusters, then stores
@@ -311,7 +293,11 @@ class HierarchicalResonator:
                 mask = assignments == i
                 if mask.any():
                     new_centroids[i] = normalize(vectors[mask].sum(dim=0))
-                    new_centroids_real[i] = torch.abs(new_centroids[i]) if vectors.is_complex() else new_centroids[i]
+                    new_centroids_real[i] = (
+                        torch.abs(new_centroids[i])
+                        if vectors.is_complex()
+                        else new_centroids[i]
+                    )
                 else:
                     new_centroids[i] = centroids[i]
                     new_centroids_real[i] = centroids_real[i]
@@ -364,17 +350,16 @@ class HierarchicalResonator:
                 vector=query,
                 iterations=0,
                 converged=False,
-                convergence_delta=float('inf'),
+                convergence_delta=float("inf"),
                 elapsed_ms=0,
                 top_matches=[],
-                metadata={"error": "All clusters empty"}
+                metadata={"error": "All clusters empty"},
             )
 
         # Create temporary resonator for fine search
         fine_resonator = Resonator(self.config)
         fine_resonator.set_codebook(
-            self.fine_labels[best_cluster],
-            self.fine_codebooks[best_cluster]
+            self.fine_labels[best_cluster], self.fine_codebooks[best_cluster]
         )
 
         result = fine_resonator.resonate(query)

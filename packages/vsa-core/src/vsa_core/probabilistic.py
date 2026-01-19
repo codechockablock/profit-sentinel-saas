@@ -52,13 +52,17 @@ class HypothesisBundle:
         probabilities: Probability per hypothesis (sums to 1)
         basis_vectors: Individual hypothesis vectors (n, d)
     """
+
     vector: torch.Tensor
     hypotheses: list[str]
     probabilities: torch.Tensor
     basis_vectors: torch.Tensor
 
     def __repr__(self) -> str:
-        probs = [f"{h}: {p:.2%}" for h, p in zip(self.hypotheses, self.probabilities.tolist())]
+        probs = [
+            f"{h}: {p:.2%}"
+            for h, p in zip(self.hypotheses, self.probabilities.tolist())
+        ]
         return f"HypothesisBundle({', '.join(probs)})"
 
     def top_hypothesis(self) -> tuple[str, float]:
@@ -78,8 +82,7 @@ class HypothesisBundle:
 
 
 def p_sup(
-    hypotheses: list[tuple[str, torch.Tensor, float]],
-    normalize_probs: bool = True
+    hypotheses: list[tuple[str, torch.Tensor, float]], normalize_probs: bool = True
 ) -> HypothesisBundle:
     """Create probabilistic superposition of hypotheses.
 
@@ -116,14 +119,14 @@ def p_sup(
     if vectors.is_complex():
         weights = weights.to(vectors.dtype)
 
-    superposition = torch.einsum('h,hd->d', weights, vectors)
+    superposition = torch.einsum("h,hd->d", weights, vectors)
     superposition = normalize(superposition)
 
     return HypothesisBundle(
         vector=superposition,
         hypotheses=labels,
         probabilities=probs,
-        basis_vectors=vectors
+        basis_vectors=vectors,
     )
 
 
@@ -131,7 +134,7 @@ def p_sup_update(
     bundle: HypothesisBundle,
     evidence: torch.Tensor,
     likelihood_fn: Callable[[torch.Tensor, torch.Tensor], float] | None = None,
-    temperature: float = 1.0
+    temperature: float = 1.0,
 ) -> HypothesisBundle:
     """Bayesian update of hypothesis probabilities given evidence.
 
@@ -153,14 +156,19 @@ def p_sup_update(
         new_bundle = p_sup_update(bundle, margin_evidence_vec)
     """
     if likelihood_fn is None:
+
         def likelihood_fn(e, h):
-            return float(similarity(e, h).real) if e.is_complex() else float(similarity(e, h))
+            return (
+                float(similarity(e, h).real)
+                if e.is_complex()
+                else float(similarity(e, h))
+            )
 
     # Compute likelihoods for each hypothesis
-    likelihoods = torch.tensor([
-        likelihood_fn(evidence, h_vec)
-        for h_vec in bundle.basis_vectors
-    ], dtype=torch.float32)
+    likelihoods = torch.tensor(
+        [likelihood_fn(evidence, h_vec) for h_vec in bundle.basis_vectors],
+        dtype=torch.float32,
+    )
 
     # Apply temperature
     likelihoods = likelihoods / temperature
@@ -179,20 +187,17 @@ def p_sup_update(
     if bundle.basis_vectors.is_complex():
         weights = weights.to(bundle.basis_vectors.dtype)
 
-    new_superposition = torch.einsum('h,hd->d', weights, bundle.basis_vectors)
+    new_superposition = torch.einsum("h,hd->d", weights, bundle.basis_vectors)
 
     return HypothesisBundle(
         vector=normalize(new_superposition),
         hypotheses=bundle.hypotheses,
         probabilities=posterior,
-        basis_vectors=bundle.basis_vectors
+        basis_vectors=bundle.basis_vectors,
     )
 
 
-def p_sup_collapse(
-    bundle: HypothesisBundle,
-    threshold: float = 0.9
-) -> str | None:
+def p_sup_collapse(bundle: HypothesisBundle, threshold: float = 0.9) -> str | None:
     """Collapse superposition if one hypothesis exceeds threshold.
 
     Once collapsed, the bundle has effectively "decided" on a hypothesis.
@@ -216,10 +221,7 @@ def p_sup_collapse(
 
 
 def p_sup_add_hypothesis(
-    bundle: HypothesisBundle,
-    label: str,
-    vector: torch.Tensor,
-    prior: float = 0.1
+    bundle: HypothesisBundle, label: str, vector: torch.Tensor, prior: float = 0.1
 ) -> HypothesisBundle:
     """Add a new hypothesis to existing bundle.
 
@@ -248,20 +250,17 @@ def p_sup_add_hypothesis(
     if new_vectors.is_complex():
         weights = weights.to(new_vectors.dtype)
 
-    superposition = torch.einsum('h,hd->d', weights, new_vectors)
+    superposition = torch.einsum("h,hd->d", weights, new_vectors)
 
     return HypothesisBundle(
         vector=normalize(superposition),
         hypotheses=new_labels,
         probabilities=new_probs,
-        basis_vectors=new_vectors
+        basis_vectors=new_vectors,
     )
 
 
-def p_sup_remove_hypothesis(
-    bundle: HypothesisBundle,
-    label: str
-) -> HypothesisBundle:
+def p_sup_remove_hypothesis(bundle: HypothesisBundle, label: str) -> HypothesisBundle:
     """Remove a hypothesis from bundle (e.g., if ruled out).
 
     Redistributes removed hypothesis's probability to remaining ones.
@@ -279,9 +278,11 @@ def p_sup_remove_hypothesis(
     idx = bundle.hypotheses.index(label)
 
     # Remove from all components
-    new_labels = bundle.hypotheses[:idx] + bundle.hypotheses[idx+1:]
-    new_probs = torch.cat([bundle.probabilities[:idx], bundle.probabilities[idx+1:]])
-    new_vectors = torch.cat([bundle.basis_vectors[:idx], bundle.basis_vectors[idx+1:]], dim=0)
+    new_labels = bundle.hypotheses[:idx] + bundle.hypotheses[idx + 1 :]
+    new_probs = torch.cat([bundle.probabilities[:idx], bundle.probabilities[idx + 1 :]])
+    new_vectors = torch.cat(
+        [bundle.basis_vectors[:idx], bundle.basis_vectors[idx + 1 :]], dim=0
+    )
 
     # Renormalize probabilities
     new_probs = new_probs / new_probs.sum()
@@ -291,19 +292,18 @@ def p_sup_remove_hypothesis(
     if new_vectors.is_complex():
         weights = weights.to(new_vectors.dtype)
 
-    superposition = torch.einsum('h,hd->d', weights, new_vectors)
+    superposition = torch.einsum("h,hd->d", weights, new_vectors)
 
     return HypothesisBundle(
         vector=normalize(superposition),
         hypotheses=new_labels,
         probabilities=new_probs,
-        basis_vectors=new_vectors
+        basis_vectors=new_vectors,
     )
 
 
 def p_sup_merge(
-    bundles: list[HypothesisBundle],
-    weights: list[float] | None = None
+    bundles: list[HypothesisBundle], weights: list[float] | None = None
 ) -> HypothesisBundle:
     """Merge multiple hypothesis bundles (e.g., from different data sources).
 
@@ -331,11 +331,9 @@ def p_sup_merge(
         for i, label in enumerate(bundle.hypotheses):
             if label not in all_labels:
                 all_labels[label] = []
-            all_labels[label].append((
-                bundle.basis_vectors[i],
-                float(bundle.probabilities[i]),
-                w
-            ))
+            all_labels[label].append(
+                (bundle.basis_vectors[i], float(bundle.probabilities[i]), w)
+            )
 
     # Merge hypotheses
     merged_labels = []
@@ -349,8 +347,7 @@ def p_sup_merge(
         total_weight = sum(prob * w for _, prob, w in entries)
         if total_weight > 0:
             merged_vec = sum(
-                (prob * w / total_weight) * vec
-                for vec, prob, w in entries
+                (prob * w / total_weight) * vec for vec, prob, w in entries
             )
             merged_vectors.append(normalize(merged_vec))
         else:
@@ -368,11 +365,11 @@ def p_sup_merge(
     if merged_vectors.is_complex():
         weights_tensor = weights_tensor.to(merged_vectors.dtype)
 
-    superposition = torch.einsum('h,hd->d', weights_tensor, merged_vectors)
+    superposition = torch.einsum("h,hd->d", weights_tensor, merged_vectors)
 
     return HypothesisBundle(
         vector=normalize(superposition),
         hypotheses=merged_labels,
         probabilities=merged_probs,
-        basis_vectors=merged_vectors
+        basis_vectors=merged_vectors,
     )

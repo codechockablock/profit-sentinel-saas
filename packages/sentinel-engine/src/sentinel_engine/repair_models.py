@@ -17,8 +17,10 @@ from pydantic import BaseModel, Field, field_validator
 # ENUMS
 # =============================================================================
 
+
 class ProblemStatus(str, Enum):
     """Status of a repair problem through the diagnosis flow."""
+
     PENDING = "pending"
     DIAGNOSED = "diagnosed"
     REFINED = "refined"
@@ -28,6 +30,7 @@ class ProblemStatus(str, Enum):
 
 class QueryType(str, Enum):
     """Type of employee/customer query."""
+
     DIAGNOSE = "diagnose"
     REFINE = "refine"
     GET_SOLUTION = "get_solution"
@@ -36,6 +39,7 @@ class QueryType(str, Enum):
 
 class EventType(str, Enum):
     """Types of learning events for gamification."""
+
     ASSIST = "assist"
     CORRECTION = "correction"
     BADGE_EARNED = "badge_earned"
@@ -45,6 +49,7 @@ class EventType(str, Enum):
 
 class BadgeType(str, Enum):
     """Types of badges employees can earn."""
+
     FIRST_HELPER = "first_helper"
     KNOWLEDGE_BUILDER = "knowledge_builder"
     WEEK_WARRIOR = "week_warrior"
@@ -120,31 +125,25 @@ def expertise_multiplier(level: int) -> float:
 # REQUEST MODELS
 # =============================================================================
 
+
 class DiagnoseRequest(BaseModel):
     """Request to diagnose a repair problem."""
 
     text_description: str | None = Field(
-        None,
-        description="Text description of the problem",
-        max_length=2000
+        None, description="Text description of the problem", max_length=2000
     )
     voice_transcript: str | None = Field(
-        None,
-        description="Transcript from voice input",
-        max_length=2000
+        None, description="Transcript from voice input", max_length=2000
     )
     image_base64: str | None = Field(
-        None,
-        description="Base64-encoded image (max 1024px, EXIF stripped)"
+        None, description="Base64-encoded image (max 1024px, EXIF stripped)"
     )
     store_id: str = Field(..., description="Store identifier")
     employee_id: str | None = Field(
-        None,
-        description="Employee ID (None for anonymous customer)"
+        None, description="Employee ID (None for anonymous customer)"
     )
     session_id: str | None = Field(
-        None,
-        description="Anonymous session ID for customers"
+        None, description="Anonymous session ID for customers"
     )
 
     @field_validator("text_description", "voice_transcript")
@@ -156,11 +155,7 @@ class DiagnoseRequest(BaseModel):
 
     def has_input(self) -> bool:
         """Check if at least one input type is provided."""
-        return bool(
-            self.text_description or
-            self.voice_transcript or
-            self.image_base64
-        )
+        return bool(self.text_description or self.voice_transcript or self.image_base64)
 
 
 class RefineRequest(BaseModel):
@@ -170,12 +165,10 @@ class RefineRequest(BaseModel):
     additional_text: str | None = Field(None, max_length=1000)
     additional_image_base64: str | None = None
     answer_to_question: str | None = Field(
-        None,
-        description="Answer to a follow-up question"
+        None, description="Answer to a follow-up question"
     )
     question_index: int | None = Field(
-        None,
-        description="Index of question being answered"
+        None, description="Index of question being answered"
     )
 
 
@@ -184,20 +177,16 @@ class CorrectionRequest(BaseModel):
 
     problem_id: str = Field(..., description="Problem ID being corrected")
     employee_id: str = Field(..., description="Employee making correction")
-    correct_category_slug: str = Field(
-        ...,
-        description="Correct category slug"
-    )
+    correct_category_slug: str = Field(..., description="Correct category slug")
     correction_notes: str | None = Field(
-        None,
-        description="Optional notes explaining the correction",
-        max_length=500
+        None, description="Optional notes explaining the correction", max_length=500
     )
 
 
 # =============================================================================
 # RESPONSE MODELS
 # =============================================================================
+
 
 class Hypothesis(BaseModel):
     """Single hypothesis in diagnosis."""
@@ -222,8 +211,7 @@ class DiagnoseResponse(BaseModel):
     # Confidence metrics
     confidence: float = Field(..., ge=0.0, le=1.0)
     entropy: float = Field(
-        ...,
-        description="Uncertainty measure (lower = more certain)"
+        ..., description="Uncertainty measure (lower = more certain)"
     )
 
     # Next steps
@@ -232,8 +220,7 @@ class DiagnoseResponse(BaseModel):
 
     # Context (if employee)
     similar_recent_problems: int | None = Field(
-        None,
-        description="Count of similar problems at this store recently"
+        None, description="Count of similar problems at this store recently"
     )
 
 
@@ -297,6 +284,7 @@ class SolutionResponse(BaseModel):
 # =============================================================================
 # EMPLOYEE & GAMIFICATION MODELS
 # =============================================================================
+
 
 class SkillMastery(BaseModel):
     """Employee skill mastery for a category."""
@@ -393,6 +381,7 @@ class CorrectionResult(BaseModel):
 # CATEGORY MODELS
 # =============================================================================
 
+
 class ProblemCategory(BaseModel):
     """Problem category for diagnosis taxonomy."""
 
@@ -418,6 +407,7 @@ class CategoryList(BaseModel):
 # =============================================================================
 # INTERNAL VSA MODELS
 # =============================================================================
+
 
 class VSAHypothesisState(BaseModel):
     """

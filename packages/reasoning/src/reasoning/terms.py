@@ -11,6 +11,7 @@ Implements the fundamental term structures for logic programming:
 This follows classical first-order logic with Horn clause restriction
 (at most one positive literal in each clause).
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -51,6 +52,7 @@ class Var(TermBase):
         X = Var("X")
         SKU = Var("SKU")
     """
+
     name: str
 
     def is_ground(self) -> bool:
@@ -80,6 +82,7 @@ class Atom(TermBase):
         sku = Atom("SKU123")
         price = Atom(99.99)
     """
+
     value: Any
 
     def is_ground(self) -> bool:
@@ -114,6 +117,7 @@ class Term(TermBase):
         # has_anomaly("SKU123", "low_stock")
         fact = Term("has_anomaly", Atom("SKU123"), Atom("low_stock"))
     """
+
     functor: str
     args: tuple[Var | Atom | Term, ...] = field(default_factory=tuple)
 
@@ -126,8 +130,8 @@ class Term(TermBase):
             else:
                 processed.append(Atom(arg))
 
-        object.__setattr__(self, 'functor', functor)
-        object.__setattr__(self, 'args', tuple(processed))
+        object.__setattr__(self, "functor", functor)
+        object.__setattr__(self, "args", tuple(processed))
 
     @property
     def arity(self) -> int:
@@ -172,13 +176,16 @@ class Predicate:
     Example:
         margin_leak = Predicate("margin_leak", 2)  # margin_leak/2
     """
+
     name: str
     arity: int
 
     def __call__(self, *args: TermLike) -> Term:
         """Create a term from this predicate."""
         if len(args) != self.arity:
-            raise ValueError(f"Predicate {self.name}/{self.arity} expects {self.arity} args, got {len(args)}")
+            raise ValueError(
+                f"Predicate {self.name}/{self.arity} expects {self.arity} args, got {len(args)}"
+            )
         return Term(self.name, *args)
 
     def __repr__(self) -> str:
@@ -206,6 +213,7 @@ class Clause:
             ]
         )
     """
+
     head: Term
     body: list[Term] = field(default_factory=list)
 
@@ -237,7 +245,7 @@ class Clause:
         var_map = {v: Var(f"{v}{suffix}") for v in self.variables()}
         return Clause(
             _rename_term(self.head, var_map),
-            [_rename_term(t, var_map) for t in self.body]
+            [_rename_term(t, var_map) for t in self.body],
         )
 
     def __repr__(self) -> str:

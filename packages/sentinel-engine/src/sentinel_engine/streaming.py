@@ -67,6 +67,7 @@ class StreamingStats:
     Memory-efficient: O(1) space regardless of data size.
     Numerically stable for large datasets.
     """
+
     count: int = 0
     mean: float = 0.0
     m2: float = 0.0  # Sum of squared differences
@@ -90,7 +91,7 @@ class StreamingStats:
     @property
     def std(self) -> float:
         """Population standard deviation."""
-        return self.variance ** 0.5
+        return self.variance**0.5
 
     def to_dict(self) -> dict[str, float]:
         """Export statistics."""
@@ -105,6 +106,7 @@ class StreamingStats:
 @dataclass
 class CategoryStats:
     """Per-category margin statistics."""
+
     margins: dict[str, StreamingStats] = field(default_factory=dict)
 
     def update(self, category: str, margin: float) -> None:
@@ -126,6 +128,7 @@ class StreamingResult:
 
     v3.3: Enhanced with audit data for reproducibility.
     """
+
     total_rows: int
     processed_rows: int
     chunks_processed: int
@@ -150,7 +153,9 @@ class StreamingResult:
             f"  Peak Memory: {self.peak_memory_mb:.0f}MB",
         ]
         if self.seeding_summary:
-            lines.append(f"  Seed Hash: {self.seeding_summary.get('master_seed', 'N/A')}")
+            lines.append(
+                f"  Seed Hash: {self.seeding_summary.get('master_seed', 'N/A')}"
+            )
         lines.append("  Detections:")
         for prim, count in sorted(self.leak_counts.items(), key=lambda x: -x[1]):
             if count > 0:
@@ -172,8 +177,7 @@ class StreamingResult:
         top_10_leaks = {}
         for prim, leaks in self.top_leaks_by_primitive.items():
             top_10_leaks[prim] = [
-                {"sku": sku, "score": round(score, 4)}
-                for sku, score in leaks[:10]
+                {"sku": sku, "score": round(score, 4)} for sku, score in leaks[:10]
             ]
 
         return {
@@ -307,9 +311,18 @@ def read_file_chunked(
             yield chunk
 
 
-SKU_ALIASES = ['sku', 'item', 'product_id', 'productid', 'item_id', 'itemid', 'upc', 'barcode']
-VENDOR_ALIASES = ['vendor', 'supplier', 'manufacturer', 'brand', 'vendor_name']
-DEPARTMENT_ALIASES = ['department', 'dept', 'division', 'dept_name']
+SKU_ALIASES = [
+    "sku",
+    "item",
+    "product_id",
+    "productid",
+    "item_id",
+    "itemid",
+    "upc",
+    "barcode",
+]
+VENDOR_ALIASES = ["vendor", "supplier", "manufacturer", "brand", "vendor_name"]
+DEPARTMENT_ALIASES = ["department", "dept", "division", "dept_name"]
 
 
 @dataclass
@@ -320,6 +333,7 @@ class EntityRanking:
     Entities are ranked by significance (qty × revenue or sold count).
     Most significant entities get seeded first for reproducibility.
     """
+
     skus: list[tuple[str, float]] = field(default_factory=list)  # (sku, score)
     categories: list[str] = field(default_factory=list)
     vendors: list[str] = field(default_factory=list)
@@ -347,7 +361,9 @@ def compute_streaming_stats(
     collect_skus: bool = False,
     max_skus: int = 10000,
     collect_entities: bool = False,
-) -> tuple[dict[str, StreamingStats], CategoryStats, list[str] | None, EntityRanking | None]:
+) -> tuple[
+    dict[str, StreamingStats], CategoryStats, list[str] | None, EntityRanking | None
+]:
     """
     First pass: Compute streaming statistics for adaptive thresholds.
 
@@ -391,34 +407,36 @@ def compute_streaming_stats(
             field_stats["rows"].update(1.0)  # Count every row
 
             # Extract key fields
-            sku = str(_get_field(row, SKU_ALIASES, '')).strip().lower()
+            sku = str(_get_field(row, SKU_ALIASES, "")).strip().lower()
             qty = _safe_float(_get_field(row, QUANTITY_ALIASES, None)) or 0
             sold = _safe_float(_get_field(row, SOLD_ALIASES, None)) or 0
             revenue = _safe_float(_get_field(row, REVENUE_ALIASES, 0)) or 0
             cost = _safe_float(_get_field(row, COST_ALIASES, 0)) or 0
             category = str(_get_field(row, CATEGORY_ALIASES, "unknown")).strip().lower()
             vendor = str(_get_field(row, VENDOR_ALIASES, "unknown")).strip().lower()
-            department = str(_get_field(row, DEPARTMENT_ALIASES, "unknown")).strip().lower()
+            department = (
+                str(_get_field(row, DEPARTMENT_ALIASES, "unknown")).strip().lower()
+            )
 
             # v3.2: Collect SKU if enabled and under limit
             if collect_skus and len(unique_skus) < max_skus:
-                if sku and sku not in ('unknown', 'unknown_sku', ''):
+                if sku and sku not in ("unknown", "unknown_sku", ""):
                     unique_skus.add(sku)
 
             # v3.3: Collect ranked entities
             if collect_entities:
                 # Score = qty * max(revenue, 1) + sold * 100 (prioritize items with activity)
-                if sku and sku not in ('unknown', 'unknown_sku', ''):
+                if sku and sku not in ("unknown", "unknown_sku", ""):
                     score = qty * max(revenue, 1) + sold * 100
                     sku_scores[sku] = max(sku_scores.get(sku, 0), score)
 
-                if category and category not in ('unknown', 'unknown_category', ''):
+                if category and category not in ("unknown", "unknown_category", ""):
                     categories_seen.add(category)
 
-                if vendor and vendor not in ('unknown', 'unknown_vendor', ''):
+                if vendor and vendor not in ("unknown", "unknown_vendor", ""):
                     vendors_seen.add(vendor)
 
-                if department and department not in ('unknown', ''):
+                if department and department not in ("unknown", ""):
                     departments_seen.add(department)
 
             # Quantity stats
@@ -490,7 +508,9 @@ def bundle_pos_facts_streaming(
 
     # Compute stats if not provided
     if field_stats is None:
-        field_stats, category_stats, _, _ = compute_streaming_stats(filepath, chunk_size)
+        field_stats, category_stats, _, _ = compute_streaming_stats(
+            filepath, chunk_size
+        )
 
     # Update context with pre-computed stats
     ctx.update_stats(
@@ -531,6 +551,7 @@ def bundle_pos_facts_streaming(
 @dataclass
 class SeedingSummary:
     """v3.3: Summary of deterministic seeding for audit trail."""
+
     master_seed: str  # Hash of all seeded entity names
     primitives_seeded: int
     categories_seeded: int
@@ -628,7 +649,13 @@ def _deterministic_seed_entities(
     combined = "|".join(all_seeded_names)
     master_seed = hashlib.sha256(combined.encode()).hexdigest()[:16]
 
-    total = primitives_count + categories_count + vendors_count + departments_count + skus_count
+    total = (
+        primitives_count
+        + categories_count
+        + vendors_count
+        + departments_count
+        + skus_count
+    )
 
     logger.info(
         f"Deterministic seeding complete - hash seed {master_seed} for {total:,} entities "
@@ -683,10 +710,12 @@ def process_large_file(
     # Try psutil for memory tracking, fallback to resource module
     try:
         import psutil
+
         process = psutil.Process()
         use_psutil = True
     except ImportError:
         import resource
+
         use_psutil = False
 
     # Default primitives
@@ -707,12 +736,13 @@ def process_large_file(
 
     # v3.3: Compute file hash for audit trail
     import hashlib
+
     file_hash = None
     try:
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             # Read in chunks to handle large files
             sha256 = hashlib.sha256()
-            for chunk in iter(lambda: f.read(65536), b''):
+            for chunk in iter(lambda: f.read(65536), b""):
                 sha256.update(chunk)
             file_hash = sha256.hexdigest()
         logger.info(f"File hash: {file_hash[:16]}...")
@@ -721,6 +751,7 @@ def process_large_file(
 
     # Pass 1: Statistics with entity ranking for deterministic seeding
     from .context import DEFAULT_MAX_CODEBOOK_SIZE, HIERARCHICAL_CODEBOOK_THRESHOLD
+
     field_stats, category_stats, _, entity_ranking = compute_streaming_stats(
         filepath, chunk_size, collect_skus=False, collect_entities=True
     )
@@ -733,7 +764,9 @@ def process_large_file(
         sku_only = force_sku_only
 
     if sku_only:
-        logger.info(f"Large file detected ({total_rows:,} rows) - enabling SKU-only codebook")
+        logger.info(
+            f"Large file detected ({total_rows:,} rows) - enabling SKU-only codebook"
+        )
 
     # Create context
     ctx = create_analysis_context(dimensions=dimensions, sku_only_codebook=sku_only)
@@ -742,7 +775,9 @@ def process_large_file(
     # 1. Primitives are auto-seeded on first access (already deterministic)
     # 2. Pre-seed categories, vendors, departments
     # 3. Pre-seed top SKUs by significance score
-    seeding_summary = _deterministic_seed_entities(ctx, entity_ranking, DEFAULT_MAX_CODEBOOK_SIZE)
+    seeding_summary = _deterministic_seed_entities(
+        ctx, entity_ranking, DEFAULT_MAX_CODEBOOK_SIZE
+    )
 
     # Pass 2: Bundling with optimized context
     bundle = bundle_pos_facts_streaming(
@@ -858,7 +893,7 @@ def process_dataframe(
     final_bundle = ctx.zeros()
 
     for i in range(0, len(rows), chunk_size):
-        chunk = rows[i:i + chunk_size]
+        chunk = rows[i : i + chunk_size]
         chunk_bundle = bundle_pos_facts(ctx, chunk)
         final_bundle = final_bundle + chunk_bundle
 

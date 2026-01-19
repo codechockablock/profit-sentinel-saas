@@ -10,6 +10,7 @@ Features:
 - Integrity constraints
 - Persistence support (JSON/YAML)
 """
+
 from __future__ import annotations
 
 import json
@@ -27,6 +28,7 @@ from .unification import Substitution, unify
 @dataclass
 class Fact:
     """A ground fact in the knowledge base."""
+
     term: Term
     confidence: float = 1.0
     source: str | None = None
@@ -40,6 +42,7 @@ class Fact:
 @dataclass
 class RuleDefinition:
     """A rule definition with metadata."""
+
     clause: Clause
     name: str | None = None
     description: str | None = None
@@ -104,7 +107,7 @@ class KnowledgeBase:
         term: Term,
         confidence: float = 1.0,
         source: str | None = None,
-        metadata: dict | None = None
+        metadata: dict | None = None,
     ) -> None:
         """Add a fact to the knowledge base.
 
@@ -115,10 +118,7 @@ class KnowledgeBase:
             metadata: Additional metadata
         """
         fact = Fact(
-            term=term,
-            confidence=confidence,
-            source=source,
-            metadata=metadata or {}
+            term=term, confidence=confidence, source=source, metadata=metadata or {}
         )
 
         # Check constraints
@@ -137,7 +137,7 @@ class KnowledgeBase:
         *body: Term,
         name: str | None = None,
         description: str | None = None,
-        priority: int = 0
+        priority: int = 0,
     ) -> None:
         """Add a rule to the knowledge base.
 
@@ -150,10 +150,7 @@ class KnowledgeBase:
         """
         clause = Clause(head, list(body))
         rule = RuleDefinition(
-            clause=clause,
-            name=name,
-            description=description,
-            priority=priority
+            clause=clause, name=name, description=description, priority=priority
         )
 
         key = f"{head.functor}/{head.arity}"
@@ -286,7 +283,7 @@ class KnowledgeBase:
                     "term": _term_to_dict(f.term),
                     "confidence": f.confidence,
                     "source": f.source,
-                    "metadata": f.metadata
+                    "metadata": f.metadata,
                 }
                 for facts in self._facts.values()
                 for f in facts
@@ -297,11 +294,11 @@ class KnowledgeBase:
                     "description": r.description,
                     "priority": r.priority,
                     "head": _term_to_dict(r.head),
-                    "body": [_term_to_dict(t) for t in r.body]
+                    "body": [_term_to_dict(t) for t in r.body],
                 }
                 for rules in self._rules.values()
                 for r in rules
-            ]
+            ],
         }
 
     @classmethod
@@ -315,24 +312,25 @@ class KnowledgeBase:
                 term,
                 confidence=fact_data.get("confidence", 1.0),
                 source=fact_data.get("source"),
-                metadata=fact_data.get("metadata", {})
+                metadata=fact_data.get("metadata", {}),
             )
 
         for rule_data in data.get("rules", []):
             head = _dict_to_term(rule_data["head"])
             body = [_dict_to_term(t) for t in rule_data.get("body", [])]
             kb.add_rule(
-                head, *body,
+                head,
+                *body,
                 name=rule_data.get("name"),
                 description=rule_data.get("description"),
-                priority=rule_data.get("priority", 0)
+                priority=rule_data.get("priority", 0),
             )
 
         return kb
 
     def to_json(self, path: str) -> None:
         """Save to JSON file."""
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 
     @classmethod
@@ -343,7 +341,7 @@ class KnowledgeBase:
 
     def to_yaml(self, path: str) -> None:
         """Save to YAML file."""
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             yaml.dump(self.to_dict(), f, default_flow_style=False)
 
     @classmethod
@@ -363,7 +361,7 @@ def _term_to_dict(term: TermLike) -> dict:
         return {
             "type": "term",
             "functor": term.functor,
-            "args": [_term_to_dict(arg) for arg in term.args]
+            "args": [_term_to_dict(arg) for arg in term.args],
         }
     raise ValueError(f"Unknown term type: {type(term)}")
 

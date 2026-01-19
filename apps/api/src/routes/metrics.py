@@ -76,7 +76,9 @@ def record_analysis_metrics(
         _metrics_store["primitive_detection_counts"][prim] += count
 
     # Update resonator stats
-    _metrics_store["resonator_validations"]["total"] += resonator_converged + resonator_flagged
+    _metrics_store["resonator_validations"]["total"] += (
+        resonator_converged + resonator_flagged
+    )
     _metrics_store["resonator_validations"]["converged"] += resonator_converged
     _metrics_store["resonator_validations"]["flagged"] += resonator_flagged
 
@@ -154,7 +156,9 @@ async def primitive_metrics() -> dict:
             primitive_data[p] = {
                 "severity": metadata.get("severity", "unknown"),
                 "category": metadata.get("category", "Unknown"),
-                "detection_count": _metrics_store["primitive_detection_counts"].get(p, 0),
+                "detection_count": _metrics_store["primitive_detection_counts"].get(
+                    p, 0
+                ),
                 "benchmark_f1": benchmark_f1.get(p, None),
             }
 
@@ -244,7 +248,9 @@ async def analysis_metrics() -> dict:
             "total_leaks_detected": _metrics_store["total_leaks_detected"],
         },
         "performance": {
-            "avg_analysis_duration_ms": round(_metrics_store["avg_analysis_duration_ms"], 2),
+            "avg_analysis_duration_ms": round(
+                _metrics_store["avg_analysis_duration_ms"], 2
+            ),
             "last_analysis": _metrics_store["last_analysis_time"],
         },
     }
@@ -288,7 +294,11 @@ async def dashboard() -> dict:
     return {
         "timestamp": datetime.utcnow().isoformat(),
         "health_score": round(health_score, 1),
-        "health_status": "healthy" if health_score >= 80 else "degraded" if health_score >= 50 else "unhealthy",
+        "health_status": (
+            "healthy"
+            if health_score >= 80
+            else "degraded" if health_score >= 50 else "unhealthy"
+        ),
         "engine": engine,
         "primitives": primitives,
         "resonator": resonator,

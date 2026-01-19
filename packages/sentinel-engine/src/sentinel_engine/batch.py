@@ -7,6 +7,7 @@ Provides efficient batch processing for large datasets:
 - Streaming for continuous data
 - Progress tracking
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,13 +21,14 @@ from typing import Any, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
-R = TypeVar('R')
+T = TypeVar("T")
+R = TypeVar("R")
 
 
 @dataclass
 class BatchResult(Generic[T]):
     """Result from batch processing."""
+
     batch_idx: int
     results: list[T]
     elapsed_ms: float
@@ -36,6 +38,7 @@ class BatchResult(Generic[T]):
 @dataclass
 class StreamStats:
     """Statistics for stream processing."""
+
     processed: int = 0
     errors: int = 0
     total_elapsed_ms: float = 0.0
@@ -63,7 +66,7 @@ class BatchProcessor(Generic[T, R]):
         process_fn: Callable[[T], R],
         batch_size: int = 1000,
         max_workers: int = 4,
-        use_processes: bool = False
+        use_processes: bool = False,
     ):
         """Initialize batch processor.
 
@@ -88,7 +91,7 @@ class BatchProcessor(Generic[T, R]):
     def _chunk(self, items: list[T]) -> Iterator[list[T]]:
         """Split items into chunks."""
         for i in range(0, len(items), self.batch_size):
-            yield items[i:i + self.batch_size]
+            yield items[i : i + self.batch_size]
 
     def _process_batch(self, batch_idx: int, batch: list[T]) -> BatchResult[R]:
         """Process a single batch."""
@@ -107,16 +110,13 @@ class BatchProcessor(Generic[T, R]):
         elapsed = (time.time() - start) * 1000
 
         return BatchResult(
-            batch_idx=batch_idx,
-            results=results,
-            elapsed_ms=elapsed,
-            errors=errors
+            batch_idx=batch_idx, results=results, elapsed_ms=elapsed, errors=errors
         )
 
     def process(
         self,
         items: list[T],
-        progress_callback: Callable[[int, int], None] | None = None
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> list[R]:
         """Process all items in parallel batches.
 
@@ -132,7 +132,9 @@ class BatchProcessor(Generic[T, R]):
         all_results: dict[int, list[R]] = {}
         total_errors = []
 
-        ExecutorClass = ProcessPoolExecutor if self.use_processes else ThreadPoolExecutor
+        ExecutorClass = (
+            ProcessPoolExecutor if self.use_processes else ThreadPoolExecutor
+        )
 
         with ExecutorClass(max_workers=self.max_workers) as executor:
             futures = {
@@ -205,7 +207,7 @@ class StreamProcessor(Generic[T, R]):
         process_fn: Callable[[T], R],
         max_queue_size: int = 10000,
         num_workers: int = 4,
-        result_buffer_size: int = 1000
+        result_buffer_size: int = 1000,
     ):
         """Initialize stream processor.
 
@@ -348,8 +350,8 @@ class StreamProcessor(Generic[T, R]):
             )
 
             if stats.total_elapsed_ms > 0:
-                stats.throughput_per_sec = (
-                    stats.processed / (stats.total_elapsed_ms / 1000)
+                stats.throughput_per_sec = stats.processed / (
+                    stats.total_elapsed_ms / 1000
                 )
 
             return stats

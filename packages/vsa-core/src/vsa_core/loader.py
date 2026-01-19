@@ -8,6 +8,7 @@ This module provides loaders for declarative VSA configurations:
 
 All loaders validate against Pydantic schemas and generate vectors lazily.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -130,7 +131,7 @@ class PrimitiveLoader:
             composite_patterns[name] = CompositePattern(
                 description=pattern["description"],
                 composition=pattern["composition"],
-                severity=pattern.get("severity", "medium")
+                severity=pattern.get("severity", "medium"),
             )
 
         return PrimitiveSet(
@@ -141,7 +142,7 @@ class PrimitiveLoader:
             metadata=metadata,
             primitives=primitives,
             composite_patterns=composite_patterns,
-            aliases=raw.get("aliases", {})
+            aliases=raw.get("aliases", {}),
         )
 
     def get_primitive(self, path: str) -> Primitive | None:
@@ -198,7 +199,7 @@ class PrimitiveLoader:
             prim.seed,
             dimensions=self.dimensions,
             device=self._device,
-            dtype=self._dtype
+            dtype=self._dtype,
         )
 
         self._vector_cache[path] = vec
@@ -236,6 +237,7 @@ class PrimitiveLoader:
             return bind_many(*operands)
         elif op == "bundle":
             from .operators import bundle_many
+
             return bundle_many(*operands)
         else:
             raise ValueError(f"Unknown operator: {op}")
@@ -248,8 +250,7 @@ class PrimitiveLoader:
         return paths
 
     def build_codebook(
-        self,
-        include_composites: bool = True
+        self, include_composites: bool = True
     ) -> tuple[list[str], torch.Tensor]:
         """Build codebook from all loaded primitives.
 
@@ -319,22 +320,21 @@ class MagnitudeLoader:
         for field_name, field_data in raw.get("fields", {}).items():
             buckets = []
             for bucket in field_data.get("buckets", []):
-                buckets.append(MagnitudeBucket(
-                    name=bucket["name"],
-                    min_value=bucket.get("min_value"),
-                    max_value=bucket.get("max_value"),
-                    seed_suffix=bucket["seed_suffix"]
-                ))
+                buckets.append(
+                    MagnitudeBucket(
+                        name=bucket["name"],
+                        min_value=bucket.get("min_value"),
+                        max_value=bucket.get("max_value"),
+                        seed_suffix=bucket["seed_suffix"],
+                    )
+                )
 
             fields[field_name] = MagnitudeField(
-                field=field_data["field"],
-                buckets=buckets
+                field=field_data["field"], buckets=buckets
             )
 
         return MagnitudeConfig(
-            schema_version=raw["schema_version"],
-            domain=raw["domain"],
-            fields=fields
+            schema_version=raw["schema_version"], domain=raw["domain"], fields=fields
         )
 
     def get_bucket(self, field: str, value: float) -> MagnitudeBucket | None:
@@ -359,10 +359,7 @@ class MagnitudeLoader:
         return bucket.name if bucket else None
 
     def get_bucket_vector(
-        self,
-        field: str,
-        value: float,
-        entity_seed: str = ""
+        self, field: str, value: float, entity_seed: str = ""
     ) -> torch.Tensor | None:
         """Get vector for magnitude bucket.
 
@@ -388,17 +385,14 @@ class MagnitudeLoader:
             full_seed,
             dimensions=self.dimensions,
             device=self._device,
-            dtype=self._dtype
+            dtype=self._dtype,
         )
 
         self._vector_cache[cache_key] = vec
         return vec
 
     def bind_magnitude(
-        self,
-        entity_vec: torch.Tensor,
-        field: str,
-        value: float
+        self, entity_vec: torch.Tensor, field: str, value: float
     ) -> torch.Tensor | None:
         """Bind magnitude bucket to entity vector.
 
@@ -421,7 +415,7 @@ class MagnitudeLoader:
             bucket.seed_suffix,
             dimensions=self.dimensions,
             device=self._device,
-            dtype=self._dtype
+            dtype=self._dtype,
         )
 
         return bind(entity_vec, bucket_vec)
@@ -454,7 +448,7 @@ class RuleCompiler:
     def __init__(
         self,
         primitive_loader: PrimitiveLoader,
-        magnitude_loader: MagnitudeLoader | None = None
+        magnitude_loader: MagnitudeLoader | None = None,
     ):
         """Initialize compiler.
 
@@ -485,40 +479,44 @@ class RuleCompiler:
             detection_data = rule_data["detection"]
             conditions = []
             for cond in detection_data.get("conditions", []):
-                conditions.append(RuleCondition(
-                    primitive=cond["primitive"],
-                    magnitude_bucket=cond.get("magnitude_bucket"),
-                    required=cond.get("required", True),
-                    weight=cond.get("weight", 1.0)
-                ))
+                conditions.append(
+                    RuleCondition(
+                        primitive=cond["primitive"],
+                        magnitude_bucket=cond.get("magnitude_bucket"),
+                        required=cond.get("required", True),
+                        weight=cond.get("weight", 1.0),
+                    )
+                )
 
             detection = RuleDetection(
                 type=detection_data["type"],
                 operator=detection_data.get("operator", "bind"),
                 conditions=conditions,
-                exclude_if=detection_data.get("exclude_if", [])
+                exclude_if=detection_data.get("exclude_if", []),
             )
 
-            rules.append(Rule(
-                id=rule_data["id"],
-                name=rule_data["name"],
-                description=rule_data["description"],
-                enabled=rule_data.get("enabled", True),
-                severity=rule_data.get("severity", "medium"),
-                priority=rule_data.get("priority", 5),
-                detection=detection,
-                thresholds=rule_data.get("thresholds", {}),
-                entity_context=rule_data.get("entity_context", {}),
-                root_cause_analysis=rule_data.get("root_cause_analysis"),
-                documentation=rule_data.get("documentation", {})
-            ))
+            rules.append(
+                Rule(
+                    id=rule_data["id"],
+                    name=rule_data["name"],
+                    description=rule_data["description"],
+                    enabled=rule_data.get("enabled", True),
+                    severity=rule_data.get("severity", "medium"),
+                    priority=rule_data.get("priority", 5),
+                    detection=detection,
+                    thresholds=rule_data.get("thresholds", {}),
+                    entity_context=rule_data.get("entity_context", {}),
+                    root_cause_analysis=rule_data.get("root_cause_analysis"),
+                    documentation=rule_data.get("documentation", {}),
+                )
+            )
 
         return RuleSet(
             schema_version=raw["schema_version"],
             domain=raw["domain"],
             description=raw.get("description"),
             rules=rules,
-            settings=None
+            settings=None,
         )
 
     def compile_rule(self, rule_id: str) -> torch.Tensor:
@@ -564,6 +562,7 @@ class RuleCompiler:
                 vec = bind_many(*condition_vecs)
             else:
                 from .operators import bundle_many
+
                 vec = bundle_many(*condition_vecs)
 
         else:

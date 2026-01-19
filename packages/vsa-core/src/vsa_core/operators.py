@@ -38,6 +38,7 @@ UNBINDING:
 
     If bound = a ⊗ b, then unbind(bound, a) ≈ b
 """
+
 from __future__ import annotations
 
 import math
@@ -49,6 +50,7 @@ from .vectors import normalize, similarity
 # =============================================================================
 # BINDING OPERATIONS
 # =============================================================================
+
 
 def bind(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """Bind two vectors via element-wise multiplication.
@@ -121,6 +123,7 @@ def unbind(bound: torch.Tensor, key: torch.Tensor) -> torch.Tensor:
 # BUNDLING OPERATIONS
 # =============================================================================
 
+
 def bundle(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """Bundle two vectors via superposition.
 
@@ -173,10 +176,7 @@ def bundle_many(*vectors: torch.Tensor) -> torch.Tensor:
     return normalize(result)
 
 
-def weighted_bundle(
-    vectors: list[torch.Tensor],
-    weights: list[float]
-) -> torch.Tensor:
+def weighted_bundle(vectors: list[torch.Tensor], weights: list[float]) -> torch.Tensor:
     """Bundle vectors with weights.
 
     Computes: normalize(Σ w_i · v_i)
@@ -204,9 +204,7 @@ def weighted_bundle(
 
 
 def unbind_from_bundle(
-    bundle_vec: torch.Tensor,
-    key: torch.Tensor,
-    codebook: torch.Tensor
+    bundle_vec: torch.Tensor, key: torch.Tensor, codebook: torch.Tensor
 ) -> tuple[int, float]:
     """Probe a bundle to find bound partner of key.
 
@@ -222,6 +220,7 @@ def unbind_from_bundle(
     """
     unbound = unbind(bundle_vec, key)
     from .vectors import batch_similarity
+
     sims = batch_similarity(unbound, codebook)
     best_idx = int(torch.argmax(sims))
     return best_idx, float(sims[best_idx])
@@ -230,6 +229,7 @@ def unbind_from_bundle(
 # =============================================================================
 # PERMUTATION OPERATIONS
 # =============================================================================
+
 
 def permute(v: torch.Tensor, shift: int) -> torch.Tensor:
     """Permute vector by circular index shift.
@@ -266,8 +266,7 @@ def inverse_permute(v: torch.Tensor, shift: int) -> torch.Tensor:
 
 
 def sequence_encode(
-    vectors: list[torch.Tensor],
-    position_shifts: list[int] | None = None
+    vectors: list[torch.Tensor], position_shifts: list[int] | None = None
 ) -> torch.Tensor:
     """Encode ordered sequence using permutation.
 
@@ -308,11 +307,8 @@ def sequence_encode(
 # ANALOGY & REASONING OPERATIONS
 # =============================================================================
 
-def solve_analogy(
-    a: torch.Tensor,
-    b: torch.Tensor,
-    c: torch.Tensor
-) -> torch.Tensor:
+
+def solve_analogy(a: torch.Tensor, b: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
     """Solve analogy: A is to B as C is to ?
 
     Computes: unbind(bind(b, unbind(c, a)), identity)
@@ -353,7 +349,7 @@ def role_filler_bind(role: torch.Tensor, filler: torch.Tensor) -> torch.Tensor:
 
 
 def create_record(
-    role_filler_pairs: list[tuple[torch.Tensor, torch.Tensor]]
+    role_filler_pairs: list[tuple[torch.Tensor, torch.Tensor]],
 ) -> torch.Tensor:
     """Create structured record from role-filler pairs.
 
@@ -377,9 +373,7 @@ def create_record(
 
 
 def query_record(
-    record: torch.Tensor,
-    role: torch.Tensor,
-    codebook: torch.Tensor
+    record: torch.Tensor, role: torch.Tensor, codebook: torch.Tensor
 ) -> tuple[int, float]:
     """Query a record for a role's filler.
 
@@ -398,10 +392,9 @@ def query_record(
 # ADVANCED ALGEBRAIC OPERATIONS
 # =============================================================================
 
+
 def resonance_step(
-    query: torch.Tensor,
-    codebook: torch.Tensor,
-    temperature: float = 1.0
+    query: torch.Tensor, codebook: torch.Tensor, temperature: float = 1.0
 ) -> torch.Tensor:
     """Single step of resonator cleanup.
 
@@ -424,16 +417,13 @@ def resonance_step(
     weights = torch.softmax(sims / temperature, dim=0)
 
     # Weighted combination of codebook
-    result = torch.einsum('n,nd->d', weights, codebook)
+    result = torch.einsum("n,nd->d", weights, codebook)
 
     return normalize(result)
 
 
 def sparse_resonance_step(
-    query: torch.Tensor,
-    codebook: torch.Tensor,
-    top_k: int = 64,
-    power: float = 0.64
+    query: torch.Tensor, codebook: torch.Tensor, top_k: int = 64, power: float = 0.64
 ) -> torch.Tensor:
     """Sparse resonator step using only top-k similar vectors.
 
@@ -468,7 +458,7 @@ def sparse_resonance_step(
     if selected.is_complex():
         weights = weights.to(selected.dtype)
 
-    result = torch.einsum('n,nd->d', weights, selected)
+    result = torch.einsum("n,nd->d", weights, selected)
 
     return normalize(result)
 
@@ -490,10 +480,7 @@ def bundle_capacity(dimensions: int) -> int:
     return int(0.5 * math.sqrt(dimensions))
 
 
-def orthogonality_check(
-    vectors: list[torch.Tensor],
-    threshold: float = 0.1
-) -> bool:
+def orthogonality_check(vectors: list[torch.Tensor], threshold: float = 0.1) -> bool:
     """Check if vectors are approximately orthogonal.
 
     Args:
@@ -504,7 +491,7 @@ def orthogonality_check(
         True if all pairs have |similarity| < threshold
     """
     for i, a in enumerate(vectors):
-        for b in vectors[i + 1:]:
+        for b in vectors[i + 1 :]:
             if abs(similarity(a, b)) >= threshold:
                 return False
     return True
@@ -513,6 +500,7 @@ def orthogonality_check(
 # =============================================================================
 # NOVEL PRIMITIVES FOR ALWAYS-ON AGENT
 # =============================================================================
+
 
 def n_bind(v: torch.Tensor) -> torch.Tensor:
     """Negation binding: Create anti-vector that is maximally dissimilar.
@@ -544,9 +532,7 @@ def n_bind(v: torch.Tensor) -> torch.Tensor:
 
 
 def query_excluding(
-    bundle_vec: torch.Tensor,
-    include: torch.Tensor,
-    exclude: torch.Tensor
+    bundle_vec: torch.Tensor, include: torch.Tensor, exclude: torch.Tensor
 ) -> torch.Tensor:
     """Query bundle for items matching 'include' but not 'exclude'.
 
@@ -569,9 +555,7 @@ def query_excluding(
 
 
 def cw_bundle(
-    vectors: list[torch.Tensor],
-    confidences: list[float],
-    temperature: float = 1.0
+    vectors: list[torch.Tensor], confidences: list[float], temperature: float = 1.0
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Confidence-weighted bundling with learned magnitude encoding.
 
@@ -617,7 +601,9 @@ def cw_bundle(
 
     # Weight each vector
     result = torch.zeros_like(vectors[0])
-    conf_accumulator = torch.zeros(vectors[0].shape[0], dtype=torch.float32, device=vectors[0].device)
+    conf_accumulator = torch.zeros(
+        vectors[0].shape[0], dtype=torch.float32, device=vectors[0].device
+    )
 
     for v, conf in zip(vectors, c_scaled):
         if v.device != result.device:
@@ -646,7 +632,7 @@ def t_bind(
     timestamp: float,
     reference_time: float,
     decay_rate: float = 0.1,
-    max_shift: int = 1000
+    max_shift: int = 1000,
 ) -> torch.Tensor:
     """Temporal binding with exponential decay and position encoding.
 
@@ -707,7 +693,7 @@ def t_unbind(
     timestamp: float,
     reference_time: float,
     decay_rate: float = 0.1,
-    max_shift: int = 1000
+    max_shift: int = 1000,
 ) -> torch.Tensor:
     """Inverse of t_bind for temporal queries.
 

@@ -9,6 +9,7 @@ Tests the employee API endpoints:
 - PUT /employee/{employee_id}/deactivate
 - GET /employee/health
 """
+
 from datetime import datetime
 
 import pytest
@@ -19,6 +20,7 @@ from pydantic import BaseModel, Field
 # =============================================================================
 # MINIMAL MODELS (copied for isolation)
 # =============================================================================
+
 
 class EmployeeRegisterRequest(BaseModel):
     employee_id: str = Field(..., min_length=1)
@@ -85,6 +87,7 @@ def reset_storage():
 # CREATE TEST APP
 # =============================================================================
 
+
 def create_test_app():
     """Create minimal FastAPI app with employee routes for testing."""
     app = FastAPI()
@@ -136,13 +139,16 @@ def create_test_app():
         if employee_id not in _employees:
             raise HTTPException(status_code=404, detail="Employee not found")
 
-        stats = _employee_stats.get(employee_id, {
-            "total_assists": 0,
-            "total_corrections": 0,
-            "corrections_accepted": 0,
-            "categories_helped": [],
-            "last_activity": None,
-        })
+        stats = _employee_stats.get(
+            employee_id,
+            {
+                "total_assists": 0,
+                "total_corrections": 0,
+                "corrections_accepted": 0,
+                "categories_helped": [],
+                "last_activity": None,
+            },
+        )
 
         total = stats["total_corrections"]
         accepted = stats["corrections_accepted"]
@@ -158,7 +164,9 @@ def create_test_app():
             last_activity=stats["last_activity"],
         )
 
-    @app.get("/employee/{employee_id}/corrections", response_model=CorrectionHistoryResponse)
+    @app.get(
+        "/employee/{employee_id}/corrections", response_model=CorrectionHistoryResponse
+    )
     async def get_correction_history(
         employee_id: str,
         limit: int = Query(50, ge=1, le=100),
@@ -169,7 +177,7 @@ def create_test_app():
 
         all_corrections = _corrections.get(employee_id, [])
         total = len(all_corrections)
-        paginated = all_corrections[offset:offset + limit]
+        paginated = all_corrections[offset : offset + limit]
         items = [CorrectionHistoryItem(**c) for c in paginated]
 
         return CorrectionHistoryResponse(
@@ -192,6 +200,7 @@ def create_test_app():
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def client():
     """Test client with fresh storage."""
@@ -203,13 +212,16 @@ def client():
 @pytest.fixture
 def registered_employee(client):
     """Register an employee and return the response."""
-    response = client.post("/employee/register", json={
-        "employee_id": "emp-001",
-        "store_id": "store-001",
-        "name": "John Doe",
-        "email": "john@example.com",
-        "role": "associate",
-    })
+    response = client.post(
+        "/employee/register",
+        json={
+            "employee_id": "emp-001",
+            "store_id": "store-001",
+            "name": "John Doe",
+            "email": "john@example.com",
+            "role": "associate",
+        },
+    )
     return response.json()
 
 
@@ -217,17 +229,21 @@ def registered_employee(client):
 # REGISTER ENDPOINT TESTS
 # =============================================================================
 
+
 class TestRegisterEndpoint:
     """Tests for POST /employee/register."""
 
     def test_register_employee(self, client):
         """Registration should create new employee."""
-        response = client.post("/employee/register", json={
-            "employee_id": "emp-001",
-            "store_id": "store-001",
-            "name": "John Doe",
-            "role": "associate",
-        })
+        response = client.post(
+            "/employee/register",
+            json={
+                "employee_id": "emp-001",
+                "store_id": "store-001",
+                "name": "John Doe",
+                "role": "associate",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -241,45 +257,57 @@ class TestRegisterEndpoint:
 
     def test_register_with_email(self, client):
         """Registration with email should work."""
-        response = client.post("/employee/register", json={
-            "employee_id": "emp-002",
-            "store_id": "store-001",
-            "name": "Jane Smith",
-            "email": "jane@example.com",
-            "role": "manager",
-        })
+        response = client.post(
+            "/employee/register",
+            json={
+                "employee_id": "emp-002",
+                "store_id": "store-001",
+                "name": "Jane Smith",
+                "email": "jane@example.com",
+                "role": "manager",
+            },
+        )
 
         assert response.status_code == 200
         assert response.json()["email"] == "jane@example.com"
 
     def test_register_duplicate_fails(self, client, registered_employee):
         """Duplicate registration should fail."""
-        response = client.post("/employee/register", json={
-            "employee_id": "emp-001",
-            "store_id": "store-001",
-            "name": "Another John",
-            "role": "associate",
-        })
+        response = client.post(
+            "/employee/register",
+            json={
+                "employee_id": "emp-001",
+                "store_id": "store-001",
+                "name": "Another John",
+                "role": "associate",
+            },
+        )
 
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"].lower()
 
     def test_register_missing_fields_fails(self, client):
         """Missing required fields should fail."""
-        response = client.post("/employee/register", json={
-            "employee_id": "emp-001",
-        })
+        response = client.post(
+            "/employee/register",
+            json={
+                "employee_id": "emp-001",
+            },
+        )
 
         assert response.status_code == 422
 
     def test_register_invalid_role_fails(self, client):
         """Invalid role should fail validation."""
-        response = client.post("/employee/register", json={
-            "employee_id": "emp-001",
-            "store_id": "store-001",
-            "name": "Test",
-            "role": "invalid_role",
-        })
+        response = client.post(
+            "/employee/register",
+            json={
+                "employee_id": "emp-001",
+                "store_id": "store-001",
+                "name": "Test",
+                "role": "invalid_role",
+            },
+        )
 
         assert response.status_code == 422
 
@@ -287,6 +315,7 @@ class TestRegisterEndpoint:
 # =============================================================================
 # GET EMPLOYEE ENDPOINT TESTS
 # =============================================================================
+
 
 class TestGetEmployeeEndpoint:
     """Tests for GET /employee/{employee_id}."""
@@ -312,6 +341,7 @@ class TestGetEmployeeEndpoint:
 # =============================================================================
 # STATS ENDPOINT TESTS
 # =============================================================================
+
 
 class TestStatsEndpoint:
     """Tests for GET /employee/{employee_id}/stats."""
@@ -340,6 +370,7 @@ class TestStatsEndpoint:
 # =============================================================================
 # CORRECTIONS ENDPOINT TESTS
 # =============================================================================
+
 
 class TestCorrectionsEndpoint:
     """Tests for GET /employee/{employee_id}/corrections."""
@@ -372,6 +403,7 @@ class TestCorrectionsEndpoint:
 # DEACTIVATE ENDPOINT TESTS
 # =============================================================================
 
+
 class TestDeactivateEndpoint:
     """Tests for PUT /employee/{employee_id}/deactivate."""
 
@@ -400,6 +432,7 @@ class TestDeactivateEndpoint:
 # HEALTH ENDPOINT TESTS
 # =============================================================================
 
+
 class TestHealthEndpoint:
     """Tests for GET /employee/health."""
 
@@ -425,18 +458,22 @@ class TestHealthEndpoint:
 # INTEGRATION TEST
 # =============================================================================
 
+
 class TestEmployeeIntegration:
     """End-to-end integration tests."""
 
     def test_full_employee_lifecycle(self, client):
         """Test complete employee lifecycle."""
         # Step 1: Register
-        register_response = client.post("/employee/register", json={
-            "employee_id": "emp-lifecycle",
-            "store_id": "store-001",
-            "name": "Lifecycle Test",
-            "role": "associate",
-        })
+        register_response = client.post(
+            "/employee/register",
+            json={
+                "employee_id": "emp-lifecycle",
+                "store_id": "store-001",
+                "name": "Lifecycle Test",
+                "role": "associate",
+            },
+        )
         assert register_response.status_code == 200
 
         # Step 2: Get profile

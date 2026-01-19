@@ -86,6 +86,7 @@ try:
     from .batch import BatchProcessor, StreamProcessor
     from .codebook import CodebookManager, PersistentCodebook
     from .pipeline import PipelineResult, PipelineStage, TieredPipeline
+
     _PIPELINE_AVAILABLE = True
 except ImportError:
     _PIPELINE_AVAILABLE = False
@@ -100,6 +101,7 @@ except ImportError:
 # Bridge (if available)
 try:
     from .bridge import VSASymbolicBridge
+
     _BRIDGE_AVAILABLE = True
 except ImportError:
     _BRIDGE_AVAILABLE = False

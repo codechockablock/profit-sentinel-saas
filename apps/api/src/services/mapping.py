@@ -46,7 +46,7 @@ class MappingService:
         # Lowercase, strip whitespace
         norm = col.strip().lower()
         # Remove common separators and special chars
-        norm = re.sub(r'[\s._\-#$%()]+', '', norm)
+        norm = re.sub(r"[\s._\-#$%()]+", "", norm)
         return norm
 
     def suggest_mapping(self, df: pd.DataFrame, filename: str) -> dict:
@@ -64,20 +64,21 @@ class MappingService:
             Mapping suggestions with confidence scores and field importance
         """
         columns = list(df.columns)
-        sample = df.head(10).to_dict(orient='records')
+        sample = df.head(10).to_dict(orient="records")
 
         grok_client = get_grok_client()
         if grok_client:
             suggestions = self._ai_mapping(grok_client, columns, sample, filename)
         else:
             suggestions = self._aggressive_heuristic_mapping(columns, sample)
-            suggestions["notes"] = "AI unavailable - using aggressive heuristic matching"
+            suggestions["notes"] = (
+                "AI unavailable - using aggressive heuristic matching"
+            )
 
         # Ensure confidence scores exist
         if "confidence" not in suggestions:
             suggestions["confidence"] = {
-                col: 1.0 if suggestions["mapping"].get(col) else 0.0
-                for col in columns
+                col: 1.0 if suggestions["mapping"].get(col) else 0.0 for col in columns
             }
 
         # Add field importance ratings to help frontend prioritize
@@ -91,7 +92,8 @@ class MappingService:
         # Identify critical unmapped fields
         mapped_targets = set(v for v in suggestions["mapping"].values() if v)
         critical_missing = [
-            f for f in ["quantity", "cost", "revenue", "sold", "sku"]
+            f
+            for f in ["quantity", "cost", "revenue", "sold", "sku"]
             if f not in mapped_targets
         ]
 
@@ -102,15 +104,11 @@ class MappingService:
             "confidences": suggestions["confidence"],
             "importance": importance,
             "critical_missing": critical_missing,
-            "notes": suggestions.get("notes", "")
+            "notes": suggestions.get("notes", ""),
         }
 
     def _ai_mapping(
-        self,
-        client,
-        columns: list[str],
-        sample: list[dict],
-        filename: str
+        self, client, columns: list[str], sample: list[dict], filename: str
     ) -> dict:
         """Use Grok AI for intelligent column mapping with POS expertise."""
         prompt = f"""
@@ -158,7 +156,7 @@ Return ONLY valid JSON:
                 model="grok-3",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,  # Lower temp for more consistent mapping
-                max_tokens=2048
+                max_tokens=2048,
             )
             content = response.choices[0].message.content.strip()
 
@@ -179,9 +177,7 @@ Return ONLY valid JSON:
             return result
 
     def _aggressive_heuristic_mapping(
-        self,
-        columns: list[str],
-        sample: list[dict] | None = None
+        self, columns: list[str], sample: list[dict] | None = None
     ) -> dict:
         """
         Aggressive heuristic mapping with multi-tier matching.
@@ -205,14 +201,11 @@ Return ONLY valid JSON:
         return {
             "mapping": mapping,
             "confidence": confidence,
-            "notes": "Aggressive multi-tier heuristic matching"
+            "notes": "Aggressive multi-tier heuristic matching",
         }
 
     def _match_column(
-        self,
-        col: str,
-        sample: list[dict] | None,
-        used_targets: set
+        self, col: str, sample: list[dict] | None, used_targets: set
     ) -> tuple[str | None, float]:
         """
         Match a single column using multi-tier strategy.
@@ -238,7 +231,9 @@ Return ONLY valid JSON:
             # Check substring match both ways
             if len(alias) >= 3 and len(normalized) >= 3:
                 if alias in normalized or normalized in alias:
-                    score = min(len(alias), len(normalized)) / max(len(alias), len(normalized))
+                    score = min(len(alias), len(normalized)) / max(
+                        len(alias), len(normalized)
+                    )
                     if score > best_score:
                         best_score = score
                         best_match = target
@@ -255,10 +250,7 @@ Return ONLY valid JSON:
         return None, 0.0
 
     def _infer_from_sample(
-        self,
-        col: str,
-        sample: list[dict],
-        used_targets: set
+        self, col: str, sample: list[dict], used_targets: set
     ) -> str | None:
         """
         Infer field type from sample values.
@@ -274,64 +266,82 @@ Return ONLY valid JSON:
             return None
 
         # Get sample values for this column
-        values = [str(row.get(col, '')) for row in sample if row.get(col)]
+        values = [str(row.get(col, "")) for row in sample if row.get(col)]
         if not values:
             return None
 
         col_lower = col.lower()
 
         # Check for currency patterns
-        currency_pattern = r'^\$?[\d,]+\.?\d*$'
-        if all(re.match(currency_pattern, v.replace(',', '').replace('$', '')) for v in values[:5] if v):
+        currency_pattern = r"^\$?[\d,]+\.?\d*$"
+        if all(
+            re.match(currency_pattern, v.replace(",", "").replace("$", ""))
+            for v in values[:5]
+            if v
+        ):
             # Disambiguate cost vs revenue based on column name
-            if any(hint in col_lower for hint in ['cost', 'cogs', 'buy', 'purchase', 'wholesale']):
-                if 'cost' not in used_targets:
-                    return 'cost'
-            elif any(hint in col_lower for hint in ['retail', 'price', 'sell', 'msrp', 'sug']):
-                if 'revenue' not in used_targets:
-                    return 'revenue'
+            if any(
+                hint in col_lower
+                for hint in ["cost", "cogs", "buy", "purchase", "wholesale"]
+            ):
+                if "cost" not in used_targets:
+                    return "cost"
+            elif any(
+                hint in col_lower for hint in ["retail", "price", "sell", "msrp", "sug"]
+            ):
+                if "revenue" not in used_targets:
+                    return "revenue"
 
         # Check for date patterns
         date_patterns = [
-            r'\d{1,2}/\d{1,2}/\d{2,4}',  # MM/DD/YYYY
-            r'\d{4}-\d{2}-\d{2}',          # YYYY-MM-DD
-            r'\d{1,2}-\d{1,2}-\d{2,4}',    # MM-DD-YYYY
+            r"\d{1,2}/\d{1,2}/\d{2,4}",  # MM/DD/YYYY
+            r"\d{4}-\d{2}-\d{2}",  # YYYY-MM-DD
+            r"\d{1,2}-\d{1,2}-\d{2,4}",  # MM-DD-YYYY
         ]
         for pattern in date_patterns:
             if any(re.match(pattern, v) for v in values[:5] if v):
-                if any(hint in col_lower for hint in ['sale', 'sold', 'last']):
-                    if 'last_sale_date' not in used_targets:
-                        return 'last_sale_date'
-                elif any(hint in col_lower for hint in ['pur', 'recv', 'receiv']):
-                    if 'last_purchase_date' not in used_targets:
-                        return 'last_purchase_date'
-                elif 'date' not in used_targets:
-                    return 'date'
+                if any(hint in col_lower for hint in ["sale", "sold", "last"]):
+                    if "last_sale_date" not in used_targets:
+                        return "last_sale_date"
+                elif any(hint in col_lower for hint in ["pur", "recv", "receiv"]):
+                    if "last_purchase_date" not in used_targets:
+                        return "last_purchase_date"
+                elif "date" not in used_targets:
+                    return "date"
 
         # Check for negative numbers (shrinkage/variance)
-        if any(v.startswith('-') for v in values[:5] if v):
-            if 'qty_difference' not in used_targets:
-                return 'qty_difference'
+        if any(v.startswith("-") for v in values[:5] if v):
+            if "qty_difference" not in used_targets:
+                return "qty_difference"
 
         # Check for pure integers (quantity candidates)
         try:
-            int_values = [int(float(v.replace(',', ''))) for v in values[:5] if v]
-            if int_values and all(v == int(v) for v in [float(x.replace(',', '')) for x in values[:5] if x]):
-                if any(hint in col_lower for hint in ['qty', 'stock', 'hand', 'inv', 'avail']):
-                    if 'quantity' not in used_targets:
-                        return 'quantity'
-                elif any(hint in col_lower for hint in ['sold', 'sale']):
-                    if 'sold' not in used_targets:
-                        return 'sold'
+            int_values = [int(float(v.replace(",", ""))) for v in values[:5] if v]
+            if int_values and all(
+                v == int(v)
+                for v in [float(x.replace(",", "")) for x in values[:5] if x]
+            ):
+                if any(
+                    hint in col_lower
+                    for hint in ["qty", "stock", "hand", "inv", "avail"]
+                ):
+                    if "quantity" not in used_targets:
+                        return "quantity"
+                elif any(hint in col_lower for hint in ["sold", "sale"]):
+                    if "sold" not in used_targets:
+                        return "sold"
         except (ValueError, TypeError):
             pass
 
         # Check for alphanumeric codes (SKU candidates)
-        if all(re.match(r'^[A-Za-z0-9\-_]+$', v) for v in values[:5] if v):
+        if all(re.match(r"^[A-Za-z0-9\-_]+$", v) for v in values[:5] if v):
             if len(values[0]) > 3 and len(values[0]) < 30:
-                if any(hint in col_lower for hint in ['sku', 'code', 'item', 'product', 'upc', 'barcode']):
-                    if 'sku' not in used_targets:
-                        return 'sku'
+                if any(
+                    hint in col_lower
+                    for hint in ["sku", "code", "item", "product", "upc", "barcode"]
+                ):
+                    if "sku" not in used_targets:
+                        return "sku"
 
         return None
 
@@ -344,17 +354,17 @@ Return ONLY valid JSON:
         mapped = set(v for v in mapping.values() if v)
 
         critical_fields = {
-            'quantity': "Required for stock level analysis",
-            'cost': "Required for margin calculation",
-            'revenue': "Required for margin calculation",
-            'sku': "Required for item identification",
+            "quantity": "Required for stock level analysis",
+            "cost": "Required for margin calculation",
+            "revenue": "Required for margin calculation",
+            "sku": "Required for item identification",
         }
 
         important_fields = {
-            'sold': "Enables velocity/dead stock detection",
-            'last_sale_date': "Enables dead item detection",
-            'qty_difference': "Enables shrinkage detection",
-            'margin': "Direct margin analysis (optional if cost+revenue mapped)",
+            "sold": "Enables velocity/dead stock detection",
+            "last_sale_date": "Enables dead item detection",
+            "qty_difference": "Enables shrinkage detection",
+            "margin": "Direct margin analysis (optional if cost+revenue mapped)",
         }
 
         errors = []
@@ -369,9 +379,9 @@ Return ONLY valid JSON:
                 warnings.append(f"Consider mapping '{field}': {reason}")
 
         # Special case: margin can be calculated if cost and revenue are present
-        if 'margin' not in mapped and 'cost' in mapped and 'revenue' in mapped:
+        if "margin" not in mapped and "cost" in mapped and "revenue" in mapped:
             # Remove margin warning if we can calculate it
-            warnings = [w for w in warnings if 'margin' not in w]
+            warnings = [w for w in warnings if "margin" not in w]
 
         return {
             "is_valid": len(errors) == 0,
@@ -379,5 +389,5 @@ Return ONLY valid JSON:
             "warnings": warnings,
             "mapped_count": len(mapped),
             "critical_mapped": sum(1 for f in critical_fields if f in mapped),
-            "critical_total": len(critical_fields)
+            "critical_total": len(critical_fields),
         }

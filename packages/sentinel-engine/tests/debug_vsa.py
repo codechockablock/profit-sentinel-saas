@@ -3,7 +3,7 @@
 
 import sys
 
-sys.path.insert(0, '../src')
+sys.path.insert(0, "../src")
 
 from validation_runner import SyntheticDataGenerator
 
@@ -42,12 +42,12 @@ try:
 
     print()
     print("Ground truth low_stock SKUs (first 10):")
-    for sku in list(ground_truth['low_stock'])[:10]:
+    for sku in list(ground_truth["low_stock"])[:10]:
         print(f"  - {sku}")
 
     # Check if any ground truth SKUs are in results
     detected_lower = {item.lower() for item in items}
-    truth_lower = {s.lower() for s in ground_truth['low_stock']}
+    truth_lower = {s.lower() for s in ground_truth["low_stock"]}
     overlap = detected_lower & truth_lower
     print(f"\nOverlap with ground truth: {len(overlap)}")
 
@@ -56,4 +56,5 @@ try:
 except Exception as e:
     print(f"Error: {e}")
     import traceback
+
     traceback.print_exc()

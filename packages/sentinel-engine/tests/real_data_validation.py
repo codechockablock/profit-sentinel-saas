@@ -21,6 +21,7 @@ from typing import Any
 @dataclass
 class DetectionResult:
     """Results from detection for a single primitive."""
+
     primitive: str
     detected_skus: set[str] = field(default_factory=set)
     count: int = 0
@@ -30,6 +31,7 @@ class DetectionResult:
 @dataclass
 class ResonatorValidation:
     """Results from resonator sanity checking."""
+
     primitive: str
     candidates_checked: int = 0
     convergence_passed: int = 0
@@ -40,11 +42,11 @@ class ResonatorValidation:
 
 def safe_float(val: Any, default: float = 0.0) -> float:
     """Safely convert value to float."""
-    if val is None or str(val).strip() == '':
+    if val is None or str(val).strip() == "":
         return default
     try:
-        cleaned = str(val).replace('$', '').replace(',', '').replace('%', '').strip()
-        if cleaned == '' or cleaned.lower() in ('nan', 'null', 'none', '-'):
+        cleaned = str(val).replace("$", "").replace(",", "").replace("%", "").strip()
+        if cleaned == "" or cleaned.lower() in ("nan", "null", "none", "-"):
             return default
         return float(cleaned)
     except (ValueError, TypeError):
@@ -53,19 +55,29 @@ def safe_float(val: Any, default: float = 0.0) -> float:
 
 def parse_date(val: Any) -> datetime | None:
     """Parse date from various formats."""
-    if val is None or str(val).strip() == '':
+    if val is None or str(val).strip() == "":
         return None
 
     date_str = str(val).strip()
 
     # Handle "Jun 02,25" format
-    match = re.match(r'([A-Za-z]+)\s+(\d+),(\d+)', date_str)
+    match = re.match(r"([A-Za-z]+)\s+(\d+),(\d+)", date_str)
     if match:
         month_str, day, year = match.groups()
         try:
             month_map = {
-                'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-                'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+                "jan": 1,
+                "feb": 2,
+                "mar": 3,
+                "apr": 4,
+                "may": 5,
+                "jun": 6,
+                "jul": 7,
+                "aug": 8,
+                "sep": 9,
+                "oct": 10,
+                "nov": 11,
+                "dec": 12,
             }
             month = month_map.get(month_str.lower()[:3], 1)
             year_full = 2000 + int(year) if int(year) < 100 else int(year)
@@ -76,7 +88,7 @@ def parse_date(val: Any) -> datetime | None:
     # Handle YYYYMMDD format
     if len(date_str) == 8 and date_str.isdigit():
         try:
-            return datetime.strptime(date_str, '%Y%m%d')
+            return datetime.strptime(date_str, "%Y%m%d")
         except:
             pass
 
@@ -86,7 +98,7 @@ def parse_date(val: Any) -> datetime | None:
 def load_inventory_csv(filepath: str) -> list[dict]:
     """Load and parse inventory CSV."""
     rows = []
-    with open(filepath, encoding='utf-8', errors='ignore') as f:
+    with open(filepath, encoding="utf-8", errors="ignore") as f:
         reader = csv.DictReader(f)
         for row in reader:
             rows.append(row)
@@ -119,7 +131,9 @@ class RealDataBaselineDetector:
         "margin_erosion",
     ]
 
-    def detect(self, rows: list[dict]) -> tuple[dict[str, DetectionResult], dict[str, Any]]:
+    def detect(
+        self, rows: list[dict]
+    ) -> tuple[dict[str, DetectionResult], dict[str, Any]]:
         """
         Run detection on real inventory data.
 
@@ -135,10 +149,10 @@ class RealDataBaselineDetector:
         vendor_margins: dict[str, list[float]] = {}
 
         for row in rows:
-            stock = safe_float(row.get('Stock', 0))
-            sold = safe_float(row.get('Year Total', 0))
-            margin_pct = safe_float(row.get('Profit Margin%', 0))
-            vendor = str(row.get('Vendor', 'unknown')).strip()
+            stock = safe_float(row.get("Stock", 0))
+            sold = safe_float(row.get("Year Total", 0))
+            margin_pct = safe_float(row.get("Profit Margin%", 0))
+            vendor = str(row.get("Vendor", "unknown")).strip()
 
             if stock > 0:
                 all_stocks.append(stock)
@@ -170,21 +184,21 @@ class RealDataBaselineDetector:
 
         # Second pass: detect anomalies
         for row in rows:
-            sku = str(row.get('SKU', '')).strip()
+            sku = str(row.get("SKU", "")).strip()
             if not sku:
                 continue
 
-            stock = safe_float(row.get('Stock', 0))
-            sold = safe_float(row.get('Year Total', 0))
-            margin_pct = safe_float(row.get('Profit Margin%', 0))
-            safe_float(row.get('Avg. Cost', 0))
-            gross_sales = safe_float(row.get('Gross Sales', 0))
-            safe_float(row.get('Gross Cost', 0))
-            safe_float(row.get('Gross Profit', 0))
-            vendor = str(row.get('Vendor', 'unknown')).strip()
-            description = str(row.get('Description', '')).strip()
+            stock = safe_float(row.get("Stock", 0))
+            sold = safe_float(row.get("Year Total", 0))
+            margin_pct = safe_float(row.get("Profit Margin%", 0))
+            safe_float(row.get("Avg. Cost", 0))
+            gross_sales = safe_float(row.get("Gross Sales", 0))
+            safe_float(row.get("Gross Cost", 0))
+            safe_float(row.get("Gross Profit", 0))
+            vendor = str(row.get("Vendor", "unknown")).strip()
+            description = str(row.get("Description", "")).strip()
 
-            last_sale_str = row.get('Last Sale', '')
+            last_sale_str = row.get("Last Sale", "")
             last_sale = parse_date(last_sale_str)
 
             item_info = {
@@ -331,7 +345,7 @@ class CalibratedResonator:
                     primitive=p,
                     candidates_checked=r.count,
                     convergence_passed=r.count,
-                    status="PASS (resonator unavailable)"
+                    status="PASS (resonator unavailable)",
                 )
                 for p, r in baseline_results.items()
             }
@@ -341,15 +355,17 @@ class CalibratedResonator:
         # Convert rows to resonator format
         resonator_rows = []
         for row in rows[:10000]:  # Limit for performance
-            resonator_rows.append({
-                "sku": row.get("SKU", ""),
-                "description": row.get("Description", ""),
-                "vendor": row.get("Vendor", ""),
-                "quantity": safe_float(row.get("Stock", 0)),
-                "sold": safe_float(row.get("Year Total", 0)),
-                "cost": safe_float(row.get("Avg. Cost", 0)),
-                "revenue": safe_float(row.get("Gross Sales", 0)),
-            })
+            resonator_rows.append(
+                {
+                    "sku": row.get("SKU", ""),
+                    "description": row.get("Description", ""),
+                    "vendor": row.get("Vendor", ""),
+                    "quantity": safe_float(row.get("Stock", 0)),
+                    "sold": safe_float(row.get("Year Total", 0)),
+                    "cost": safe_float(row.get("Avg. Cost", 0)),
+                    "revenue": safe_float(row.get("Gross Sales", 0)),
+                }
+            )
 
         print(f"    Building resonator codebook ({len(resonator_rows)} rows)...")
         ctx = self._create_ctx(use_gpu=False)
@@ -359,7 +375,9 @@ class CalibratedResonator:
         try:
             t0 = time.time()
             bundle = self._core.bundle_pos_facts(ctx, resonator_rows)
-            print(f"    Codebook built in {time.time()-t0:.1f}s ({len(ctx.codebook)} entries)")
+            print(
+                f"    Codebook built in {time.time()-t0:.1f}s ({len(ctx.codebook)} entries)"
+            )
 
             for primitive, baseline_result in baseline_results.items():
                 validation = ResonatorValidation(primitive=primitive)
@@ -372,8 +390,12 @@ class CalibratedResonator:
 
                 # Query resonator
                 try:
-                    items, scores = self._core.query_bundle(ctx, bundle, primitive, top_k=500)
-                    resonator_scores = {item.lower(): score for item, score in zip(items, scores)}
+                    items, scores = self._core.query_bundle(
+                        ctx, bundle, primitive, top_k=500
+                    )
+                    resonator_scores = {
+                        item.lower(): score for item, score in zip(items, scores)
+                    }
 
                     # Check overlap
                     confidences = []
@@ -395,9 +417,15 @@ class CalibratedResonator:
                     # Determine status
                     if validation.candidates_checked == 0:
                         validation.status = "PASS (empty)"
-                    elif validation.convergence_passed / validation.candidates_checked >= 0.3:
+                    elif (
+                        validation.convergence_passed / validation.candidates_checked
+                        >= 0.3
+                    ):
                         validation.status = "PASS"
-                    elif validation.convergence_passed / validation.candidates_checked >= 0.1:
+                    elif (
+                        validation.convergence_passed / validation.candidates_checked
+                        >= 0.1
+                    ):
                         validation.status = "WARN"
                     else:
                         validation.status = "INFRASTRUCTURE"
@@ -406,7 +434,9 @@ class CalibratedResonator:
                     validation.status = f"ERROR: {str(e)[:30]}"
 
                 results[primitive] = validation
-                print(f"    {primitive}: {validation.convergence_passed}/{validation.candidates_checked} converged")
+                print(
+                    f"    {primitive}: {validation.convergence_passed}/{validation.candidates_checked} converged"
+                )
 
         finally:
             ctx.reset()
@@ -487,7 +517,7 @@ def generate_markdown_report(
 
     for p in RealDataBaselineDetector.PRIMITIVES:
         r = baseline_results[p]
-        pct = (r.count / stats['total_rows'] * 100) if stats['total_rows'] > 0 else 0
+        pct = (r.count / stats["total_rows"] * 100) if stats["total_rows"] > 0 else 0
         status = "✅" if r.count > 0 else "⚪"
         if p in ["price_discrepancy", "shrinkage_pattern"] and r.count == 0:
             status = "⚪ N/A"
@@ -539,7 +569,9 @@ Anomalies Detected by Primitive
 
     for p in RealDataBaselineDetector.PRIMITIVES:
         v = resonator_results.get(p, ResonatorValidation(primitive=p))
-        status_icon = "✅" if "PASS" in v.status else ("⚠️" if "WARN" in v.status else "🔧")
+        status_icon = (
+            "✅" if "PASS" in v.status else ("⚠️" if "WARN" in v.status else "🔧")
+        )
         report += f"| `{p}` | {v.candidates_checked:,} | {v.convergence_passed:,} | {v.hallucinations_flagged:,} | {v.avg_confidence:.4f} | {status_icon} {v.status} |\n"
 
     report += """
@@ -703,7 +735,7 @@ def run_real_data_validation(filepath: str):
                 primitive=p,
                 candidates_checked=r.count,
                 convergence_passed=r.count,
-                status="PASS (resonator unavailable)"
+                status="PASS (resonator unavailable)",
             )
             for p, r in baseline_results.items()
         }
@@ -724,8 +756,12 @@ def run_real_data_validation(filepath: str):
     )
 
     # Save report
-    report_path = Path(__file__).parent.parent.parent.parent / "docs" / "PROFIT_SENTINEL_VALIDATION.md"
-    with open(report_path, 'w') as f:
+    report_path = (
+        Path(__file__).parent.parent.parent.parent
+        / "docs"
+        / "PROFIT_SENTINEL_VALIDATION.md"
+    )
+    with open(report_path, "w") as f:
         f.write(report)
     print(f"  Report saved to: {report_path}")
 
@@ -742,7 +778,7 @@ def run_real_data_validation(filepath: str):
                     "sample_skus": list(r.detected_skus)[:20],
                 }
                 for p, r in baseline_results.items()
-            }
+            },
         },
         "resonator": {
             "time_seconds": resonator_time,
@@ -756,12 +792,12 @@ def run_real_data_validation(filepath: str):
                     "avg_confidence": v.avg_confidence,
                 }
                 for p, v in resonator_results.items()
-            }
-        }
+            },
+        },
     }
 
     metrics_path = Path(__file__).parent / "real_data_validation_results.json"
-    with open(metrics_path, 'w') as f:
+    with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=2)
     print(f"  Metrics saved to: {metrics_path}")
 
@@ -779,6 +815,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         filepath = sys.argv[1]
     else:
-        filepath = "/Users/joseph/Downloads/Reports/Inventory_Report_AllSKUs_SHLP_YTD.csv"
+        filepath = (
+            "/Users/joseph/Downloads/Reports/Inventory_Report_AllSKUs_SHLP_YTD.csv"
+        )
 
     run_real_data_validation(filepath)

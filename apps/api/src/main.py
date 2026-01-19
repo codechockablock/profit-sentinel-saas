@@ -22,8 +22,7 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -31,14 +30,10 @@ logger = logging.getLogger(__name__)
 # Vercel preview URL pattern: https://<project>-<hash>-<team>.vercel.app
 # Matches: profit-sentinel.vercel.app, profit-sentinel-saas.vercel.app,
 #          profit-sentinel-abc123-team.vercel.app, etc.
-VERCEL_PREVIEW_PATTERN = re.compile(
-    r"^https://profit-sentinel[-a-z0-9]*\.vercel\.app$"
-)
+VERCEL_PREVIEW_PATTERN = re.compile(r"^https://profit-sentinel[-a-z0-9]*\.vercel\.app$")
 
 # Production domain patterns (handles www and non-www)
-PRODUCTION_DOMAIN_PATTERN = re.compile(
-    r"^https://(www\.)?profitsentinel\.com$"
-)
+PRODUCTION_DOMAIN_PATTERN = re.compile(r"^https://(www\.)?profitsentinel\.com$")
 
 
 def is_allowed_origin(origin: str, allowed_origins: list[str]) -> bool:
@@ -50,10 +45,10 @@ def is_allowed_origin(origin: str, allowed_origins: list[str]) -> bool:
         return False
 
     # Normalize origin (strip trailing slash, lowercase)
-    origin = origin.rstrip('/').lower()
+    origin = origin.rstrip("/").lower()
 
     # Exact match check (case-insensitive)
-    allowed_lower = [o.rstrip('/').lower() for o in allowed_origins]
+    allowed_lower = [o.rstrip("/").lower() for o in allowed_origins]
     if origin in allowed_lower:
         return True
 
@@ -100,8 +95,12 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
                 logger.info(f"CORS preflight APPROVED for origin: {origin}")
                 response = Response(status_code=200)
                 response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-                response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Requested-With"
+                response.headers["Access-Control-Allow-Methods"] = (
+                    "GET, POST, PUT, DELETE, OPTIONS"
+                )
+                response.headers["Access-Control-Allow-Headers"] = (
+                    "Authorization, Content-Type, Accept, X-Requested-With"
+                )
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Max-Age"] = "600"
                 return response
@@ -116,9 +115,9 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
             # Ensure CORS headers on error responses so browser can read error details
             logger.error(f"Request failed: {e}")
             from fastapi.responses import JSONResponse
+
             response = JSONResponse(
-                status_code=500,
-                content={"detail": "Internal server error"}
+                status_code=500, content={"detail": "Internal server error"}
             )
             self._add_cors_headers(response, origin)
             return response
@@ -155,8 +154,8 @@ def create_app() -> FastAPI:
         openapi_tags=[
             {"name": "health", "description": "Health checks"},
             {"name": "uploads", "description": "File upload and mapping"},
-            {"name": "analysis", "description": "Profit leak analysis"}
-        ]
+            {"name": "analysis", "description": "Profit leak analysis"},
+        ],
     )
 
     # CORS middleware - layered approach for maximum compatibility:
@@ -183,10 +182,7 @@ def create_app() -> FastAPI:
     )
 
     # Layer 2: Custom CORS for dynamic origins (Vercel previews, error handling)
-    app.add_middleware(
-        DynamicCORSMiddleware,
-        allowed_origins=settings.cors_origins
-    )
+    app.add_middleware(DynamicCORSMiddleware, allowed_origins=settings.cors_origins)
 
     # Include routes
     app.include_router(api_router)

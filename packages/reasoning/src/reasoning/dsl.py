@@ -29,6 +29,7 @@ Example:
     for binding in result:
         print(f"Critical alert for: {binding['X']}")
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -87,10 +88,7 @@ class RuleBuilder:
     def done(self) -> None:
         """Finalize and add rule to knowledge base."""
         self.dsl.kb.add_rule(
-            self.head,
-            *self.body,
-            name=self._name,
-            description=self._description
+            self.head, *self.body, name=self._name, description=self._description
         )
 
 
@@ -137,7 +135,7 @@ class ReasoningDSL:
             term,
             confidence=kwargs.get("confidence", 1.0),
             source=kwargs.get("source"),
-            metadata=kwargs.get("metadata", {})
+            metadata=kwargs.get("metadata", {}),
         )
 
     def rule(self, head_pred: str, *args) -> RuleBuilder:
@@ -156,11 +154,7 @@ class ReasoningDSL:
         return RuleBuilder(self, head_pred, *args)
 
     def query(
-        self,
-        predicate: str,
-        *args,
-        all_solutions: bool = False,
-        max_results: int = 100
+        self, predicate: str, *args, all_solutions: bool = False, max_results: int = 100
     ) -> ProofTree | list[ProofTree]:
         """Query the knowledge base.
 
@@ -193,7 +187,9 @@ class ReasoningDSL:
         proof = self.query(predicate, *args)
         return proof.is_valid
 
-    def solutions(self, predicate: str, *args, max_results: int = 100) -> Iterator[dict[str, Any]]:
+    def solutions(
+        self, predicate: str, *args, max_results: int = 100
+    ) -> Iterator[dict[str, Any]]:
         """Get all solutions as dictionaries.
 
         Args:
@@ -204,7 +200,9 @@ class ReasoningDSL:
         Yields:
             Dictionaries mapping variable names to values
         """
-        proofs = self.query(predicate, *args, all_solutions=True, max_results=max_results)
+        proofs = self.query(
+            predicate, *args, all_solutions=True, max_results=max_results
+        )
         for proof in proofs:
             yield {
                 name: val.value if isinstance(val, Atom) else str(val)
@@ -299,6 +297,7 @@ def query(predicate: str, *args, **kwargs) -> ProofTree | list[ProofTree]:
 # PROFIT SENTINEL SPECIFIC DSL EXTENSIONS
 # =============================================================================
 
+
 class ProfitSentinelDSL(ReasoningDSL):
     """Extended DSL with Profit Sentinel-specific predicates.
 
@@ -351,7 +350,7 @@ class ProfitSentinelDSL(ReasoningDSL):
         margin: float,
         velocity: float,
         vendor: str | None = None,
-        category: str | None = None
+        category: str | None = None,
     ) -> None:
         """Add SKU data as facts.
 
@@ -379,33 +378,24 @@ class ProfitSentinelDSL(ReasoningDSL):
     def define_anomaly_rules(self) -> None:
         """Define standard anomaly detection rules."""
         # Low stock rule
-        self.rule("has_anomaly", SKU, "low_stock") \
-            .when("quantity", SKU, QTY) \
-            .and_("less_than", QTY, 10) \
-            .named("low_stock_detection") \
-            .done()
+        self.rule("has_anomaly", SKU, "low_stock").when("quantity", SKU, QTY).and_(
+            "less_than", QTY, 10
+        ).named("low_stock_detection").done()
 
         # Margin leak rule
-        self.rule("has_anomaly", SKU, "margin_leak") \
-            .when("margin", SKU, MARGIN) \
-            .and_("less_than", MARGIN, 0.15) \
-            .named("margin_leak_detection") \
-            .done()
+        self.rule("has_anomaly", SKU, "margin_leak").when("margin", SKU, MARGIN).and_(
+            "less_than", MARGIN, 0.15
+        ).named("margin_leak_detection").done()
 
         # Critical alert rule
-        self.rule("critical_alert", SKU) \
-            .when("has_anomaly", SKU, ANOMALY) \
-            .and_("anomaly_severity", ANOMALY, "critical") \
-            .named("critical_alert_rule") \
-            .done()
+        self.rule("critical_alert", SKU).when("has_anomaly", SKU, ANOMALY).and_(
+            "anomaly_severity", ANOMALY, "critical"
+        ).named("critical_alert_rule").done()
 
         # Reorder rule
-        self.rule("needs_reorder", SKU) \
-            .when("has_anomaly", SKU, "low_stock") \
-            .and_("velocity", SKU, X) \
-            .and_("greater_than", X, 1.0) \
-            .named("reorder_rule") \
-            .done()
+        self.rule("needs_reorder", SKU).when("has_anomaly", SKU, "low_stock").and_(
+            "velocity", SKU, X
+        ).and_("greater_than", X, 1.0).named("reorder_rule").done()
 
         # Define severities
         self.fact("anomaly_severity", "low_stock", "medium")
