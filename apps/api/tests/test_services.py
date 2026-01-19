@@ -249,23 +249,31 @@ class TestAnalysisService:
             if not service._engine_available:
                 result = service.analyze([])
 
-                # Should return mock results
-                assert "low_stock" in result
-                assert "high_margin_leak" in result
-                assert "dead_item" in result
-                assert "negative_inventory" in result
+                # Should return mock results with all 8 primitives
+                assert "leaks" in result
+                leaks = result["leaks"]
 
-                for category in result.values():
-                    assert "top_items" in category
-                    assert "scores" in category
-                    assert category["top_items"] == []
-                    assert category["scores"] == []
+                # All 8 primitives should be present
+                expected_primitives = [
+                    "high_margin_leak", "negative_inventory", "low_stock",
+                    "shrinkage_pattern", "margin_erosion", "dead_item",
+                    "overstock", "price_discrepancy"
+                ]
+                for primitive in expected_primitives:
+                    assert primitive in leaks, f"Missing primitive: {primitive}"
+                    assert "top_items" in leaks[primitive]
+                    assert "scores" in leaks[primitive]
 
     def test_analysis_primitives_defined(self):
-        """Test all expected primitives are defined."""
+        """Test all 8 expected primitives are defined."""
         from apps.api.src.services.analysis import AnalysisService
 
-        expected = ["low_stock", "high_margin_leak", "dead_item", "negative_inventory"]
+        # All 8 detection primitives
+        expected = [
+            "high_margin_leak", "negative_inventory", "low_stock",
+            "shrinkage_pattern", "margin_erosion", "dead_item",
+            "overstock", "price_discrepancy"
+        ]
         assert set(expected) == set(AnalysisService.PRIMITIVES)
 
     def test_analyze_with_mock_engine(self, sample_pos_records: list):
@@ -278,10 +286,16 @@ class TestAnalysisService:
         # If engine not available, test mock path
         if not service._engine_available:
             result = service.analyze(sample_pos_records)
-            assert "low_stock" in result
+            # Result should have leaks structure with all 8 primitives
+            assert "leaks" in result
+            assert "low_stock" in result["leaks"]
+            assert "high_margin_leak" in result["leaks"]
+            assert "summary" in result
         else:
             # Engine available - actual analysis would run
-            pass
+            result = service.analyze(sample_pos_records)
+            assert "leaks" in result
+            assert "summary" in result
 
 
 # =============================================================================
