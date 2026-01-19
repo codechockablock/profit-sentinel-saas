@@ -138,8 +138,56 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     logger.info(f"CORS origins configured: {settings.cors_origins}")
+
+    # Verify critical services on startup
+    _verify_sentinel_engine()
+    _verify_email_service()
+
     yield
     logger.info(f"Shutting down {settings.app_name}")
+
+
+def _verify_sentinel_engine():
+    """Verify sentinel engine is available and log status."""
+    try:
+        from sentinel_engine import __version__ as engine_version
+        from sentinel_engine import get_all_primitives
+
+        primitives = get_all_primitives()
+        logger.info(
+            f"Sentinel Engine v{engine_version} loaded successfully "
+            f"({len(primitives)} primitives available)"
+        )
+        return True
+    except ImportError as e:
+        logger.error(
+            f"CRITICAL: Sentinel Engine NOT AVAILABLE - {e}. "
+            "Analysis will use MOCK DATA with placeholder SKUs! "
+            "Emails will contain 'SKU-001', 'SKU-002' instead of real data. "
+            "To fix: ensure sentinel-engine package is installed."
+        )
+        return False
+
+
+def _verify_email_service():
+    """Verify email service configuration and log status."""
+    import os
+
+    resend_key = os.getenv("RESEND_API_KEY")
+    sendgrid_key = os.getenv("SENDGRID_API_KEY")
+
+    if resend_key:
+        # Mask key for logging (show first 8 chars)
+        masked = resend_key[:8] + "..." if len(resend_key) > 8 else "***"
+        logger.info(f"Email service: Resend configured (key: {masked})")
+    elif sendgrid_key:
+        masked = sendgrid_key[:8] + "..." if len(sendgrid_key) > 8 else "***"
+        logger.info(f"Email service: SendGrid configured (key: {masked})")
+    else:
+        logger.warning(
+            "Email service NOT CONFIGURED - no RESEND_API_KEY or SENDGRID_API_KEY found. "
+            "Report emails will not be sent."
+        )
 
 
 def create_app() -> FastAPI:
@@ -203,5 +251,45 @@ async def root():
 
 @app.get("/health", tags=["health"])
 async def health():
-    """Health check endpoint (legacy)."""
-    return {"status": "healthy"}
+    """Health check endpoint with detailed service status."""
+    import os
+
+    # Check sentinel engine
+    engine_status = "unavailable"
+    engine_version = None
+    try:
+        from sentinel_engine import __version__ as ev
+
+        engine_version = ev
+        engine_status = "available"
+    except ImportError:
+        pass
+
+    # Check email service
+    email_status = "not_configured"
+    email_provider = None
+    if os.getenv("RESEND_API_KEY"):
+        email_status = "configured"
+        email_provider = "resend"
+    elif os.getenv("SENDGRID_API_KEY"):
+        email_status = "configured"
+        email_provider = "sendgrid"
+
+    return {
+        "status": "healthy",
+        "services": {
+            "sentinel_engine": {
+                "status": engine_status,
+                "version": engine_version,
+                "warning": (
+                    "Using mock analysis - emails will contain placeholder SKUs"
+                    if engine_status == "unavailable"
+                    else None
+                ),
+            },
+            "email": {
+                "status": email_status,
+                "provider": email_provider,
+            },
+        },
+    }

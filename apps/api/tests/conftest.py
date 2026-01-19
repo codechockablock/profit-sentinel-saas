@@ -165,7 +165,7 @@ def mock_sentinel_engine():
 @pytest.fixture
 def app():
     """Create FastAPI application instance."""
-    from apps.api.src.main import create_app
+    from src.main import create_app
 
     return create_app()
 
@@ -185,14 +185,14 @@ def client_with_mocks(
 ) -> Generator[TestClient, None, None]:
     """Test client with all external services mocked."""
     with patch(
-        "apps.api.src.dependencies.get_s3_client", return_value=mock_s3_client_with_data
+        "src.dependencies.get_s3_client", return_value=mock_s3_client_with_data
     ):
         with patch(
-            "apps.api.src.dependencies.get_supabase_client",
+            "src.dependencies.get_supabase_client",
             return_value=mock_supabase_client,
         ):
             with patch(
-                "apps.api.src.dependencies.get_grok_client",
+                "src.dependencies.get_grok_client",
                 return_value=mock_grok_client,
             ):
                 yield TestClient(app)
