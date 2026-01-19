@@ -222,6 +222,7 @@ class EmailService:
             """
 
             for leak_type, data in leaks.items():
+                item_details = data.get("item_details", [])
                 items = data.get("top_items", [])[:5]
                 scores = data.get("scores", [])
                 count = data.get("count", len(items))
@@ -236,16 +237,47 @@ class EmailService:
                 <div style="background: #1e293b; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid {color};">
                     <h4 style="color: {color}; margin: 0 0 10px 0; font-size: 16px;">{title}</h4>
                     <p style="color: #94a3b8; margin: 0 0 10px 0; font-size: 14px;">{count} items flagged</p>
-                    <ul style="margin: 0; padding-left: 20px; color: #cbd5e1;">
                 """
 
-                for i, item in enumerate(items):
-                    score = scores[i] if i < len(scores) else 0
-                    pct = int(score * 100)
-                    leak_sections += f'<li style="margin-bottom: 5px;">{item} - <span style="color: {color};">{pct}% risk</span></li>'
+                # Use item_details if available (includes inventory context)
+                if item_details:
+                    for i, detail in enumerate(item_details[:5]):
+                        sku = detail.get("sku", "Unknown")
+                        score = detail.get("score", 0)
+                        pct = int(score * 100)
+                        context = detail.get("context", "")
+                        qty = detail.get("quantity", 0)
+                        cost = detail.get("cost", 0)
+                        sold = detail.get("sold", 0)
+                        desc = detail.get("description", "")[:40]
+
+                        leak_sections += f"""
+                        <div style="background: #0f172a; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span style="color: #f1f5f9; font-family: monospace; font-weight: bold;">{sku}</span>
+                                <span style="background: {color}22; color: {color}; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">{pct}% risk</span>
+                            </div>
+                            {f'<p style="color: #64748b; font-size: 12px; margin: 0 0 8px 0;">{desc}</p>' if desc else ''}
+                            <div style="display: flex; gap: 15px; font-size: 12px; margin-bottom: 8px;">
+                                <span style="color: #94a3b8;">QOH: <strong style="color: #f1f5f9;">{qty:.0f}</strong></span>
+                                <span style="color: #94a3b8;">Cost: <strong style="color: #f1f5f9;">${cost:.2f}</strong></span>
+                                <span style="color: #94a3b8;">Sold: <strong style="color: #f1f5f9;">{sold:.0f}</strong></span>
+                            </div>
+                            <p style="color: #fbbf24; font-size: 13px; margin: 0; padding: 8px; background: #fbbf2410; border-radius: 4px;">
+                                💡 {context}
+                            </p>
+                        </div>
+                        """
+                else:
+                    # Fallback to simple list if no details
+                    leak_sections += '<ul style="margin: 0; padding-left: 20px; color: #cbd5e1;">'
+                    for i, item in enumerate(items):
+                        score = scores[i] if i < len(scores) else 0
+                        pct = int(score * 100)
+                        leak_sections += f'<li style="margin-bottom: 5px;">{item} - <span style="color: {color};">{pct}% risk</span></li>'
+                    leak_sections += '</ul>'
 
                 leak_sections += """
-                    </ul>
                 </div>
                 """
 
@@ -353,6 +385,7 @@ class EmailService:
 
             leaks = result.get("leaks", {})
             for leak_type, data in leaks.items():
+                item_details = data.get("item_details", [])
                 items = data.get("top_items", [])[:5]
                 count = data.get("count", len(items))
 
@@ -362,8 +395,21 @@ class EmailService:
                 title = leak_type.replace("_", " ").title()
                 lines.append(f"\n{title} ({count} items):")
 
-                for item in items:
-                    lines.append(f"  - {item}")
+                # Use item_details if available for richer context
+                if item_details:
+                    for detail in item_details[:5]:
+                        sku = detail.get("sku", "Unknown")
+                        qty = detail.get("quantity", 0)
+                        cost = detail.get("cost", 0)
+                        sold = detail.get("sold", 0)
+                        context = detail.get("context", "")
+                        lines.append(f"  - {sku}")
+                        lines.append(f"    QOH: {qty:.0f} | Cost: ${cost:.2f} | Sold: {sold:.0f}")
+                        if context:
+                            lines.append(f"    -> {context}")
+                else:
+                    for item in items:
+                        lines.append(f"  - {item}")
 
         lines.extend(
             [

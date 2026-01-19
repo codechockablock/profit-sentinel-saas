@@ -437,9 +437,31 @@ class AnalysisService:
                 "recommendations": self._get_recommendations(primitive),
             }
 
+            # Build item details lookup for context
+            item_lookup = {item["sku"]: item for item in items_with_data}
+
+            # Include full item details for email/display context
+            item_details = []
+            for flagged in flagged_items[:20]:
+                sku = flagged["sku"]
+                full_item = item_lookup.get(sku, {})
+                item_details.append({
+                    "sku": sku,
+                    "score": flagged["score"],
+                    "description": full_item.get("description", ""),
+                    "quantity": full_item.get("quantity", 0),
+                    "cost": full_item.get("cost", 0),
+                    "revenue": full_item.get("revenue", 0),
+                    "sold": full_item.get("sold", 0),
+                    "margin": full_item.get("margin", 0),
+                    "sub_total": full_item.get("sub_total", 0),
+                    "context": self._get_issue_context(primitive, full_item),
+                })
+
             leaks[primitive] = {
                 "top_items": [item["sku"] for item in flagged_items[:20]],
                 "scores": [item["score"] for item in flagged_items[:20]],
+                "item_details": item_details,  # Full context for each flagged item
                 "count": len(flagged_items),
                 "severity": metadata["severity"],
                 "category": metadata["category"],
@@ -605,6 +627,92 @@ class AnalysisService:
             ],
         }
         return recommendations.get(primitive, ["Review flagged items"])
+
+    def _get_issue_context(self, primitive: str, item: dict) -> str:
+        """
+        Generate human-readable context explaining why this item was flagged.
+
+        Includes inventory metrics and explains the specific issue.
+        """
+        qty = item.get("quantity", 0)
+        cost = item.get("cost", 0)
+        revenue = item.get("revenue", 0)
+        sold = item.get("sold", 0)
+        margin = item.get("margin", 0)
+        sub_total = item.get("sub_total", 0)
+
+        if primitive == "high_margin_leak":
+            if revenue > 0 and cost > 0:
+                actual_margin = (revenue - cost) / revenue * 100
+                return (
+                    f"Margin is only {actual_margin:.1f}% (Cost: ${cost:.2f}, "
+                    f"Retail: ${revenue:.2f}). QOH: {qty:.0f}, Sold: {sold:.0f}. "
+                    f"Consider repricing or reviewing vendor costs."
+                )
+            return f"Low margin detected. QOH: {qty:.0f}, Sold: {sold:.0f}."
+
+        elif primitive == "negative_inventory":
+            return (
+                f"Showing {qty:.0f} units (NEGATIVE). Value: ${abs(qty * cost):.2f}. "
+                f"Possible causes: overselling, theft, data entry error. "
+                f"Audit immediately."
+            )
+
+        elif primitive == "low_stock":
+            return (
+                f"Only {qty:.0f} units left but sold {sold:.0f} recently. "
+                f"Risk of stockout. Reorder cost: ${cost:.2f}/unit. "
+                f"Reorder urgently to avoid lost sales."
+            )
+
+        elif primitive == "dead_item":
+            months_supply = qty / sold if sold > 0 else float("inf")
+            capital_tied = qty * cost
+            return (
+                f"QOH: {qty:.0f}, Sold: {sold:.0f}. "
+                f"{'No sales' if sold == 0 else f'{months_supply:.0f}+ months supply'}. "
+                f"${capital_tied:.2f} capital tied up. Consider clearance."
+            )
+
+        elif primitive == "overstock":
+            months_supply = qty / sold if sold > 0 else float("inf")
+            return (
+                f"QOH: {qty:.0f} vs Sold: {sold:.0f} = "
+                f"{months_supply:.0f}+ months of inventory. "
+                f"Inventory value: ${sub_total:.2f}. Reduce reorder qty."
+            )
+
+        elif primitive == "shrinkage_pattern":
+            return (
+                f"High value (${sub_total:.2f}) with low margin ({margin:.1f}%) "
+                f"and minimal sales ({sold:.0f}). QOH: {qty:.0f}. "
+                f"Investigate for potential shrinkage or theft."
+            )
+
+        elif primitive == "margin_erosion":
+            if revenue > 0 and cost > 0:
+                actual_margin = (revenue - cost) / revenue * 100
+                return (
+                    f"Margin eroded to {actual_margin:.1f}%. "
+                    f"Cost ${cost:.2f} is {cost/revenue*100:.0f}% of retail ${revenue:.2f}. "
+                    f"QOH: {qty:.0f}, Sold: {sold:.0f}. Review pricing."
+                )
+            return f"Margin erosion detected. QOH: {qty:.0f}."
+
+        elif primitive == "price_discrepancy":
+            if cost == 0:
+                return (
+                    f"Zero cost recorded but retail is ${revenue:.2f}. "
+                    f"QOH: {qty:.0f}. Verify cost data is correct."
+                )
+            if margin < 0:
+                return (
+                    f"Selling BELOW cost! Cost: ${cost:.2f}, Retail: ${revenue:.2f}. "
+                    f"QOH: {qty:.0f}, Sold: {sold:.0f}. Fix pricing immediately."
+                )
+            return f"Price data anomaly detected. QOH: {qty:.0f}."
+
+        return f"QOH: {qty:.0f}, Cost: ${cost:.2f}, Sold: {sold:.0f}."
 
     def _estimate_mock_impact(self, leaks: dict, items_with_data: list[dict]) -> dict:
         """Estimate $ impact based on heuristic analysis."""
