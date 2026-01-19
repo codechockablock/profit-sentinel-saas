@@ -12,9 +12,7 @@ Metrics include:
 """
 
 import logging
-import time
 from datetime import datetime
-from typing import Dict, Optional
 
 from fastapi import APIRouter
 
@@ -23,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # In-memory metrics store (reset on restart - use Redis for persistence)
-_metrics_store: Dict = {
+_metrics_store: dict = {
     "analyses_total": 0,
     "analyses_success": 0,
     "analyses_failed": 0,
@@ -45,7 +43,7 @@ def record_analysis_metrics(
     rows_processed: int,
     leaks_detected: int,
     duration_ms: float,
-    primitive_counts: Dict[str, int],
+    primitive_counts: dict[str, int],
     resonator_converged: int = 0,
     resonator_flagged: int = 0,
 ):
@@ -84,7 +82,7 @@ def record_analysis_metrics(
 
 
 @router.get("/engine")
-async def engine_status() -> Dict:
+async def engine_status() -> dict:
     """
     Get sentinel engine status and configuration.
 
@@ -96,9 +94,9 @@ async def engine_status() -> Dict:
         from sentinel_engine.context import (
             DEFAULT_DIMENSIONS,
             DEFAULT_MAX_CODEBOOK_SIZE,
+            RESONATOR_ALPHA,
             RESONATOR_CONVERGENCE_THRESHOLD,
             RESONATOR_ITERS,
-            RESONATOR_ALPHA,
             RESONATOR_POWER,
         )
 
@@ -126,7 +124,7 @@ async def engine_status() -> Dict:
 
 
 @router.get("/primitives")
-async def primitive_metrics() -> Dict:
+async def primitive_metrics() -> dict:
     """
     Get detection primitive performance metrics.
 
@@ -174,7 +172,7 @@ async def primitive_metrics() -> Dict:
 
 
 @router.get("/resonator")
-async def resonator_metrics() -> Dict:
+async def resonator_metrics() -> dict:
     """
     Get VSA/HDC resonator validation metrics.
 
@@ -221,7 +219,7 @@ async def resonator_metrics() -> Dict:
 
 
 @router.get("/analysis")
-async def analysis_metrics() -> Dict:
+async def analysis_metrics() -> dict:
     """
     Get analysis throughput and performance metrics.
 
@@ -253,7 +251,7 @@ async def analysis_metrics() -> Dict:
 
 
 @router.get("/dashboard")
-async def dashboard() -> Dict:
+async def dashboard() -> dict:
     """
     Get comprehensive metrics dashboard.
 
@@ -299,7 +297,7 @@ async def dashboard() -> Dict:
 
 
 @router.post("/reset")
-async def reset_metrics() -> Dict:
+async def reset_metrics() -> dict:
     """
     Reset all metrics counters.
 

@@ -10,10 +10,9 @@ Tests:
 
 import time
 from datetime import datetime
-from pathlib import Path
 
 # Import validation components
-from validation_runner import SyntheticDataGenerator, BaselineDetector, DetectionResult
+from validation_runner import BaselineDetector, SyntheticDataGenerator
 
 
 def test_calibrated_resonator():
@@ -44,7 +43,6 @@ def test_calibrated_resonator():
         from sentinel_engine.contradiction_detector import (
             detect_contradictions,
             resolve_contradictions,
-            generate_contradiction_report,
         )
 
         contradictions, summary = detect_contradictions(baseline_results)
@@ -65,9 +63,12 @@ def test_calibrated_resonator():
     # Test calibrated resonator
     print("Testing calibrated resonator...")
     try:
-        import torch
-        from sentinel_engine.context import create_analysis_context, RESONATOR_CONVERGENCE_THRESHOLD
+        import torch  # noqa: F401 - imported for availability check
         from sentinel_engine import core
+        from sentinel_engine.context import (
+            RESONATOR_CONVERGENCE_THRESHOLD,
+            create_analysis_context,
+        )
 
         print(f"  Convergence threshold: {RESONATOR_CONVERGENCE_THRESHOLD}")
 
@@ -79,7 +80,7 @@ def test_calibrated_resonator():
             iters=150,
         )
 
-        print(f"  Context settings:")
+        print("  Context settings:")
         print(f"    - sku_only_codebook: {ctx.sku_only_codebook}")
         print(f"    - convergence_threshold: {ctx.convergence_threshold}")
         print(f"    - iters: {ctx.iters}")

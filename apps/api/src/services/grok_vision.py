@@ -26,7 +26,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 
 import torch
 from openai import OpenAI
@@ -92,7 +92,7 @@ class VisionGuardrails:
     VALID_SEVERITIES = {"minor", "moderate", "major"}
 
     @classmethod
-    def sanitize_user_text(cls, text: Optional[str]) -> Optional[str]:
+    def sanitize_user_text(cls, text: str | None) -> str | None:
         """
         Sanitize user-provided text context.
 
@@ -131,7 +131,7 @@ class VisionGuardrails:
         return text.strip() if text.strip() else None
 
     @classmethod
-    def validate_image_data(cls, image_base64: str) -> Tuple[bool, str]:
+    def validate_image_data(cls, image_base64: str) -> tuple[bool, str]:
         """
         Validate base64 image data.
 
@@ -177,7 +177,7 @@ class VisionGuardrails:
             return False, "Invalid image format. Supported: JPEG, PNG, WebP"
 
     @classmethod
-    def validate_response(cls, data: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
+    def validate_response(cls, data: dict[str, Any]) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate and sanitize API response.
 
@@ -276,7 +276,7 @@ class VisionGuardrails:
     @classmethod
     def build_safe_prompt(
         cls,
-        user_context: Optional[str],
+        user_context: str | None,
         base_prompt: str
     ) -> str:
         """
@@ -321,17 +321,17 @@ class VisionAnalysisResult:
 
     # Identified problem type
     primary_category: str
-    subcategory: Optional[str]
+    subcategory: str | None
     confidence: float
 
     # Visual description
     description: str
-    visible_components: List[str]
-    damage_indicators: List[str]
+    visible_components: list[str]
+    damage_indicators: list[str]
 
     # Parts and tools
-    likely_parts_needed: List[str]
-    tools_needed: List[str]
+    likely_parts_needed: list[str]
+    tools_needed: list[str]
 
     # Repair context
     severity_estimate: str  # "minor", "moderate", "major"
@@ -339,13 +339,13 @@ class VisionAnalysisResult:
     professional_recommended: bool
 
     # Safety
-    safety_concerns: List[str]
+    safety_concerns: list[str]
 
     # VSA-friendly keywords for encoding
-    keywords: List[str]
+    keywords: list[str]
 
     # Raw response for debugging
-    raw_response: Optional[str] = None
+    raw_response: str | None = None
 
 
 @dataclass
@@ -357,8 +357,8 @@ class ImageFeatures:
 
     # Semantic features
     category_hint: str
-    subcategory_hint: Optional[str]
-    keywords: List[str]
+    subcategory_hint: str | None
+    keywords: list[str]
     severity: str
 
     # For VSA text encoder input
@@ -485,12 +485,12 @@ Respond with this exact JSON structure:
         "auto": "automotive",
     }
 
-    def __init__(self, client: Optional[OpenAI] = None):
+    def __init__(self, client: OpenAI | None = None):
         """Initialize with Grok client."""
         self._client = client
 
     @property
-    def client(self) -> Optional[OpenAI]:
+    def client(self) -> OpenAI | None:
         """Get Grok client (lazy load if not provided)."""
         if self._client is None:
             self._client = get_grok_client()
@@ -499,7 +499,7 @@ Respond with this exact JSON structure:
     def analyze_image(
         self,
         image_base64: str,
-        text_context: Optional[str] = None
+        text_context: str | None = None
     ) -> VisionAnalysisResult:
         """
         Analyze a repair problem image with full guardrails.
@@ -661,7 +661,7 @@ Respond with this exact JSON structure:
 
     def _fallback_analysis(
         self,
-        text_context: Optional[str],
+        text_context: str | None,
         image_hash: str,
         error: str
     ) -> VisionAnalysisResult:
@@ -790,7 +790,7 @@ Respond with this exact JSON structure:
 
 def analyze_repair_image(
     image_base64: str,
-    text_context: Optional[str] = None
+    text_context: str | None = None
 ) -> VisionAnalysisResult:
     """
     Convenience function to analyze a repair image.
@@ -809,8 +809,8 @@ def analyze_repair_image(
 def get_image_vsa_vector(
     image_base64: str,
     text_encoder,
-    text_context: Optional[str] = None
-) -> Tuple[torch.Tensor, VisionAnalysisResult]:
+    text_context: str | None = None
+) -> tuple[torch.Tensor, VisionAnalysisResult]:
     """
     Get VSA vector from repair image.
 

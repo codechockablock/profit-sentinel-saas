@@ -22,11 +22,12 @@ from __future__ import annotations
 import csv
 import logging
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Iterator, Optional, Any, Tuple, Union, IO
-import io
+from typing import Any
 
+import pandas as pd
 import torch
 
 from .context import AnalysisContext, create_analysis_context
@@ -38,16 +39,15 @@ def _unbind(bound: torch.Tensor, key: torch.Tensor) -> torch.Tensor:
 
 
 from .core import (
-    bundle_pos_facts,
-    query_bundle,
-    QUANTITY_ALIASES,
+    CATEGORY_ALIASES,
     COST_ALIASES,
+    QUANTITY_ALIASES,
     REVENUE_ALIASES,
     SOLD_ALIASES,
-    MARGIN_ALIASES,
-    CATEGORY_ALIASES,
     _get_field,
     _safe_float,
+    bundle_pos_facts,
+    query_bundle,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ class StreamingStats:
         """Population standard deviation."""
         return self.variance ** 0.5
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         """Export statistics."""
         return {
             "count": self.count,
@@ -105,7 +105,7 @@ class StreamingStats:
 @dataclass
 class CategoryStats:
     """Per-category margin statistics."""
-    margins: Dict[str, StreamingStats] = field(default_factory=dict)
+    margins: dict[str, StreamingStats] = field(default_factory=dict)
 
     def update(self, category: str, margin: float) -> None:
         """Update margin stat for category."""
@@ -129,21 +129,21 @@ class StreamingResult:
     total_rows: int
     processed_rows: int
     chunks_processed: int
-    leak_counts: Dict[str, int]
-    top_leaks_by_primitive: Dict[str, List[Tuple[str, float]]]
-    dataset_stats: Dict[str, Any]
+    leak_counts: dict[str, int]
+    top_leaks_by_primitive: dict[str, list[tuple[str, float]]]
+    dataset_stats: dict[str, Any]
     elapsed_seconds: float
     peak_memory_mb: float
 
     # v3.3: Audit data for reproducibility
-    file_hash: Optional[str] = None  # SHA256 of input file
-    seeding_summary: Optional[Dict[str, Any]] = None  # Deterministic seeding info
-    audit_trail: Optional[Dict[str, Any]] = None  # Full evidence chain per leak
+    file_hash: str | None = None  # SHA256 of input file
+    seeding_summary: dict[str, Any] | None = None  # Deterministic seeding info
+    audit_trail: dict[str, Any] | None = None  # Full evidence chain per leak
 
     def summary(self) -> str:
         """Human-readable summary."""
         lines = [
-            f"Streaming Analysis Complete",
+            "Streaming Analysis Complete",
             f"  Rows: {self.total_rows:,} total, {self.processed_rows:,} processed",
             f"  Chunks: {self.chunks_processed}",
             f"  Time: {self.elapsed_seconds:.1f}s",
@@ -151,13 +151,13 @@ class StreamingResult:
         ]
         if self.seeding_summary:
             lines.append(f"  Seed Hash: {self.seeding_summary.get('master_seed', 'N/A')}")
-        lines.append(f"  Detections:")
+        lines.append("  Detections:")
         for prim, count in sorted(self.leak_counts.items(), key=lambda x: -x[1]):
             if count > 0:
                 lines.append(f"    {prim}: {count:,}")
         return "\n".join(lines)
 
-    def to_synopsis(self) -> Dict[str, Any]:
+    def to_synopsis(self) -> dict[str, Any]:
         """
         v3.3: Generate analysis synopsis for Supabase storage.
 
@@ -197,7 +197,7 @@ class StreamingResult:
             "codebook_size": self.dataset_stats.get("codebook_size"),
         }
 
-    def to_audit_json(self, include_all_leaks: bool = False) -> Dict[str, Any]:
+    def to_audit_json(self, include_all_leaks: bool = False) -> dict[str, Any]:
         """
         v3.3: Generate full audit export JSON for evidence chain.
 
@@ -263,10 +263,10 @@ class StreamingResult:
 
 
 def read_file_chunked(
-    filepath: Union[str, Path],
+    filepath: str | Path,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     encoding: str = "utf-8",
-) -> Iterator[List[Dict]]:
+) -> Iterator[list[dict]]:
     """
     Read CSV/TSV file in chunks, yielding lists of row dicts.
 
@@ -286,14 +286,14 @@ def read_file_chunked(
     filepath = Path(filepath)
 
     # Detect delimiter
-    with open(filepath, "r", encoding=encoding, errors="replace") as f:
+    with open(filepath, encoding=encoding, errors="replace") as f:
         sample = f.read(8192)
         if "\t" in sample and "," not in sample:
             delimiter = "\t"
         else:
             delimiter = ","
 
-    with open(filepath, "r", encoding=encoding, errors="replace", newline="") as f:
+    with open(filepath, encoding=encoding, errors="replace", newline="") as f:
         reader = csv.DictReader(f, delimiter=delimiter)
 
         chunk = []
@@ -320,12 +320,12 @@ class EntityRanking:
     Entities are ranked by significance (qty × revenue or sold count).
     Most significant entities get seeded first for reproducibility.
     """
-    skus: List[Tuple[str, float]] = field(default_factory=list)  # (sku, score)
-    categories: List[str] = field(default_factory=list)
-    vendors: List[str] = field(default_factory=list)
-    departments: List[str] = field(default_factory=list)
+    skus: list[tuple[str, float]] = field(default_factory=list)  # (sku, score)
+    categories: list[str] = field(default_factory=list)
+    vendors: list[str] = field(default_factory=list)
+    departments: list[str] = field(default_factory=list)
 
-    def get_top_skus(self, n: int = 10000) -> List[str]:
+    def get_top_skus(self, n: int = 10000) -> list[str]:
         """Get top N SKUs by significance score."""
         # Sort by score descending, return just SKU names
         sorted_skus = sorted(self.skus, key=lambda x: -x[1])
@@ -342,12 +342,12 @@ class EntityRanking:
 
 
 def compute_streaming_stats(
-    filepath: Union[str, Path],
+    filepath: str | Path,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     collect_skus: bool = False,
     max_skus: int = 10000,
     collect_entities: bool = False,
-) -> Tuple[Dict[str, StreamingStats], CategoryStats, Optional[List[str]], Optional[EntityRanking]]:
+) -> tuple[dict[str, StreamingStats], CategoryStats, list[str] | None, EntityRanking | None]:
     """
     First pass: Compute streaming statistics for adaptive thresholds.
 
@@ -374,7 +374,7 @@ def compute_streaming_stats(
 
     # v3.3: Collect ranked entities for deterministic seeding
     if collect_entities:
-        sku_scores: Dict[str, float] = {}  # sku -> significance score
+        sku_scores: dict[str, float] = {}  # sku -> significance score
         categories_seen: set = set()
         vendors_seen: set = set()
         departments_seen: set = set()
@@ -464,10 +464,10 @@ def compute_streaming_stats(
 
 def bundle_pos_facts_streaming(
     ctx: AnalysisContext,
-    filepath: Union[str, Path],
+    filepath: str | Path,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
-    field_stats: Optional[Dict[str, StreamingStats]] = None,
-    category_stats: Optional[CategoryStats] = None,
+    field_stats: dict[str, StreamingStats] | None = None,
+    category_stats: CategoryStats | None = None,
 ) -> torch.Tensor:
     """
     Second pass: Bundle POS facts in chunks with memory-efficient accumulation.
@@ -539,7 +539,7 @@ class SeedingSummary:
     skus_seeded: int
     total_entities: int
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "master_seed": self.master_seed,
             "primitives": self.primitives_seeded,
@@ -553,7 +553,7 @@ class SeedingSummary:
 
 def _deterministic_seed_entities(
     ctx: AnalysisContext,
-    entity_ranking: Optional[EntityRanking],
+    entity_ranking: EntityRanking | None,
     max_codebook_size: int,
 ) -> SeedingSummary:
     """
@@ -648,12 +648,12 @@ def _deterministic_seed_entities(
 
 
 def process_large_file(
-    filepath: Union[str, Path],
+    filepath: str | Path,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     dimensions: int = 8192,
     top_k_per_primitive: int = 20,
-    primitives: Optional[List[str]] = None,
-    force_sku_only: Optional[bool] = None,
+    primitives: list[str] | None = None,
+    force_sku_only: bool | None = None,
 ) -> StreamingResult:
     """
     High-level API for processing large POS files.
@@ -677,7 +677,6 @@ def process_large_file(
     Returns:
         StreamingResult with detections and statistics
     """
-    import math
 
     start_time = time.time()
 
@@ -767,7 +766,7 @@ def process_large_file(
 
     # Query for top leaks per primitive
     # v3.2: Use HierarchicalResonator for faster codebook lookup if available
-    top_leaks: Dict[str, List[Tuple[str, float]]] = {}
+    top_leaks: dict[str, list[tuple[str, float]]] = {}
 
     if hierarchical_resonator is not None:
         # Use hierarchical query for each primitive
@@ -825,7 +824,7 @@ def process_large_file(
 
 
 def process_dataframe(
-    df: "pd.DataFrame",
+    df: pd.DataFrame,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     dimensions: int = 8192,
 ) -> StreamingResult:

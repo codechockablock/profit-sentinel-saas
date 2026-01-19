@@ -9,20 +9,18 @@ Privacy features:
 - Stores only anonymized aggregated analytics
 """
 
-import asyncio
 import json
 import logging
 import time
-from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException
 
-from ..config import get_settings, STANDARD_FIELDS, SUPPORTED_POS_SYSTEMS
+from ..config import SUPPORTED_POS_SYSTEMS, get_settings
 from ..dependencies import get_current_user, get_s3_client
 from ..services.analysis import AnalysisService
-from ..services.s3 import S3Service
 from ..services.anonymization import get_anonymization_service
+from ..services.s3 import S3Service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -79,8 +77,8 @@ NUMERIC_COLUMN_ALIASES = [
 
 def _validate_and_apply_mapping(
     df: pd.DataFrame,
-    mapping_dict: Dict[str, str]
-) -> Tuple[pd.DataFrame, List[str]]:
+    mapping_dict: dict[str, str]
+) -> tuple[pd.DataFrame, list[str]]:
     """
     Safely validate and apply column mapping to DataFrame.
 
@@ -196,8 +194,8 @@ async def analyze_upload(
     key: str = Form(...),
     mapping: str = Form(...),  # JSON string
     background_tasks: BackgroundTasks = None,
-    user_id: Optional[str] = Depends(get_current_user),
-) -> Dict:
+    user_id: str | None = Depends(get_current_user),
+) -> dict:
     """
     Analyze uploaded POS data for profit leaks.
 
@@ -345,7 +343,7 @@ async def analyze_upload(
 
 
 @router.get("/primitives")
-async def list_primitives() -> Dict:
+async def list_primitives() -> dict:
     """
     List all available analysis primitives.
 
@@ -366,7 +364,7 @@ async def list_primitives() -> Dict:
 
 
 @router.get("/supported-pos")
-async def list_supported_pos() -> Dict:
+async def list_supported_pos() -> dict:
     """
     List all supported POS systems.
 

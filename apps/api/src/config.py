@@ -5,11 +5,9 @@ Loads environment variables and provides typed configuration objects.
 """
 
 import logging
-import os
 from functools import lru_cache
-from typing import List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -41,7 +39,7 @@ class Settings(BaseSettings):
 
     # CORS - All allowed origins for frontend requests
     # Includes production domains, Vercel previews, and local development
-    cors_origins: List[str] = Field(default=[
+    cors_origins: list[str] = Field(default=[
         # Production domains
         "https://profitsentinel.com",
         "https://www.profitsentinel.com",
@@ -61,16 +59,16 @@ class Settings(BaseSettings):
     aws_region: str = Field(default="us-east-1")
 
     # Supabase
-    supabase_url: Optional[str] = Field(default=None)
-    supabase_service_key: Optional[str] = Field(default=None)
+    supabase_url: str | None = Field(default=None)
+    supabase_service_key: str | None = Field(default=None)
 
     # Grok AI (X.AI) - Get your key at https://x.ai/api
     # Accepts either XAI_API_KEY or GROK_API_KEY (XAI_API_KEY preferred)
-    grok_api_key: Optional[str] = Field(default=None)
-    xai_api_key: Optional[str] = Field(default=None)
+    grok_api_key: str | None = Field(default=None)
+    xai_api_key: str | None = Field(default=None)
 
     @property
-    def ai_api_key(self) -> Optional[str]:
+    def ai_api_key(self) -> str | None:
         """
         Get the AI API key (XAI or Grok).
 
@@ -88,7 +86,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
-        extra="allow" # Allows extra env vars 
+        extra = "allow"  # Allows extra env vars
 
 @lru_cache
 def get_settings() -> Settings:

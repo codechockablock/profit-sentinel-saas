@@ -10,10 +10,10 @@ Each analyze() call creates a fresh context - no cross-request contamination.
 
 import logging
 import time
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from sentinel_engine.context import AnalysisContext
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def _record_metrics(
     rows: int,
     leaks: int,
     duration_ms: float,
-    primitive_counts: Dict[str, int],
+    primitive_counts: dict[str, int],
 ):
     """Record analysis metrics (best-effort, won't fail analysis)."""
     try:
@@ -111,11 +111,11 @@ class AnalysisService:
         """Initialize analysis service with VSA engine."""
         try:
             from sentinel_engine import (
-                bundle_pos_facts,
-                query_bundle,
-                get_primitive_metadata,
-                get_all_primitives,
                 LEAK_METADATA,
+                bundle_pos_facts,
+                get_all_primitives,
+                get_primitive_metadata,
+                query_bundle,
             )
             from sentinel_engine.context import create_analysis_context
 
@@ -133,7 +133,7 @@ class AnalysisService:
             self._leak_metadata = {}
             self._create_context = None
 
-    def analyze(self, rows: List[Dict]) -> Dict:
+    def analyze(self, rows: list[dict]) -> dict:
         """
         Analyze POS data for profit leaks using all 8 primitives.
 
@@ -243,7 +243,7 @@ class AnalysisService:
                 ctx.reset()
                 logger.debug("Analysis context cleaned up")
 
-    def _estimate_total_impact(self, rows: List[Dict], leaks: Dict) -> Dict:
+    def _estimate_total_impact(self, rows: list[dict], leaks: dict) -> dict:
         """
         Estimate $ impact of detected leaks.
 
@@ -281,7 +281,7 @@ class AnalysisService:
 
         return impact
 
-    def _calculate_item_impact(self, primitive: str, row: Dict) -> float:
+    def _calculate_item_impact(self, primitive: str, row: dict) -> float:
         """Calculate estimated $ impact for a single item."""
         cost = self._safe_float(row.get("cost", row.get("Cost", 0)))
         revenue = self._safe_float(row.get("revenue", row.get("Retail", row.get("retail", 0))))
@@ -335,7 +335,7 @@ class AnalysisService:
 
         return 0.0
 
-    def _get_sku(self, row: Dict) -> Optional[str]:
+    def _get_sku(self, row: dict) -> str | None:
         """Extract SKU from row using common aliases."""
         sku_keys = ["sku", "SKU", "product_id", "item_id", "upc", "barcode", "item_no", "partnumber"]
         for key in sku_keys:
@@ -354,7 +354,7 @@ class AnalysisService:
         except (ValueError, TypeError):
             return 0.0
 
-    def _mock_analysis(self) -> Dict:
+    def _mock_analysis(self) -> dict:
         """
         Return realistic mock analysis results when engine is unavailable.
 
@@ -413,11 +413,11 @@ class AnalysisService:
             "mock": True,
         }
 
-    def get_available_primitives(self) -> List[str]:
+    def get_available_primitives(self) -> list[str]:
         """Return list of available analysis primitives."""
         return self.PRIMITIVES.copy()
 
-    def get_primitive_info(self, primitive: str) -> Optional[Dict]:
+    def get_primitive_info(self, primitive: str) -> dict | None:
         """Get detailed info about a specific primitive."""
         if primitive not in self.PRIMITIVES:
             return None

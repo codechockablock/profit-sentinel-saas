@@ -11,15 +11,14 @@ Handles:
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional
 
 import boto3
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
-from ..services.email import get_email_service
 from ..services.anonymization import get_anonymization_service
+from ..services.email import get_email_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -37,9 +36,9 @@ def get_s3_client():
 
 class LeakData(BaseModel):
     """Leak data from analysis."""
-    top_items: List[str] = []
-    scores: List[float] = []
-    count: Optional[int] = None
+    top_items: list[str] = []
+    scores: list[float] = []
+    count: int | None = None
 
 
 class AnalysisSummary(BaseModel):
@@ -48,23 +47,23 @@ class AnalysisSummary(BaseModel):
     total_items_flagged: int = 0
     critical_issues: int = 0
     high_issues: int = 0
-    estimated_impact: Optional[Dict] = None
+    estimated_impact: dict | None = None
 
 
 class AnalysisResult(BaseModel):
     """Single file analysis result."""
     filename: str
-    leaks: Dict[str, LeakData] = {}
-    summary: Optional[AnalysisSummary] = None
+    leaks: dict[str, LeakData] = {}
+    summary: AnalysisSummary | None = None
 
 
 class ReportRequest(BaseModel):
     """Request to send email report."""
     email: EmailStr
-    results: List[AnalysisResult]
+    results: list[AnalysisResult]
     consent_given: bool = Field(..., description="User consent for email delivery")
-    consent_timestamp: Optional[str] = Field(None, description="When consent was given")
-    s3_keys: Optional[List[str]] = Field(None, description="S3 keys to delete after report sent")
+    consent_timestamp: str | None = Field(None, description="When consent was given")
+    s3_keys: list[str] | None = Field(None, description="S3 keys to delete after report sent")
     delete_files_after: bool = Field(False, description="Whether to delete S3 files after sending")
 
 
@@ -72,11 +71,11 @@ class ReportResponse(BaseModel):
     """Response from report send request."""
     success: bool
     message: str
-    message_id: Optional[str] = None
-    files_deleted: Optional[int] = None
+    message_id: str | None = None
+    files_deleted: int | None = None
 
 
-async def cleanup_s3_files(s3_keys: List[str], bucket_name: str):
+async def cleanup_s3_files(s3_keys: list[str], bucket_name: str):
     """
     Background task to delete S3 files after report is sent.
 
@@ -199,7 +198,7 @@ async def send_report(
 
 
 @router.get("/status")
-async def report_status() -> Dict:
+async def report_status() -> dict:
     """
     Check email service status.
 

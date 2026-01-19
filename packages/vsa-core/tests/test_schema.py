@@ -12,27 +12,26 @@ Verifies:
     - Compatibility checking
     - Retail schema template
 """
-import pytest
-import torch
-import sys
 import os
+import sys
+
+import pytest
 
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from vsa_core import seed_hash, similarity, configure
-from vsa_core.vectors import get_config
+from vsa_core import seed_hash, similarity
 from vsa_core.schema import (
     FieldSpec,
     SchemaRegistry,
-    se_bind,
-    se_unbind,
+    create_retail_schema,
     create_schema_record,
     migrate_bundle,
     schema_compatibility_check,
-    create_retail_schema,
+    se_bind,
+    se_unbind,
 )
-
+from vsa_core.vectors import get_config
 
 # =============================================================================
 # FIXTURES
@@ -235,7 +234,8 @@ class TestFieldTransforms:
         """get_transform should return transform function."""
         registry = SchemaRegistry("v1", dimensions=dims)
 
-        transform = lambda v: v * 2
+        def transform(v):
+            return v * 2
         registry.add_field("quantity", transform=transform)
         registry.add_field("price")  # No transform
 
@@ -344,7 +344,7 @@ class TestCreateSchemaRecord:
         }, basic_registry)
 
         # Unbind to get quantity
-        field_vec = basic_registry.get_vector("quantity")
+        basic_registry.get_vector("quantity")
         recovered = se_unbind(record, "quantity", basic_registry)
 
         # Should be similar to original (bundle degradation expected)
@@ -355,7 +355,7 @@ class TestCreateSchemaRecord:
         """create_schema_record with auto_add should create fields."""
         registry = SchemaRegistry("v1", dimensions=dims)
 
-        record = create_schema_record({
+        create_schema_record({
             "qty": qty_vec,
             "price": price_vec,
         }, registry, auto_add=True)

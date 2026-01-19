@@ -33,8 +33,10 @@ Usage:
 """
 
 from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import List, Tuple, Optional, Callable
+
 import torch
 
 from .vectors import normalize, similarity
@@ -51,7 +53,7 @@ class HypothesisBundle:
         basis_vectors: Individual hypothesis vectors (n, d)
     """
     vector: torch.Tensor
-    hypotheses: List[str]
+    hypotheses: list[str]
     probabilities: torch.Tensor
     basis_vectors: torch.Tensor
 
@@ -59,7 +61,7 @@ class HypothesisBundle:
         probs = [f"{h}: {p:.2%}" for h, p in zip(self.hypotheses, self.probabilities.tolist())]
         return f"HypothesisBundle({', '.join(probs)})"
 
-    def top_hypothesis(self) -> Tuple[str, float]:
+    def top_hypothesis(self) -> tuple[str, float]:
         """Get the most probable hypothesis."""
         max_idx = int(torch.argmax(self.probabilities))
         return self.hypotheses[max_idx], float(self.probabilities[max_idx])
@@ -76,7 +78,7 @@ class HypothesisBundle:
 
 
 def p_sup(
-    hypotheses: List[Tuple[str, torch.Tensor, float]],
+    hypotheses: list[tuple[str, torch.Tensor, float]],
     normalize_probs: bool = True
 ) -> HypothesisBundle:
     """Create probabilistic superposition of hypotheses.
@@ -128,7 +130,7 @@ def p_sup(
 def p_sup_update(
     bundle: HypothesisBundle,
     evidence: torch.Tensor,
-    likelihood_fn: Optional[Callable[[torch.Tensor, torch.Tensor], float]] = None,
+    likelihood_fn: Callable[[torch.Tensor, torch.Tensor], float] | None = None,
     temperature: float = 1.0
 ) -> HypothesisBundle:
     """Bayesian update of hypothesis probabilities given evidence.
@@ -151,7 +153,8 @@ def p_sup_update(
         new_bundle = p_sup_update(bundle, margin_evidence_vec)
     """
     if likelihood_fn is None:
-        likelihood_fn = lambda e, h: float(similarity(e, h).real) if e.is_complex() else float(similarity(e, h))
+        def likelihood_fn(e, h):
+            return float(similarity(e, h).real) if e.is_complex() else float(similarity(e, h))
 
     # Compute likelihoods for each hypothesis
     likelihoods = torch.tensor([
@@ -189,7 +192,7 @@ def p_sup_update(
 def p_sup_collapse(
     bundle: HypothesisBundle,
     threshold: float = 0.9
-) -> Optional[str]:
+) -> str | None:
     """Collapse superposition if one hypothesis exceeds threshold.
 
     Once collapsed, the bundle has effectively "decided" on a hypothesis.
@@ -299,8 +302,8 @@ def p_sup_remove_hypothesis(
 
 
 def p_sup_merge(
-    bundles: List[HypothesisBundle],
-    weights: Optional[List[float]] = None
+    bundles: list[HypothesisBundle],
+    weights: list[float] | None = None
 ) -> HypothesisBundle:
     """Merge multiple hypothesis bundles (e.g., from different data sources).
 

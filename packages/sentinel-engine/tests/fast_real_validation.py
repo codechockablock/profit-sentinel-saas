@@ -9,20 +9,20 @@ Optimized pipeline for large datasets:
 
 import csv
 import json
+import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Dict, List, Set, Tuple, Optional, Any
+from datetime import datetime
 from pathlib import Path
-import re
+from typing import Any
 
 
 @dataclass
 class DetectionResult:
     primitive: str
-    detected_skus: Set[str] = field(default_factory=set)
+    detected_skus: set[str] = field(default_factory=set)
     count: int = 0
-    sample_items: List[Dict] = field(default_factory=list)
+    sample_items: list[dict] = field(default_factory=list)
 
 
 def safe_float(val: Any, default: float = 0.0) -> float:
@@ -37,7 +37,7 @@ def safe_float(val: Any, default: float = 0.0) -> float:
         return default
 
 
-def parse_date(val: Any) -> Optional[datetime]:
+def parse_date(val: Any) -> datetime | None:
     if val is None or str(val).strip() == '':
         return None
     date_str = str(val).strip()
@@ -60,16 +60,16 @@ def parse_date(val: Any) -> Optional[datetime]:
     return None
 
 
-def load_inventory_csv(filepath: str) -> List[Dict]:
+def load_inventory_csv(filepath: str) -> list[dict]:
     rows = []
-    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+    with open(filepath, encoding='utf-8', errors='ignore') as f:
         reader = csv.DictReader(f)
         for row in reader:
             rows.append(row)
     return rows
 
 
-def run_baseline_detection(rows: List[Dict]) -> Tuple[Dict[str, DetectionResult], Dict[str, Any]]:
+def run_baseline_detection(rows: list[dict]) -> tuple[dict[str, DetectionResult], dict[str, Any]]:
     """Fast baseline detection."""
 
     PRIMITIVES = [
@@ -83,7 +83,7 @@ def run_baseline_detection(rows: List[Dict]) -> Tuple[Dict[str, DetectionResult]
     all_stocks = []
     all_sold = []
     all_margins = []
-    vendor_margins: Dict[str, List[float]] = {}
+    vendor_margins: dict[str, list[float]] = {}
 
     for row in rows:
         stock = safe_float(row.get('Stock', 0))
@@ -191,15 +191,15 @@ def run_baseline_detection(rows: List[Dict]) -> Tuple[Dict[str, DetectionResult]
     return results, stats
 
 
-def run_resonator_sample(rows: List[Dict], baseline_results: Dict[str, DetectionResult], sample_size: int = 5000):
+def run_resonator_sample(rows: list[dict], baseline_results: dict[str, DetectionResult], sample_size: int = 5000):
     """Run resonator on sample of data."""
 
     resonator_results = {}
 
     try:
         import torch
-        from sentinel_engine.context import create_analysis_context
         from sentinel_engine import core
+        from sentinel_engine.context import create_analysis_context
 
         print(f"  Resonator loaded (torch {torch.__version__})")
 
@@ -374,7 +374,7 @@ def generate_report(filepath, baseline_results, resonator_results, stats, baseli
         status = "✅" if r.count > 0 else "⚪ N/A"
         report += f"| `{p}` | {r.count:,} | {pct:.2f}% | {status} |\n"
 
-    report += f"""
+    report += """
 ### Detection Visualization
 
 ```
@@ -421,7 +421,7 @@ Anomalies Detected by Primitive
         status_icon = "✅" if "PASS" in v['status'] else ("⚠️" if "WARN" in v['status'] else "🔧")
         report += f"| `{p}` | {v['candidates']:,} | {v['converged']:,} | {v['flagged']:,} | {v['confidence']:.4f} | {status_icon} {v['status']} |\n"
 
-    report += f"""
+    report += """
 ### Resonator Role
 
 The VSA Resonator operates in **infrastructure mode**:

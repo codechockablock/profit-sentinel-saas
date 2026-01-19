@@ -24,23 +24,14 @@ import base64
 import hashlib
 import io
 import logging
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
 import time
+from dataclasses import dataclass
+from typing import Any
 
 import torch
-
-# VSA imports
-from vsa_core.vectors import (
-    random_vector,
-    normalize,
-    similarity,
-    batch_similarity,
-)
 from vsa_core.operators import (
     bind,
     bundle,
-    bundle_many,
     cw_bundle,
     t_bind,
     t_unbind,
@@ -49,19 +40,23 @@ from vsa_core.operators import (
 from vsa_core.probabilistic import (
     HypothesisBundle,
     p_sup,
-    p_sup_update,
     p_sup_collapse,
-    p_sup_add_hypothesis,
+    p_sup_update,
+)
+
+# VSA imports
+from vsa_core.vectors import (
+    batch_similarity,
+    random_vector,
+    similarity,
 )
 
 from .repair_models import (
-    DiagnoseRequest,
     DiagnoseResponse,
     Hypothesis,
+    KnowledgeBaseState,
     ProblemStatus,
     VSAHypothesisState,
-    StoreMemoryState,
-    KnowledgeBaseState,
     expertise_multiplier,
 )
 
@@ -114,8 +109,8 @@ class CategoryCodebook:
         self.dimensions = config.dimensions
 
         # Category vectors (lazy loaded)
-        self._vectors: Dict[str, torch.Tensor] = {}
-        self._category_info: Dict[str, Dict[str, Any]] = {}
+        self._vectors: dict[str, torch.Tensor] = {}
+        self._category_info: dict[str, dict[str, Any]] = {}
 
     def _generate_vector(self, seed: str) -> torch.Tensor:
         """Generate deterministic vector from seed string."""
@@ -134,9 +129,9 @@ class CategoryCodebook:
         self,
         slug: str,
         name: str,
-        description: Optional[str] = None,
-        icon: Optional[str] = None,
-        parent_slug: Optional[str] = None
+        description: str | None = None,
+        icon: str | None = None,
+        parent_slug: str | None = None
     ) -> torch.Tensor:
         """Register a category and return its vector."""
         if slug not in self._vectors:
@@ -155,7 +150,7 @@ class CategoryCodebook:
             raise ValueError(f"Category '{slug}' not registered")
         return self._vectors[slug]
 
-    def get_info(self, slug: str) -> Dict[str, Any]:
+    def get_info(self, slug: str) -> dict[str, Any]:
         """Get category info."""
         return self._category_info.get(slug, {})
 
@@ -165,7 +160,7 @@ class CategoryCodebook:
         vectors = [self._vectors[s] for s in slugs]
         return torch.stack(vectors)
 
-    def get_all_slugs(self) -> List[str]:
+    def get_all_slugs(self) -> list[str]:
         """Get all registered category slugs."""
         return list(self._vectors.keys())
 
@@ -173,7 +168,7 @@ class CategoryCodebook:
         self,
         query: torch.Tensor,
         top_k: int = 5
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """Find nearest categories to query vector."""
         all_vectors = self.get_all_vectors()
         slugs = self.get_all_slugs()
@@ -208,7 +203,7 @@ class TextEncoder:
         self.dimensions = config.dimensions
 
         # Word vectors (lazy loaded)
-        self._word_vectors: Dict[str, torch.Tensor] = {}
+        self._word_vectors: dict[str, torch.Tensor] = {}
 
         # Common repair keywords with boosted weights
         self._keyword_weights = {
@@ -283,7 +278,7 @@ class RepairDiagnosisEngine:
     - T-Bind: Store temporal context
     """
 
-    def __init__(self, config: Optional[RepairEngineConfig] = None):
+    def __init__(self, config: RepairEngineConfig | None = None):
         self.config = config or RepairEngineConfig()
         self.device = torch.device(self.config.device)
 
@@ -292,8 +287,8 @@ class RepairDiagnosisEngine:
         self.text_encoder = TextEncoder(self.config)
 
         # Store memories (T-Bind)
-        self._store_memories: Dict[str, torch.Tensor] = {}
-        self._store_reference_times: Dict[str, float] = {}
+        self._store_memories: dict[str, torch.Tensor] = {}
+        self._store_reference_times: dict[str, float] = {}
 
         # Initialize default categories
         self._init_default_categories()
@@ -333,12 +328,12 @@ class RepairDiagnosisEngine:
 
     def diagnose(
         self,
-        text: Optional[str] = None,
-        voice_transcript: Optional[str] = None,
-        image_features: Optional[torch.Tensor] = None,
-        store_id: Optional[str] = None,
-        employee_id: Optional[str] = None,
-    ) -> Tuple[HypothesisBundle, Dict[str, Any]]:
+        text: str | None = None,
+        voice_transcript: str | None = None,
+        image_features: torch.Tensor | None = None,
+        store_id: str | None = None,
+        employee_id: str | None = None,
+    ) -> tuple[HypothesisBundle, dict[str, Any]]:
         """
         Diagnose a repair problem from multimodal input.
 
@@ -495,7 +490,7 @@ class RepairDiagnosisEngine:
     def check_collapse(
         self,
         bundle: HypothesisBundle
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Check if hypothesis should collapse to single answer.
 
@@ -507,7 +502,7 @@ class RepairDiagnosisEngine:
         self,
         bundle: HypothesisBundle,
         problem_id: str,
-        metadata: Dict[str, Any]
+        metadata: dict[str, Any]
     ) -> DiagnoseResponse:
         """Convert HypothesisBundle to API response."""
         hypotheses = []
@@ -553,7 +548,7 @@ class RepairDiagnosisEngine:
         self,
         h1: Hypothesis,
         h2: Hypothesis
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate questions to disambiguate between top hypotheses."""
         questions = []
 
@@ -587,7 +582,7 @@ class RepairDiagnosisEngine:
         original_category: str,
         corrected_category: str,
         employee_level: int,
-        knowledge_state: Optional[KnowledgeBaseState] = None
+        knowledge_state: KnowledgeBaseState | None = None
     ) -> KnowledgeBaseState:
         """
         Incorporate employee correction into knowledge base.

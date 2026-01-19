@@ -33,14 +33,26 @@ exclude = '''
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
 exclude = [
     ".git",
     ".venv",
     "venv",
     "node_modules",
     "__pycache__",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = [
+    "E501",   # Line too long (handled by formatter)
+    "E741",   # Ambiguous variable name (needed for mathematical code)
+    "E722",   # Bare except (legacy code)
+    "E402",   # Module import not at top (needed for optional imports)
+    "N801",   # Class name should use CapWords (intentional for DSL-like APIs)
+    "N802",   # Function name should be lowercase (Prolog-like factories)
+    "N806",   # Variable name should be lowercase (intentional patterns)
+    "F402",   # Import shadowed by loop variable (intentional)
+    "UP007",  # Use X | Y for type annotations (compatibility)
 ]
 
 [tool.mypy]

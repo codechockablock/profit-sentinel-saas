@@ -10,38 +10,37 @@ Key Properties Tested:
     - Permutation: invertible
     - Unbinding: recovers bound components
 """
+import os
+import sys
+
 import pytest
 import torch
-import sys
-import os
 
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from vsa_core import (
-    seed_hash,
-    random_vector,
-    identity_vector,
-    similarity,
     configure,
+    identity_vector,
+    seed_hash,
+    similarity,
 )
 from vsa_core.operators import (
     bind,
     bind_many,
     bundle,
+    bundle_capacity,
     bundle_many,
-    weighted_bundle,
-    unbind,
-    permute,
+    create_record,
     inverse_permute,
+    orthogonality_check,
+    permute,
+    query_record,
     sequence_encode,
     solve_analogy,
-    create_record,
-    query_record,
-    bundle_capacity,
-    orthogonality_check,
+    unbind,
+    weighted_bundle,
 )
-
 
 # =============================================================================
 # FIXTURES

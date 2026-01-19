@@ -26,7 +26,7 @@ import hashlib
 import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 
 import torch
 
@@ -96,17 +96,17 @@ class AnalysisContext:
 
     # Mutable state (isolated per request)
     codebook: OrderedDict = field(default_factory=OrderedDict)
-    leak_counts: Dict[str, int] = field(default_factory=dict)
+    leak_counts: dict[str, int] = field(default_factory=dict)
     rows_processed: int = 0
 
     # Dataset statistics (computed during bundling)
-    dataset_stats: Dict[str, float] = field(default_factory=dict)
+    dataset_stats: dict[str, float] = field(default_factory=dict)
 
     # Cached primitive vectors (lazily initialized per context)
-    _primitives: Optional[Dict[str, torch.Tensor]] = field(default=None, repr=False)
+    _primitives: dict[str, torch.Tensor] | None = field(default=None, repr=False)
 
     # Random generator for deterministic vector generation
-    _generator: Optional[torch.Generator] = field(default=None, repr=False)
+    _generator: torch.Generator | None = field(default=None, repr=False)
 
     def __post_init__(self):
         """Initialize leak counts and generator after dataclass creation."""
@@ -134,7 +134,7 @@ class AnalysisContext:
     # CODEBOOK MANAGEMENT
     # =========================================================================
 
-    def add_to_codebook(self, entity: str, is_sku: bool = False) -> Optional[torch.Tensor]:
+    def add_to_codebook(self, entity: str, is_sku: bool = False) -> torch.Tensor | None:
         """
         Add entity to this context's codebook with FIFO eviction.
 
@@ -168,7 +168,7 @@ class AnalysisContext:
 
         return self.codebook[entity]
 
-    def batch_add_to_codebook(self, entities: List[str], is_sku: bool = False) -> None:
+    def batch_add_to_codebook(self, entities: list[str], is_sku: bool = False) -> None:
         """
         Add multiple entities to codebook at once.
 
@@ -213,7 +213,7 @@ class AnalysisContext:
         for entity, vec in zip(new_entities, vectors):
             self.codebook[entity] = vec
 
-    def get_from_codebook(self, entity: str) -> Optional[torch.Tensor]:
+    def get_from_codebook(self, entity: str) -> torch.Tensor | None:
         """
         Get hypervector for entity from codebook.
 
@@ -251,7 +251,7 @@ class AnalysisContext:
         # Entity is invalid for codebook, create ephemeral vector
         return self.seed_hash(entity)
 
-    def get_codebook_tensor(self) -> Optional[torch.Tensor]:
+    def get_codebook_tensor(self) -> torch.Tensor | None:
         """
         Get codebook as stacked tensor for resonator operations.
 
@@ -262,7 +262,7 @@ class AnalysisContext:
             return None
         return torch.stack(list(self.codebook.values()))
 
-    def get_codebook_keys(self) -> List[str]:
+    def get_codebook_keys(self) -> list[str]:
         """Get list of entity names in codebook order."""
         return list(self.codebook.keys())
 
@@ -299,7 +299,7 @@ class AnalysisContext:
         v = torch.exp(1j * phases).to(self.dtype)
         return self.normalize(v)
 
-    def batch_seed_hash(self, strings: List[str]) -> torch.Tensor:
+    def batch_seed_hash(self, strings: list[str]) -> torch.Tensor:
         """
         Generate deterministic hypervectors for multiple strings at once.
 
@@ -315,7 +315,7 @@ class AnalysisContext:
         if not strings:
             return torch.empty(0, self.dimensions, device=self.device, dtype=self.dtype)
 
-        n = len(strings)
+        len(strings)
 
         # Compute all seeds at once
         seeds = []
@@ -368,7 +368,7 @@ class AnalysisContext:
     # PRIMITIVE VECTORS
     # =========================================================================
 
-    def get_primitives(self) -> Dict[str, torch.Tensor]:
+    def get_primitives(self) -> dict[str, torch.Tensor]:
         """
         Get primitive vectors for this context.
 
@@ -395,7 +395,7 @@ class AnalysisContext:
             }
         return self._primitives
 
-    def get_primitive(self, name: str) -> Optional[torch.Tensor]:
+    def get_primitive(self, name: str) -> torch.Tensor | None:
         """
         Get a specific primitive vector by name.
 
@@ -440,7 +440,7 @@ class AnalysisContext:
         self._primitives = None
         logger.debug("Analysis context reset")
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """
         Get summary of context state for logging/debugging.
 
@@ -465,7 +465,7 @@ def create_analysis_context(
     dimensions: int = DEFAULT_DIMENSIONS,
     max_codebook_size: int = DEFAULT_MAX_CODEBOOK_SIZE,
     use_gpu: bool = True,
-    device: Optional[str] = None,
+    device: str | None = None,
     sku_only_codebook: bool = False,
     convergence_threshold: float = RESONATOR_CONVERGENCE_THRESHOLD,
     iters: int = RESONATOR_ITERS,
@@ -544,7 +544,7 @@ class analysis_context:
         self.dimensions = dimensions
         self.max_codebook_size = max_codebook_size
         self.use_gpu = use_gpu
-        self.ctx: Optional[AnalysisContext] = None
+        self.ctx: AnalysisContext | None = None
 
     def __enter__(self) -> AnalysisContext:
         self.ctx = create_analysis_context(

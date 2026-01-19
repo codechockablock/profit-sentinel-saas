@@ -6,16 +6,14 @@ Creates a minimal FastAPI app with just the repair routes for testing.
 
 Run: pytest apps/api/tests/test_repair_routes.py -v
 """
-import pytest
 import base64
-import json
-import sys
 import os
-from unittest.mock import MagicMock, patch
-from fastapi import FastAPI, Depends, HTTPException
+import sys
+from unittest.mock import MagicMock
+
+import pytest
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from dataclasses import dataclass
-from typing import List, Optional
 from pydantic import BaseModel, Field
 
 # Add repo root to path
@@ -28,18 +26,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirna
 
 class DiagnoseRequestAPI(BaseModel):
     """API request model for diagnosis."""
-    text_description: Optional[str] = Field(None, max_length=2000)
-    voice_transcript: Optional[str] = Field(None, max_length=2000)
-    image_base64: Optional[str] = Field(None, description="Base64-encoded image")
+    text_description: str | None = Field(None, max_length=2000)
+    voice_transcript: str | None = Field(None, max_length=2000)
+    image_base64: str | None = Field(None, description="Base64-encoded image")
     store_id: str = Field(..., min_length=1)
-    employee_id: Optional[str] = None
-    session_id: Optional[str] = None
+    employee_id: str | None = None
+    session_id: str | None = None
 
 
 class RefineRequestAPI(BaseModel):
     """API request for refining diagnosis."""
     problem_id: str
-    additional_text: Optional[str] = Field(None, max_length=1000)
+    additional_text: str | None = Field(None, max_length=1000)
 
 
 class CorrectionRequestAPI(BaseModel):
@@ -47,7 +45,7 @@ class CorrectionRequestAPI(BaseModel):
     problem_id: str
     employee_id: str
     correct_category_slug: str
-    correction_notes: Optional[str] = Field(None, max_length=500)
+    correction_notes: str | None = Field(None, max_length=500)
 
 
 class HypothesisAPI(BaseModel):
@@ -55,25 +53,25 @@ class HypothesisAPI(BaseModel):
     category_slug: str
     category_name: str
     probability: float
-    explanation: Optional[str] = None
-    icon: Optional[str] = None
+    explanation: str | None = None
+    icon: str | None = None
 
 
 class DiagnoseResponseAPI(BaseModel):
     """API response for diagnosis."""
     problem_id: str
     status: str
-    hypotheses: List[HypothesisAPI]
+    hypotheses: list[HypothesisAPI]
     top_hypothesis: HypothesisAPI
     confidence: float
     entropy: float
     needs_more_info: bool
-    follow_up_questions: List[str]
-    likely_parts_needed: Optional[List[str]] = None
-    tools_needed: Optional[List[str]] = None
-    safety_concerns: Optional[List[str]] = None
-    diy_feasible: Optional[bool] = None
-    professional_recommended: Optional[bool] = None
+    follow_up_questions: list[str]
+    likely_parts_needed: list[str] | None = None
+    tools_needed: list[str] | None = None
+    safety_concerns: list[str] | None = None
+    diy_feasible: bool | None = None
+    professional_recommended: bool | None = None
 
 
 class CorrectionResultAPI(BaseModel):
@@ -84,8 +82,8 @@ class CorrectionResultAPI(BaseModel):
     xp_awarded: int
     new_total_xp: int
     leveled_up: bool
-    new_level: Optional[int] = None
-    badge_earned: Optional[str] = None
+    new_level: int | None = None
+    badge_earned: str | None = None
     streak_extended: bool
     current_streak: int
 
@@ -95,10 +93,10 @@ class CategoryAPI(BaseModel):
     category_id: str
     name: str
     slug: str
-    description: Optional[str] = None
-    icon: Optional[str] = None
-    parent_slug: Optional[str] = None
-    subcategories: List["CategoryAPI"] = []
+    description: str | None = None
+    icon: str | None = None
+    parent_slug: str | None = None
+    subcategories: list["CategoryAPI"] = []
 
 
 CategoryAPI.model_rebuild()
@@ -332,7 +330,7 @@ def create_test_app():
             current_streak=1,
         )
 
-    @app.get("/repair/categories", response_model=List[CategoryAPI])
+    @app.get("/repair/categories", response_model=list[CategoryAPI])
     async def list_categories():
         engine = get_mock_engine()
         categories = []

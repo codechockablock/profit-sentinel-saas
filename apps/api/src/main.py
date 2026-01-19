@@ -6,8 +6,8 @@ Forensic analysis of POS exports to detect hidden profit leaks.
 
 import logging
 import re
+from collections.abc import Callable
 from contextlib import asynccontextmanager
-from typing import Callable
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response

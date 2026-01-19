@@ -30,14 +30,13 @@ Example:
         print(f"Critical alert for: {binding['X']}")
 """
 from __future__ import annotations
-from typing import Dict, List, Optional, Any, Union, Iterator
-from dataclasses import dataclass
 
-from .terms import Term, Var, Atom, Clause, Predicate, TermLike
+from collections.abc import Iterator
+from typing import Any
+
+from .inference import ProofTree, backward_chain, backward_chain_all, forward_chain
 from .knowledge_base import KnowledgeBase
-from .inference import backward_chain, backward_chain_all, forward_chain, ProofTree
-from .unification import Substitution
-
+from .terms import Atom, Predicate, Term, Var
 
 # Create common variables for DSL
 X = Var("X")
@@ -58,29 +57,29 @@ CATEGORY = Var("CATEGORY")
 class RuleBuilder:
     """Fluent builder for rules."""
 
-    def __init__(self, dsl: 'ReasoningDSL', head_name: str, *args):
+    def __init__(self, dsl: ReasoningDSL, head_name: str, *args):
         self.dsl = dsl
         self.head = Term(head_name, *args)
-        self.body: List[Term] = []
-        self._name: Optional[str] = None
-        self._description: Optional[str] = None
+        self.body: list[Term] = []
+        self._name: str | None = None
+        self._description: str | None = None
 
-    def when(self, predicate: str, *args) -> 'RuleBuilder':
+    def when(self, predicate: str, *args) -> RuleBuilder:
         """Add first condition."""
         self.body.append(Term(predicate, *args))
         return self
 
-    def and_(self, predicate: str, *args) -> 'RuleBuilder':
+    def and_(self, predicate: str, *args) -> RuleBuilder:
         """Add another condition (AND)."""
         self.body.append(Term(predicate, *args))
         return self
 
-    def named(self, name: str) -> 'RuleBuilder':
+    def named(self, name: str) -> RuleBuilder:
         """Set rule name."""
         self._name = name
         return self
 
-    def described(self, description: str) -> 'RuleBuilder':
+    def described(self, description: str) -> RuleBuilder:
         """Set rule description."""
         self._description = description
         return self
@@ -102,14 +101,14 @@ class ReasoningDSL:
     and running inference.
     """
 
-    def __init__(self, kb: Optional[KnowledgeBase] = None):
+    def __init__(self, kb: KnowledgeBase | None = None):
         """Initialize DSL.
 
         Args:
             kb: Existing knowledge base (creates new if None)
         """
         self.kb = kb or KnowledgeBase()
-        self._predicates: Dict[str, Predicate] = {}
+        self._predicates: dict[str, Predicate] = {}
 
     def predicate(self, name: str, arity: int) -> Predicate:
         """Declare a predicate.
@@ -162,7 +161,7 @@ class ReasoningDSL:
         *args,
         all_solutions: bool = False,
         max_results: int = 100
-    ) -> Union[ProofTree, List[ProofTree]]:
+    ) -> ProofTree | list[ProofTree]:
         """Query the knowledge base.
 
         Args:
@@ -194,7 +193,7 @@ class ReasoningDSL:
         proof = self.query(predicate, *args)
         return proof.is_valid
 
-    def solutions(self, predicate: str, *args, max_results: int = 100) -> Iterator[Dict[str, Any]]:
+    def solutions(self, predicate: str, *args, max_results: int = 100) -> Iterator[dict[str, Any]]:
         """Get all solutions as dictionaries.
 
         Args:
@@ -212,7 +211,7 @@ class ReasoningDSL:
                 for name, val in proof.bindings.items()
             }
 
-    def derive_all(self, max_iterations: int = 1000) -> List[Term]:
+    def derive_all(self, max_iterations: int = 1000) -> list[Term]:
         """Run forward chaining to derive all facts.
 
         Args:
@@ -270,7 +269,7 @@ class ReasoningDSL:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
-_default_dsl: Optional[ReasoningDSL] = None
+_default_dsl: ReasoningDSL | None = None
 
 
 def get_dsl() -> ReasoningDSL:
@@ -291,7 +290,7 @@ def define_rule(head_pred: str, *args) -> RuleBuilder:
     return get_dsl().rule(head_pred, *args)
 
 
-def query(predicate: str, *args, **kwargs) -> Union[ProofTree, List[ProofTree]]:
+def query(predicate: str, *args, **kwargs) -> ProofTree | list[ProofTree]:
     """Query default DSL."""
     return get_dsl().query(predicate, *args, **kwargs)
 
@@ -306,7 +305,7 @@ class ProfitSentinelDSL(ReasoningDSL):
     Pre-defines common predicates and rules for retail anomaly detection.
     """
 
-    def __init__(self, kb: Optional[KnowledgeBase] = None):
+    def __init__(self, kb: KnowledgeBase | None = None):
         super().__init__(kb)
         self._setup_predicates()
 
@@ -351,8 +350,8 @@ class ProfitSentinelDSL(ReasoningDSL):
         quantity: float,
         margin: float,
         velocity: float,
-        vendor: Optional[str] = None,
-        category: Optional[str] = None
+        vendor: str | None = None,
+        category: str | None = None
     ) -> None:
         """Add SKU data as facts.
 
@@ -414,7 +413,7 @@ class ProfitSentinelDSL(ReasoningDSL):
         self.fact("anomaly_severity", "negative_inventory", "critical")
         self.fact("anomaly_severity", "dead_item", "medium")
 
-    def detect_anomalies(self, sku: str) -> List[str]:
+    def detect_anomalies(self, sku: str) -> list[str]:
         """Detect all anomalies for a SKU.
 
         Args:

@@ -46,82 +46,81 @@ Note: geodesic_resonator and manifolds modules were removed in v3.0.0 (unused co
 __version__ = "3.1.0"
 
 # Core vector operations
-from .vectors import (
-    normalize,
-    seed_hash,
-    random_vector,
-    identity_vector,
-    zero_vector,
-    similarity,
-    batch_similarity,
-    vector_info,
-    get_device,
-    get_config,
-    configure,
-)
-
 # Algebraic operators
 from .operators import (
     bind,
     bind_many,
     bundle,
     bundle_many,
-    weighted_bundle,
-    unbind,
-    unbind_from_bundle,
-    permute,
-    sequence_encode,
-    solve_analogy,
-    role_filler_bind,
     create_record,
-    query_record,
+    cw_bundle,
     # Novel primitives (v3.1.0)
     n_bind,
+    permute,
     query_excluding,
-    cw_bundle,
+    query_record,
+    role_filler_bind,
+    sequence_encode,
+    solve_analogy,
     t_bind,
     t_unbind,
+    unbind,
+    unbind_from_bundle,
+    weighted_bundle,
 )
 
 # Probabilistic superposition
 from .probabilistic import (
     HypothesisBundle,
     p_sup,
-    p_sup_update,
-    p_sup_collapse,
     p_sup_add_hypothesis,
-    p_sup_remove_hypothesis,
+    p_sup_collapse,
     p_sup_merge,
-)
-
-# Schema evolution
-from .schema import (
-    SchemaRegistry,
-    FieldSpec,
-    se_bind,
-    se_unbind,
-    create_schema_record,
-    migrate_bundle,
-    schema_compatibility_check,
-    create_retail_schema,
+    p_sup_remove_hypothesis,
+    p_sup_update,
 )
 
 # Resonator
 from .resonator import Resonator
 
+# Schema evolution
+from .schema import (
+    FieldSpec,
+    SchemaRegistry,
+    create_retail_schema,
+    create_schema_record,
+    migrate_bundle,
+    schema_compatibility_check,
+    se_bind,
+    se_unbind,
+)
+
 # Types
 from .types import (
-    VectorConfig,
-    ResonatorConfig,
+    MagnitudeBucket,
+    MagnitudeConfig,
+    MagnitudeField,
     Primitive,
     PrimitiveSet,
-    MagnitudeConfig,
-    MagnitudeBucket,
-    MagnitudeField,
+    ResonatorConfig,
     Rule,
-    RuleSet,
     RuleCondition,
     RuleDetection,
+    RuleSet,
+    VectorConfig,
+)
+from .vectors import (
+    batch_similarity,
+    configure,
+    get_config,
+    get_device,
+    identity_vector,
+    normalize,
+    random_vector,
+    seed_hash,
+    similarity,
+    vector_info,
+    zero_vector,
 )
 
 __all__ = [

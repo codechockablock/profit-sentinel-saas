@@ -9,20 +9,29 @@ This module provides loaders for declarative VSA configurations:
 All loaders validate against Pydantic schemas and generate vectors lazily.
 """
 from __future__ import annotations
-import yaml
-import torch
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-from functools import lru_cache
 
+from pathlib import Path
+
+import torch
+import yaml
+
+from .operators import bind, bind_many
 from .types import (
-    Primitive, PrimitiveSet, PrimitiveSetMetadata,
-    MagnitudeConfig, MagnitudeField, MagnitudeBucket,
-    Rule, RuleSet, RuleCondition, RuleDetection,
-    CompositePattern, RootCause, DetectionHint
+    CompositePattern,
+    DetectionHint,
+    MagnitudeBucket,
+    MagnitudeConfig,
+    MagnitudeField,
+    Primitive,
+    PrimitiveSet,
+    PrimitiveSetMetadata,
+    RootCause,
+    Rule,
+    RuleCondition,
+    RuleDetection,
+    RuleSet,
 )
-from .vectors import seed_hash, get_device, get_dtype
-from .operators import bind, bundle, bind_many
+from .vectors import get_device, get_dtype, seed_hash
 
 
 class PrimitiveLoader:
@@ -53,8 +62,8 @@ class PrimitiveLoader:
             dimensions: Vector dimensionality
         """
         self.dimensions = dimensions
-        self.primitive_sets: Dict[str, PrimitiveSet] = {}
-        self._vector_cache: Dict[str, torch.Tensor] = {}
+        self.primitive_sets: dict[str, PrimitiveSet] = {}
+        self._vector_cache: dict[str, torch.Tensor] = {}
         self._device = get_device()
         self._dtype = get_dtype()
 
@@ -81,7 +90,7 @@ class PrimitiveLoader:
 
         return pset
 
-    def _parse_primitive_set(self, raw: Dict) -> PrimitiveSet:
+    def _parse_primitive_set(self, raw: dict) -> PrimitiveSet:
         """Parse raw YAML into PrimitiveSet."""
         # Parse metadata
         metadata = None
@@ -89,7 +98,7 @@ class PrimitiveLoader:
             metadata = PrimitiveSetMetadata(**raw["metadata"])
 
         # Parse primitives by category
-        primitives: Dict[str, Dict[str, Primitive]] = {}
+        primitives: dict[str, dict[str, Primitive]] = {}
         for category, prims in raw.get("primitives", {}).items():
             primitives[category] = {}
             for name, prim_data in prims.items():
@@ -116,7 +125,7 @@ class PrimitiveLoader:
                 )
 
         # Parse composite patterns
-        composite_patterns: Dict[str, CompositePattern] = {}
+        composite_patterns: dict[str, CompositePattern] = {}
         for name, pattern in raw.get("composite_patterns", {}).items():
             composite_patterns[name] = CompositePattern(
                 description=pattern["description"],
@@ -135,7 +144,7 @@ class PrimitiveLoader:
             aliases=raw.get("aliases", {})
         )
 
-    def get_primitive(self, path: str) -> Optional[Primitive]:
+    def get_primitive(self, path: str) -> Primitive | None:
         """Get primitive definition by path.
 
         Args:
@@ -231,7 +240,7 @@ class PrimitiveLoader:
         else:
             raise ValueError(f"Unknown operator: {op}")
 
-    def list_primitives(self) -> List[str]:
+    def list_primitives(self) -> list[str]:
         """List all available primitive paths."""
         paths = []
         for pset in self.primitive_sets.values():
@@ -241,7 +250,7 @@ class PrimitiveLoader:
     def build_codebook(
         self,
         include_composites: bool = True
-    ) -> Tuple[List[str], torch.Tensor]:
+    ) -> tuple[list[str], torch.Tensor]:
         """Build codebook from all loaded primitives.
 
         Args:
@@ -288,8 +297,8 @@ class MagnitudeLoader:
     def __init__(self, dimensions: int = 16384):
         """Initialize loader."""
         self.dimensions = dimensions
-        self.configs: Dict[str, MagnitudeConfig] = {}
-        self._vector_cache: Dict[str, torch.Tensor] = {}
+        self.configs: dict[str, MagnitudeConfig] = {}
+        self._vector_cache: dict[str, torch.Tensor] = {}
         self._device = get_device()
         self._dtype = get_dtype()
 
@@ -303,9 +312,9 @@ class MagnitudeLoader:
         self.configs[config.domain] = config
         return config
 
-    def _parse_config(self, raw: Dict) -> MagnitudeConfig:
+    def _parse_config(self, raw: dict) -> MagnitudeConfig:
         """Parse raw YAML into MagnitudeConfig."""
-        fields: Dict[str, MagnitudeField] = {}
+        fields: dict[str, MagnitudeField] = {}
 
         for field_name, field_data in raw.get("fields", {}).items():
             buckets = []
@@ -328,7 +337,7 @@ class MagnitudeLoader:
             fields=fields
         )
 
-    def get_bucket(self, field: str, value: float) -> Optional[MagnitudeBucket]:
+    def get_bucket(self, field: str, value: float) -> MagnitudeBucket | None:
         """Get bucket for field value.
 
         Args:
@@ -344,7 +353,7 @@ class MagnitudeLoader:
                 return bucket
         return None
 
-    def get_bucket_name(self, field: str, value: float) -> Optional[str]:
+    def get_bucket_name(self, field: str, value: float) -> str | None:
         """Get bucket name for field value."""
         bucket = self.get_bucket(field, value)
         return bucket.name if bucket else None
@@ -354,7 +363,7 @@ class MagnitudeLoader:
         field: str,
         value: float,
         entity_seed: str = ""
-    ) -> Optional[torch.Tensor]:
+    ) -> torch.Tensor | None:
         """Get vector for magnitude bucket.
 
         Args:
@@ -390,7 +399,7 @@ class MagnitudeLoader:
         entity_vec: torch.Tensor,
         field: str,
         value: float
-    ) -> Optional[torch.Tensor]:
+    ) -> torch.Tensor | None:
         """Bind magnitude bucket to entity vector.
 
         This creates a representation like:
@@ -417,7 +426,7 @@ class MagnitudeLoader:
 
         return bind(entity_vec, bucket_vec)
 
-    def list_fields(self) -> List[str]:
+    def list_fields(self) -> list[str]:
         """List all available fields."""
         fields = set()
         for config in self.configs.values():
@@ -445,7 +454,7 @@ class RuleCompiler:
     def __init__(
         self,
         primitive_loader: PrimitiveLoader,
-        magnitude_loader: Optional[MagnitudeLoader] = None
+        magnitude_loader: MagnitudeLoader | None = None
     ):
         """Initialize compiler.
 
@@ -455,8 +464,8 @@ class RuleCompiler:
         """
         self.primitives = primitive_loader
         self.magnitudes = magnitude_loader
-        self.rule_sets: Dict[str, RuleSet] = {}
-        self._compiled_cache: Dict[str, torch.Tensor] = {}
+        self.rule_sets: dict[str, RuleSet] = {}
+        self._compiled_cache: dict[str, torch.Tensor] = {}
 
     def load_file(self, path: str | Path) -> RuleSet:
         """Load rules from YAML file."""
@@ -468,7 +477,7 @@ class RuleCompiler:
         self.rule_sets[rule_set.domain] = rule_set
         return rule_set
 
-    def _parse_rule_set(self, raw: Dict) -> RuleSet:
+    def _parse_rule_set(self, raw: dict) -> RuleSet:
         """Parse raw YAML into RuleSet."""
         rules = []
         for rule_data in raw.get("rules", []):
@@ -563,7 +572,7 @@ class RuleCompiler:
         self._compiled_cache[rule_id] = vec
         return vec
 
-    def compile_all_enabled(self) -> Dict[str, torch.Tensor]:
+    def compile_all_enabled(self) -> dict[str, torch.Tensor]:
         """Compile all enabled rules.
 
         Returns:
@@ -575,7 +584,7 @@ class RuleCompiler:
                 compiled[rule.id] = self.compile_rule(rule.id)
         return compiled
 
-    def get_rule(self, rule_id: str) -> Optional[Rule]:
+    def get_rule(self, rule_id: str) -> Rule | None:
         """Get rule definition."""
         for rs in self.rule_sets.values():
             rule = rs.get_rule(rule_id)

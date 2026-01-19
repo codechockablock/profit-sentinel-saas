@@ -10,21 +10,21 @@ Executes the full hybrid detection pipeline on actual inventory data:
 
 import csv
 import json
+import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Dict, List, Set, Tuple, Optional, Any
+from datetime import datetime
 from pathlib import Path
-import re
+from typing import Any
 
 
 @dataclass
 class DetectionResult:
     """Results from detection for a single primitive."""
     primitive: str
-    detected_skus: Set[str] = field(default_factory=set)
+    detected_skus: set[str] = field(default_factory=set)
     count: int = 0
-    sample_items: List[Dict] = field(default_factory=list)
+    sample_items: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -51,7 +51,7 @@ def safe_float(val: Any, default: float = 0.0) -> float:
         return default
 
 
-def parse_date(val: Any) -> Optional[datetime]:
+def parse_date(val: Any) -> datetime | None:
     """Parse date from various formats."""
     if val is None or str(val).strip() == '':
         return None
@@ -83,10 +83,10 @@ def parse_date(val: Any) -> Optional[datetime]:
     return None
 
 
-def load_inventory_csv(filepath: str) -> List[Dict]:
+def load_inventory_csv(filepath: str) -> list[dict]:
     """Load and parse inventory CSV."""
     rows = []
-    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+    with open(filepath, encoding='utf-8', errors='ignore') as f:
         reader = csv.DictReader(f)
         for row in reader:
             rows.append(row)
@@ -119,7 +119,7 @@ class RealDataBaselineDetector:
         "margin_erosion",
     ]
 
-    def detect(self, rows: List[Dict]) -> Tuple[Dict[str, DetectionResult], Dict[str, Any]]:
+    def detect(self, rows: list[dict]) -> tuple[dict[str, DetectionResult], dict[str, Any]]:
         """
         Run detection on real inventory data.
 
@@ -132,7 +132,7 @@ class RealDataBaselineDetector:
         all_stocks = []
         all_sold = []
         all_margins = []
-        vendor_margins: Dict[str, List[float]] = {}
+        vendor_margins: dict[str, list[float]] = {}
 
         for row in rows:
             stock = safe_float(row.get('Stock', 0))
@@ -177,10 +177,10 @@ class RealDataBaselineDetector:
             stock = safe_float(row.get('Stock', 0))
             sold = safe_float(row.get('Year Total', 0))
             margin_pct = safe_float(row.get('Profit Margin%', 0))
-            avg_cost = safe_float(row.get('Avg. Cost', 0))
+            safe_float(row.get('Avg. Cost', 0))
             gross_sales = safe_float(row.get('Gross Sales', 0))
-            gross_cost = safe_float(row.get('Gross Cost', 0))
-            gross_profit = safe_float(row.get('Gross Profit', 0))
+            safe_float(row.get('Gross Cost', 0))
+            safe_float(row.get('Gross Profit', 0))
             vendor = str(row.get('Vendor', 'unknown')).strip()
             description = str(row.get('Description', '')).strip()
 
@@ -306,8 +306,8 @@ class CalibratedResonator:
 
         try:
             import torch
-            from sentinel_engine.context import create_analysis_context
             from sentinel_engine import core
+            from sentinel_engine.context import create_analysis_context
 
             self._torch = torch
             self._create_ctx = create_analysis_context
@@ -319,9 +319,9 @@ class CalibratedResonator:
 
     def validate_detections(
         self,
-        rows: List[Dict],
-        baseline_results: Dict[str, DetectionResult],
-    ) -> Dict[str, ResonatorValidation]:
+        rows: list[dict],
+        baseline_results: dict[str, DetectionResult],
+    ) -> dict[str, ResonatorValidation]:
         """Validate baseline detections using calibrated resonator."""
 
         if not self.available:
@@ -416,9 +416,9 @@ class CalibratedResonator:
 
 def generate_markdown_report(
     filepath: str,
-    baseline_results: Dict[str, DetectionResult],
-    resonator_results: Dict[str, ResonatorValidation],
-    stats: Dict[str, Any],
+    baseline_results: dict[str, DetectionResult],
+    resonator_results: dict[str, ResonatorValidation],
+    stats: dict[str, Any],
     baseline_time: float,
     resonator_time: float,
 ) -> str:
@@ -493,7 +493,7 @@ def generate_markdown_report(
             status = "⚪ N/A"
         report += f"| `{p}` | {r.count:,} | {pct:.2f}% | {status} |\n"
 
-    report += f"""
+    report += """
 ### Detection Visualization
 
 ```
@@ -542,7 +542,7 @@ Anomalies Detected by Primitive
         status_icon = "✅" if "PASS" in v.status else ("⚠️" if "WARN" in v.status else "🔧")
         report += f"| `{p}` | {v.candidates_checked:,} | {v.convergence_passed:,} | {v.hallucinations_flagged:,} | {v.avg_confidence:.4f} | {status_icon} {v.status} |\n"
 
-    report += f"""
+    report += """
 ### Resonator Role
 
 The VSA Resonator serves as **infrastructure** for:
@@ -677,12 +677,12 @@ def run_real_data_validation(filepath: str):
     baseline_results, stats = detector.detect(rows)
     baseline_time = time.time() - t0
     print(f"  Completed in {baseline_time:.2f}s")
-    print(f"  Dataset stats:")
+    print("  Dataset stats:")
     print(f"    - Total SKUs: {stats['total_rows']:,}")
     print(f"    - Avg Stock: {stats['avg_stock']:.1f}")
     print(f"    - Avg Sold: {stats['avg_sold']:.1f}")
     print(f"    - Avg Margin: {stats['avg_margin']:.1f}%")
-    print(f"  Detections:")
+    print("  Detections:")
     for p, r in baseline_results.items():
         if r.count > 0:
             print(f"    - {p}: {r.count:,}")

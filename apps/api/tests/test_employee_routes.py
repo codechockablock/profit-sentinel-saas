@@ -9,13 +9,12 @@ Tests the employee API endpoints:
 - PUT /employee/{employee_id}/deactivate
 - GET /employee/health
 """
-import pytest
-from fastapi import FastAPI, HTTPException, Query, Depends
-from fastapi.testclient import TestClient
-from pydantic import BaseModel, Field
-from typing import Optional, List
 from datetime import datetime
 
+import pytest
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.testclient import TestClient
+from pydantic import BaseModel, Field
 
 # =============================================================================
 # MINIMAL MODELS (copied for isolation)
@@ -25,7 +24,7 @@ class EmployeeRegisterRequest(BaseModel):
     employee_id: str = Field(..., min_length=1)
     store_id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1, max_length=100)
-    email: Optional[str] = None
+    email: str | None = None
     role: str = Field(default="associate", pattern="^(associate|manager|admin)$")
 
 
@@ -33,7 +32,7 @@ class EmployeeResponse(BaseModel):
     employee_id: str
     store_id: str
     name: str
-    email: Optional[str] = None
+    email: str | None = None
     role: str
     created_at: str
     is_active: bool = True
@@ -45,8 +44,8 @@ class EmployeeStatsResponse(BaseModel):
     total_corrections: int
     corrections_accepted: int
     accuracy_rate: float
-    categories_helped: List[str]
-    last_activity: Optional[str] = None
+    categories_helped: list[str]
+    last_activity: str | None = None
 
 
 class CorrectionHistoryItem(BaseModel):
@@ -54,14 +53,14 @@ class CorrectionHistoryItem(BaseModel):
     problem_id: str
     original_category: str
     corrected_category: str
-    correction_notes: Optional[str] = None
+    correction_notes: str | None = None
     created_at: str
     was_accepted: bool = True
 
 
 class CorrectionHistoryResponse(BaseModel):
     employee_id: str
-    corrections: List[CorrectionHistoryItem]
+    corrections: list[CorrectionHistoryItem]
     total_count: int
 
 
@@ -71,7 +70,7 @@ class CorrectionHistoryResponse(BaseModel):
 
 _employees: dict[str, dict] = {}
 _employee_stats: dict[str, dict] = {}
-_corrections: dict[str, List[dict]] = {}
+_corrections: dict[str, list[dict]] = {}
 
 
 def reset_storage():

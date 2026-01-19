@@ -12,10 +12,10 @@ This follows classical first-order logic with Horn clause restriction
 (at most one positive literal in each clause).
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import List, Union, Any, Optional, Dict, Tuple
+
 from abc import ABC, abstractmethod
-import hashlib
+from dataclasses import dataclass, field
+from typing import Any, Union
 
 
 class TermBase(ABC):
@@ -115,9 +115,9 @@ class Term(TermBase):
         fact = Term("has_anomaly", Atom("SKU123"), Atom("low_stock"))
     """
     functor: str
-    args: Tuple[Union[Var, Atom, 'Term'], ...] = field(default_factory=tuple)
+    args: tuple[Var | Atom | Term, ...] = field(default_factory=tuple)
 
-    def __init__(self, functor: str, *args: Union[Var, Atom, 'Term', str, int, float]):
+    def __init__(self, functor: str, *args: Var | Atom | Term | str | int | float):
         # Convert raw values to Atoms
         processed = []
         for arg in args:
@@ -207,7 +207,7 @@ class Clause:
         )
     """
     head: Term
-    body: List[Term] = field(default_factory=list)
+    body: list[Term] = field(default_factory=list)
 
     @property
     def is_fact(self) -> bool:
@@ -232,7 +232,7 @@ class Clause:
             result.update(t.variables())
         return result
 
-    def rename_variables(self, suffix: str) -> 'Clause':
+    def rename_variables(self, suffix: str) -> Clause:
         """Create copy with renamed variables (for resolution)."""
         var_map = {v: Var(f"{v}{suffix}") for v in self.variables()}
         return Clause(
@@ -247,7 +247,7 @@ class Clause:
         return f"{self.head} :- {body_str}."
 
 
-def _rename_term(term: TermLike, var_map: Dict[str, Var]) -> TermLike:
+def _rename_term(term: TermLike, var_map: dict[str, Var]) -> TermLike:
     """Rename variables in a term."""
     if isinstance(term, Var):
         return var_map.get(term.name, term)

@@ -12,21 +12,18 @@ Key operations:
 This is the foundation for pattern matching in inference.
 """
 from __future__ import annotations
-from typing import Dict, Optional, Union, List, Tuple
-from copy import deepcopy
 
-from .terms import Term, Var, Atom, TermLike
-
+from .terms import Atom, Term, TermLike, Var
 
 # Type alias for substitution
-Substitution = Dict[str, TermLike]
+Substitution = dict[str, TermLike]
 
 
 def unify(
     t1: TermLike,
     t2: TermLike,
-    theta: Optional[Substitution] = None
-) -> Optional[Substitution]:
+    theta: Substitution | None = None
+) -> Substitution | None:
     """Unify two terms and return most general unifier (MGU).
 
     Finds substitution θ such that t1θ = t2θ, or None if impossible.
@@ -86,7 +83,7 @@ def unify(
     return None
 
 
-def _unify_var(var: Var, term: TermLike, theta: Substitution) -> Optional[Substitution]:
+def _unify_var(var: Var, term: TermLike, theta: Substitution) -> Substitution | None:
     """Unify a variable with a term."""
     # Check if variable is already bound
     if var.name in theta:
@@ -185,9 +182,9 @@ def compose_substitutions(
 
 
 def rename_apart(
-    terms: List[Term],
+    terms: list[Term],
     suffix: str
-) -> Tuple[List[Term], Substitution]:
+) -> tuple[list[Term], Substitution]:
     """Rename variables in terms to avoid capture.
 
     Creates fresh variable names by adding suffix.
@@ -238,7 +235,7 @@ def is_instance_of(specific: TermLike, general: TermLike) -> bool:
     return True
 
 
-def most_general_instance(t1: TermLike, t2: TermLike) -> Optional[TermLike]:
+def most_general_instance(t1: TermLike, t2: TermLike) -> TermLike | None:
     """Find most general instance (anti-unification).
 
     Finds the most specific term that is more general than both t1 and t2.
@@ -262,7 +259,7 @@ def most_general_instance(t1: TermLike, t2: TermLike) -> Optional[TermLike]:
 def _anti_unify(
     t1: TermLike,
     t2: TermLike,
-    mapping: Dict[Tuple, Var],
+    mapping: dict[tuple, Var],
     fresh_var
 ) -> TermLike:
     """Anti-unification helper."""

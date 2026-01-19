@@ -14,7 +14,6 @@ import logging
 import os
 import re
 import uuid
-from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 
@@ -83,8 +82,8 @@ def _sanitize_filename(filename: str) -> str:
 
 @router.post("/presign")
 async def presign_upload(
-    filenames: List[str] = Form(...),
-    user_id: Optional[str] = Depends(get_current_user),
+    filenames: list[str] = Form(...),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Generate presigned URLs for direct S3 upload.
@@ -153,8 +152,8 @@ async def presign_upload(
 async def suggest_mapping(
     key: str = Form(...),
     filename: str = Form(...),
-    user_id: Optional[str] = Depends(get_current_user),
-) -> Dict:
+    user_id: str | None = Depends(get_current_user),
+) -> dict:
     """
     Analyze uploaded file and suggest column mappings.
 

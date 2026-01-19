@@ -29,11 +29,11 @@ Example:
     print(proof.is_valid)
 """
 
-from .terms import Term, Var, Atom, Predicate, Rule, Clause
-from .unification import unify, substitute, occurs_check
-from .knowledge_base import KnowledgeBase, Fact, RuleDefinition
-from .inference import forward_chain, backward_chain, ProofTree, ProofNode
-from .dsl import ReasoningDSL, define_rule, define_fact, query
+from .dsl import ReasoningDSL, define_fact, define_rule, query
+from .inference import ProofNode, ProofTree, backward_chain, forward_chain
+from .knowledge_base import Fact, KnowledgeBase, RuleDefinition
+from .terms import Atom, Clause, Predicate, Rule, Term, Var
+from .unification import occurs_check, substitute, unify
 
 __all__ = [
     # Terms

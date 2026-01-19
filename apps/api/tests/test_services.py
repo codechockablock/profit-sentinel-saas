@@ -5,11 +5,10 @@ Unit tests for S3Service, MappingService, and AnalysisService.
 """
 
 import io
-import json
-import pytest
-import pandas as pd
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
+import pytest
 
 # =============================================================================
 # S3 SERVICE TESTS
@@ -30,7 +29,7 @@ class TestS3Service:
         from apps.api.src.services.s3 import S3Service
         service = S3Service(mock_s3_client, "test-bucket")
 
-        url = service.generate_presigned_url("test/key.csv")
+        service.generate_presigned_url("test/key.csv")
 
         mock_s3_client.generate_presigned_url.assert_called_once()
         call_args = mock_s3_client.generate_presigned_url.call_args
@@ -392,7 +391,7 @@ class TestDependencies:
 
     def test_get_supabase_client_none_without_config(self):
         """Test Supabase client returns None without config."""
-        from apps.api.src.config import Settings, get_settings
+        from apps.api.src.config import Settings
         from apps.api.src.dependencies import get_supabase_client
 
         # Create mock settings with no supabase config
