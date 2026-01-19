@@ -445,18 +445,20 @@ class AnalysisService:
             for flagged in flagged_items[:20]:
                 sku = flagged["sku"]
                 full_item = item_lookup.get(sku, {})
-                item_details.append({
-                    "sku": sku,
-                    "score": flagged["score"],
-                    "description": full_item.get("description", ""),
-                    "quantity": full_item.get("quantity", 0),
-                    "cost": full_item.get("cost", 0),
-                    "revenue": full_item.get("revenue", 0),
-                    "sold": full_item.get("sold", 0),
-                    "margin": full_item.get("margin", 0),
-                    "sub_total": full_item.get("sub_total", 0),
-                    "context": self._get_issue_context(primitive, full_item),
-                })
+                item_details.append(
+                    {
+                        "sku": sku,
+                        "score": flagged["score"],
+                        "description": full_item.get("description", ""),
+                        "quantity": full_item.get("quantity", 0),
+                        "cost": full_item.get("cost", 0),
+                        "revenue": full_item.get("revenue", 0),
+                        "sold": full_item.get("sold", 0),
+                        "margin": full_item.get("margin", 0),
+                        "sub_total": full_item.get("sub_total", 0),
+                        "context": self._get_issue_context(primitive, full_item),
+                    }
+                )
 
             leaks[primitive] = {
                 "top_items": [item["sku"] for item in flagged_items[:20]],
