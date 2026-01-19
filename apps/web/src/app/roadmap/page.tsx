@@ -140,7 +140,7 @@ export default function RoadmapPage() {
           <p className="text-xl text-slate-400 max-w-2xl mx-auto">
             See what we're building next. Have a feature request?{' '}
             <a
-              href="mailto:support@profitsentinel.com?subject=Feature Request"
+              href="/contact?type=feature_request"
               className="text-emerald-400 hover:text-emerald-300 underline"
             >
               Let us know
@@ -186,7 +186,7 @@ export default function RoadmapPage() {
               make the biggest difference for your business.
             </p>
             <a
-              href="mailto:support@profitsentinel.com?subject=Feature Request"
+              href="/contact?type=feature_request"
               className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500/20 text-emerald-400 font-bold rounded-xl hover:bg-emerald-500/30 transition border border-emerald-500/30"
             >
               <MailIcon className="w-5 h-5" />

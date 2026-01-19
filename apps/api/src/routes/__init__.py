@@ -7,6 +7,7 @@ All route modules are registered here.
 from fastapi import APIRouter
 
 from .analysis import router as analysis_router
+from .contact import router as contact_router
 from .employee import router as employee_router
 from .health import router as health_router
 from .metrics import router as metrics_router
@@ -25,3 +26,4 @@ api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
 api_router.include_router(metrics_router, prefix="/metrics", tags=["metrics"])
 api_router.include_router(repair_router, prefix="/repair", tags=["repair"])
 api_router.include_router(employee_router, prefix="/employee", tags=["employee"])
+api_router.include_router(contact_router, prefix="/contact", tags=["contact"])

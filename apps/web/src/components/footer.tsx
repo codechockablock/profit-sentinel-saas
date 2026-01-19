@@ -61,12 +61,12 @@ export function Footer() {
             >
               About
             </Link>
-            <a
-              href="mailto:support@profitsentinel.com"
+            <Link
+              href="/contact"
               className="text-slate-400 hover:text-emerald-400 transition"
             >
-              Support
-            </a>
+              Contact
+            </Link>
           </div>
 
           {/* Social & Copyright */}

@@ -60,7 +60,7 @@ class TestUploadRoutes:
     def test_presign_returns_urls(self, client: TestClient, mock_s3_client: MagicMock):
         """Test presign endpoint returns presigned URLs."""
         with patch(
-            "apps.api.src.dependencies.get_s3_client", return_value=mock_s3_client
+            "src.dependencies.get_s3_client", return_value=mock_s3_client
         ):
             response = client.post(
                 "/uploads/presign", data={"filenames": ["test.csv", "data.xlsx"]}
@@ -81,7 +81,7 @@ class TestUploadRoutes:
     ):
         """Test presign generates unique S3 keys."""
         with patch(
-            "apps.api.src.dependencies.get_s3_client", return_value=mock_s3_client
+            "src.dependencies.get_s3_client", return_value=mock_s3_client
         ):
             response = client.post(
                 "/uploads/presign", data={"filenames": ["same.csv", "same.csv"]}
@@ -123,11 +123,11 @@ class TestUploadRoutes:
         """Test suggest-mapping returns column mapping suggestions."""
         # Patch at the module where it's imported, not where it's defined
         with patch(
-            "apps.api.src.routes.uploads.get_s3_client",
+            "src.routes.uploads.get_s3_client",
             return_value=mock_s3_client_with_data,
         ):
             with patch(
-                "apps.api.src.services.mapping.get_grok_client",
+                "src.services.mapping.get_grok_client",
                 return_value=mock_grok_client,
             ):
                 response = client.post(
@@ -148,11 +148,11 @@ class TestUploadRoutes:
         """Test suggest-mapping falls back to heuristics when Grok unavailable."""
         # Patch at the module where it's imported, not where it's defined
         with patch(
-            "apps.api.src.routes.uploads.get_s3_client",
+            "src.routes.uploads.get_s3_client",
             return_value=mock_s3_client_with_data,
         ):
             with patch(
-                "apps.api.src.services.mapping.get_grok_client", return_value=None
+                "src.services.mapping.get_grok_client", return_value=None
             ):
                 response = client.post(
                     "/uploads/suggest-mapping",
@@ -200,7 +200,7 @@ class TestAnalysisRoutes:
     ):
         """Test analyze endpoint accepts valid column mapping."""
         with patch(
-            "apps.api.src.dependencies.get_s3_client",
+            "src.dependencies.get_s3_client",
             return_value=mock_s3_client_with_data,
         ):
             response = client.post(
@@ -222,7 +222,7 @@ class TestAnalysisRoutes:
     ):
         """Test analyze returns all expected leak categories."""
         with patch(
-            "apps.api.src.dependencies.get_s3_client",
+            "src.dependencies.get_s3_client",
             return_value=mock_s3_client_with_data,
         ):
             response = client.post(
@@ -253,7 +253,7 @@ class TestAnalysisRoutes:
     ):
         """Test analyze handles empty mapping gracefully."""
         with patch(
-            "apps.api.src.dependencies.get_s3_client",
+            "src.dependencies.get_s3_client",
             return_value=mock_s3_client_with_data,
         ):
             response = client.post(
@@ -285,10 +285,10 @@ class TestAuthentication:
         # Mock get_supabase_client to return None so auth is bypassed
         # (endpoint allows anonymous access, so without supabase client it falls back)
         with patch(
-            "apps.api.src.routes.uploads.get_s3_client", return_value=mock_s3_client
+            "src.routes.uploads.get_s3_client", return_value=mock_s3_client
         ):
             with patch(
-                "apps.api.src.dependencies.get_supabase_client", return_value=None
+                "src.dependencies.get_supabase_client", return_value=None
             ):
                 response = client.post(
                     "/uploads/presign",
@@ -352,7 +352,7 @@ class TestErrorHandling:
         mock_s3 = MagicMock()
         mock_s3.get_object.side_effect = Exception("S3 connection failed")
 
-        with patch("apps.api.src.dependencies.get_s3_client", return_value=mock_s3):
+        with patch("src.dependencies.get_s3_client", return_value=mock_s3):
             response = client.post(
                 "/uploads/suggest-mapping",
                 data={"key": "test-key", "filename": "test.csv"},

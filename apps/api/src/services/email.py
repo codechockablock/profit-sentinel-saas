@@ -70,8 +70,16 @@ class EmailService:
             logger.warning("Consent not given, refusing to send email")
             return {"success": False, "error": "Consent required"}
 
+        # Check if this is mock data (sentinel engine not available)
+        is_mock = any(r.get("mock", False) for r in results)
+        if is_mock:
+            logger.warning(
+                "Sending email with MOCK DATA - sentinel engine was not available. "
+                "SKUs will be placeholders like 'SKU-001'."
+            )
+
         # Generate HTML content
-        html_content = self._generate_report_html(results, to_email)
+        html_content = self._generate_report_html(results, to_email, is_mock=is_mock)
 
         # Generate plain text fallback
         text_content = self._generate_report_text(results)
@@ -170,8 +178,25 @@ class EmailService:
             logger.error(f"SendGrid API error: {e}")
             return {"success": False, "error": str(e)}
 
-    def _generate_report_html(self, results: list[dict], to_email: str) -> str:
+    def _generate_report_html(
+        self, results: list[dict], to_email: str, is_mock: bool = False
+    ) -> str:
         """Generate HTML email content for analysis report."""
+        # Mock data warning banner
+        mock_warning = ""
+        if is_mock:
+            mock_warning = """
+            <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 20px; margin-bottom: 30px; text-align: center;">
+                <p style="color: #92400e; font-size: 16px; font-weight: bold; margin: 0 0 10px 0;">
+                    ⚠️ DEMO MODE - Sample Data Only
+                </p>
+                <p style="color: #a16207; font-size: 14px; margin: 0;">
+                    This report contains placeholder data (SKU-001, SKU-002, etc.) because the analysis engine
+                    could not process your actual file. Please contact support@profitsentinel.com for assistance.
+                </p>
+            </div>
+            """
+
         # Calculate totals
         total_flagged = 0
         total_impact_low = 0
@@ -241,6 +266,9 @@ class EmailService:
             <h1 style="color: #10b981; margin: 0; font-size: 28px;">Profit Sentinel</h1>
             <p style="color: #64748b; margin: 10px 0 0 0; font-size: 14px;">AI-Powered Profit Forensics</p>
         </div>
+
+        <!-- Mock Data Warning (if applicable) -->
+        {mock_warning}
 
         <!-- Summary Card -->
         <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 25px; margin-bottom: 30px;">
