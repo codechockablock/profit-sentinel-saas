@@ -2,6 +2,7 @@
 """Debug VSA detection to understand what's being returned."""
 
 import sys
+
 sys.path.insert(0, '../src')
 
 from validation_runner import SyntheticDataGenerator
@@ -16,9 +17,8 @@ print()
 
 # Check VSA
 try:
-    import torch
-    from sentinel_engine.context import create_analysis_context
     from sentinel_engine import core
+    from sentinel_engine.context import create_analysis_context
 
     print("Creating context...")
     ctx = create_analysis_context(use_gpu=False)
@@ -36,7 +36,7 @@ try:
     print("Querying low_stock primitive...")
     items, scores = core.query_bundle(ctx, bundle, "low_stock", top_k=20)
 
-    print(f"Top 20 results:")
+    print("Top 20 results:")
     for i, (item, score) in enumerate(zip(items, scores)):
         print(f"  {i+1}. {item}: {score:.4f}")
 

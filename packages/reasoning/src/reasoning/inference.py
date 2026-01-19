@@ -18,14 +18,15 @@ BACKWARD CHAINING (Goal-Driven):
 Both return proof trees for explainability.
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Iterator, Any, Tuple
-from enum import Enum
-from collections import deque
 
-from .terms import Term, Var, Atom, Clause, TermLike
-from .unification import unify, substitute, Substitution, compose_substitutions
+from collections.abc import Iterator
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
 from .knowledge_base import KnowledgeBase
+from .terms import Clause, Term
+from .unification import Substitution, compose_substitutions, substitute, unify
 
 
 class ProofStatus(Enum):
@@ -43,9 +44,9 @@ class ProofNode:
     Represents a single step in a derivation.
     """
     goal: Term
-    rule_used: Optional[Clause] = None
+    rule_used: Clause | None = None
     substitution: Substitution = field(default_factory=dict)
-    children: List['ProofNode'] = field(default_factory=list)
+    children: list[ProofNode] = field(default_factory=list)
     status: ProofStatus = ProofStatus.PARTIAL
     depth: int = 0
 
@@ -83,7 +84,7 @@ class ProofTree:
     def status(self) -> ProofStatus:
         return self.root.status
 
-    def get_answer(self) -> Optional[Term]:
+    def get_answer(self) -> Term | None:
         """Get the instantiated query with bindings applied."""
         if not self.is_valid:
             return None
@@ -109,7 +110,7 @@ class ProofTree:
 
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Export proof tree to dictionary."""
         return {
             "query": str(self.query),
@@ -119,7 +120,7 @@ class ProofTree:
             "tree": self._node_to_dict(self.root)
         }
 
-    def _node_to_dict(self, node: ProofNode) -> Dict[str, Any]:
+    def _node_to_dict(self, node: ProofNode) -> dict[str, Any]:
         return {
             "goal": str(node.goal),
             "status": node.status.value,
@@ -136,7 +137,7 @@ class ProofTree:
 def forward_chain(
     kb: KnowledgeBase,
     max_iterations: int = 1000
-) -> Tuple[List[Term], int]:
+) -> tuple[list[Term], int]:
     """Forward chaining inference.
 
     Applies all applicable rules to derive new facts until
@@ -149,8 +150,8 @@ def forward_chain(
     Returns:
         (new_facts, iterations) - list of derived facts and iteration count
     """
-    new_facts: List[Term] = []
-    derived: Set[str] = set()  # Track derived facts by string representation
+    new_facts: list[Term] = []
+    derived: set[str] = set()  # Track derived facts by string representation
 
     # Initialize with existing facts
     for clause in kb:
@@ -187,8 +188,8 @@ def forward_chain(
 
 def _satisfy_body(
     kb: KnowledgeBase,
-    body: List[Term],
-    derived: Set[str]
+    body: list[Term],
+    derived: set[str]
 ) -> Iterator[Substitution]:
     """Find all substitutions that satisfy a rule body."""
     if not body:
@@ -244,7 +245,7 @@ def _prove_goal(
     theta: Substitution,
     depth: int,
     max_depth: int
-) -> Tuple[bool, Substitution]:
+) -> tuple[bool, Substitution]:
     """Recursively prove a goal."""
     if depth > max_depth:
         node.status = ProofStatus.TIMEOUT
@@ -308,7 +309,7 @@ def backward_chain_all(
     goal: Term,
     max_results: int = 100,
     max_depth: int = 100
-) -> List[ProofTree]:
+) -> list[ProofTree]:
     """Find all proofs for a goal.
 
     Args:
@@ -335,7 +336,7 @@ def backward_chain_all(
 
 def _prove_all(
     kb: KnowledgeBase,
-    goals: List[Term],
+    goals: list[Term],
     theta: Substitution,
     depth: int,
     max_depth: int
@@ -374,9 +375,9 @@ def _prove_all(
 def abductive_inference(
     kb: KnowledgeBase,
     observation: Term,
-    hypotheses: List[Term],
+    hypotheses: list[Term],
     max_depth: int = 50
-) -> List[Tuple[Term, ProofTree]]:
+) -> list[tuple[Term, ProofTree]]:
     """Abductive reasoning: find hypotheses that explain observation.
 
     Given an observation and candidate hypotheses, returns
@@ -414,7 +415,7 @@ def counterfactual_query(
     intervention: Term,
     query: Term,
     max_depth: int = 50
-) -> Tuple[ProofTree, ProofTree]:
+) -> tuple[ProofTree, ProofTree]:
     """Counterfactual reasoning: what if X were true/false?
 
     Args:

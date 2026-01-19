@@ -14,14 +14,15 @@ This enables:
 3. Combined confidence from both systems
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
-import torch
-import logging
 
-from reasoning.terms import Term, Var, Atom
+import logging
+from dataclasses import dataclass
+from typing import Any
+
+import torch
+from reasoning.inference import ProofTree, backward_chain, forward_chain
 from reasoning.knowledge_base import KnowledgeBase
-from reasoning.inference import backward_chain, forward_chain, ProofTree
+from reasoning.terms import Atom, Term, Var
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +31,11 @@ logger = logging.getLogger(__name__)
 class BridgeResult:
     """Combined result from VSA + symbolic reasoning."""
     entity_id: str
-    vsa_anomalies: List[Tuple[str, float]]  # (anomaly, similarity)
-    symbolic_conclusions: List[Tuple[str, float]]  # (conclusion, confidence)
-    root_causes: List[Dict[str, Any]]
-    recommended_actions: List[str]
-    proof_tree: Optional[ProofTree] = None
+    vsa_anomalies: list[tuple[str, float]]  # (anomaly, similarity)
+    symbolic_conclusions: list[tuple[str, float]]  # (conclusion, confidence)
+    root_causes: list[dict[str, Any]]
+    recommended_actions: list[str]
+    proof_tree: ProofTree | None = None
     combined_confidence: float = 0.0
     explanation: str = ""
 
@@ -69,9 +70,9 @@ class VSASymbolicBridge:
         self.symbolic_weight = symbolic_weight
 
         self._resonator = None
-        self._kb: Optional[KnowledgeBase] = None
+        self._kb: KnowledgeBase | None = None
         self._primitive_loader = None
-        self._rule_mappings: Dict[str, str] = {}  # VSA primitive → symbolic predicate
+        self._rule_mappings: dict[str, str] = {}  # VSA primitive → symbolic predicate
 
     def set_resonator(self, resonator) -> None:
         """Set VSA resonator."""
@@ -99,7 +100,7 @@ class VSASymbolicBridge:
         entity_id: str,
         resonator_result,
         threshold: float = 0.4
-    ) -> List[Term]:
+    ) -> list[Term]:
         """Convert VSA resonator results to symbolic facts.
 
         Args:
@@ -133,7 +134,7 @@ class VSASymbolicBridge:
         self,
         entity_id: str,
         entity_vector: torch.Tensor,
-        context: Optional[Dict[str, Any]] = None
+        context: dict[str, Any] | None = None
     ) -> BridgeResult:
         """Perform combined VSA + symbolic analysis.
 
@@ -236,10 +237,10 @@ class VSASymbolicBridge:
     def _generate_explanation(
         self,
         entity_id: str,
-        vsa_anomalies: List[Tuple[str, float]],
-        symbolic_conclusions: List[Tuple[str, float]],
-        root_causes: List[Dict[str, Any]],
-        proof_tree: Optional[ProofTree]
+        vsa_anomalies: list[tuple[str, float]],
+        symbolic_conclusions: list[tuple[str, float]],
+        root_causes: list[dict[str, Any]],
+        proof_tree: ProofTree | None
     ) -> str:
         """Generate human-readable explanation."""
         lines = [f"Analysis for {entity_id}:"]
@@ -267,9 +268,9 @@ class VSASymbolicBridge:
 
     def batch_analyze(
         self,
-        entities: Dict[str, torch.Tensor],
-        contexts: Optional[Dict[str, Dict]] = None
-    ) -> List[BridgeResult]:
+        entities: dict[str, torch.Tensor],
+        contexts: dict[str, dict] | None = None
+    ) -> list[BridgeResult]:
         """Analyze multiple entities.
 
         Args:
@@ -297,12 +298,12 @@ class PlaybookGenerator:
     """
 
     def __init__(self):
-        self._templates: Dict[str, Dict[str, Any]] = {}
+        self._templates: dict[str, dict[str, Any]] = {}
 
     def register_template(
         self,
         anomaly_type: str,
-        template: Dict[str, Any]
+        template: dict[str, Any]
     ) -> None:
         """Register playbook template for anomaly type.
 
@@ -312,7 +313,7 @@ class PlaybookGenerator:
         """
         self._templates[anomaly_type] = template
 
-    def generate(self, result: BridgeResult) -> Dict[str, Any]:
+    def generate(self, result: BridgeResult) -> dict[str, Any]:
         """Generate playbook from bridge result.
 
         Args:
@@ -392,7 +393,7 @@ class PlaybookGenerator:
 
         return summary
 
-    def to_markdown(self, playbook: Dict[str, Any]) -> str:
+    def to_markdown(self, playbook: dict[str, Any]) -> str:
         """Export playbook to Markdown."""
         lines = [
             f"# Investigation Playbook: {playbook['entity_id']}",
@@ -426,7 +427,7 @@ class PlaybookGenerator:
 
         return "\n".join(lines)
 
-    def to_json(self, playbook: Dict[str, Any]) -> str:
+    def to_json(self, playbook: dict[str, Any]) -> str:
         """Export playbook to JSON."""
         import json
         return json.dumps(playbook, indent=2)

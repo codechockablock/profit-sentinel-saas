@@ -7,12 +7,12 @@ All route modules are registered here.
 from fastapi import APIRouter
 
 from .analysis import router as analysis_router
+from .employee import router as employee_router
 from .health import router as health_router
-from .uploads import router as uploads_router
-from .reports import router as reports_router
 from .metrics import router as metrics_router
 from .repair import router as repair_router
-from .employee import router as employee_router
+from .reports import router as reports_router
+from .uploads import router as uploads_router
 
 # Main API router
 api_router = APIRouter()

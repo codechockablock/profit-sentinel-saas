@@ -21,14 +21,16 @@ Mathematical Foundation:
     codebook entries that explain the query.
 """
 from __future__ import annotations
-import torch
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass
-import time
 
-from .types import ResonatorConfig
-from .vectors import normalize, batch_similarity, get_device, get_dtype
+import time
+from dataclasses import dataclass
+from typing import Any
+
+import torch
+
 from .operators import sparse_resonance_step
+from .types import ResonatorConfig
+from .vectors import batch_similarity, get_device, normalize
 
 
 @dataclass
@@ -39,8 +41,8 @@ class ResonatorResult:
     converged: bool
     convergence_delta: float
     elapsed_ms: float
-    top_matches: List[Tuple[str, float]]  # [(label, similarity), ...]
-    metadata: Dict[str, Any]
+    top_matches: list[tuple[str, float]]  # [(label, similarity), ...]
+    metadata: dict[str, Any]
 
 
 class Resonator:
@@ -58,20 +60,20 @@ class Resonator:
         print(result.top_matches)  # [('low_stock', 0.87), ('sku:123', 0.65)]
     """
 
-    def __init__(self, config: Optional[ResonatorConfig] = None):
+    def __init__(self, config: ResonatorConfig | None = None):
         """Initialize resonator.
 
         Args:
             config: Resonator configuration (uses defaults if None)
         """
         self.config = config or ResonatorConfig()
-        self.codebook: Optional[torch.Tensor] = None
-        self.labels: List[str] = []
+        self.codebook: torch.Tensor | None = None
+        self.labels: list[str] = []
         self._device = get_device()
 
     def set_codebook(
         self,
-        labels: List[str],
+        labels: list[str],
         vectors: torch.Tensor
     ) -> None:
         """Set the codebook for resonator queries.
@@ -195,7 +197,7 @@ class Resonator:
     def batch_resonate(
         self,
         queries: torch.Tensor
-    ) -> List[ResonatorResult]:
+    ) -> list[ResonatorResult]:
         """Process multiple queries.
 
         Args:
@@ -209,7 +211,7 @@ class Resonator:
     def resonator_attention(
         self,
         query: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Get attention weights without full resonation.
 
         Useful for inspecting what the resonator "sees" in a query.
@@ -247,7 +249,7 @@ class HierarchicalResonator:
 
     def __init__(
         self,
-        config: Optional[ResonatorConfig] = None,
+        config: ResonatorConfig | None = None,
         coarse_clusters: int = 100
     ):
         """Initialize hierarchical resonator.
@@ -259,15 +261,15 @@ class HierarchicalResonator:
         self.config = config or ResonatorConfig()
         self.coarse_clusters = coarse_clusters
 
-        self.coarse_centroids: Optional[torch.Tensor] = None
-        self.fine_codebooks: List[torch.Tensor] = []
-        self.fine_labels: List[List[str]] = []
-        self.cluster_assignments: List[int] = []
+        self.coarse_centroids: torch.Tensor | None = None
+        self.fine_codebooks: list[torch.Tensor] = []
+        self.fine_labels: list[list[str]] = []
+        self.cluster_assignments: list[int] = []
         self._device = get_device()
 
     def build_hierarchy(
         self,
-        labels: List[str],
+        labels: list[str],
         vectors: torch.Tensor
     ) -> None:
         """Build hierarchical codebook structure.

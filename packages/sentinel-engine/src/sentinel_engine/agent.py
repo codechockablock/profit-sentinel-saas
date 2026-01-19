@@ -46,39 +46,29 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
     Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Set,
-    Tuple,
 )
 
 import torch
-
 from vsa_core import (
-    seed_hash,
+    HypothesisBundle,
     bind,
     bundle,
-    unbind,
+    cw_bundle,
+    p_sup,
+    p_sup_collapse,
+    p_sup_update,
     similarity,
     t_bind,
     t_unbind,
-    cw_bundle,
-    n_bind,
-    p_sup,
-    p_sup_update,
-    p_sup_collapse,
-    HypothesisBundle,
-    Resonator,
 )
 
-from .context import create_analysis_context, AnalysisContext
-from .streaming import process_large_file, StreamingResult
+from .context import AnalysisContext, create_analysis_context
+from .streaming import StreamingResult, process_large_file
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +82,7 @@ class AgentConfig:
     """Configuration for always-on agent."""
 
     # Directories to watch for new files
-    watch_directories: List[Path] = field(default_factory=list)
+    watch_directories: list[Path] = field(default_factory=list)
 
     # Webhook settings
     webhook_port: int = 8080
@@ -116,7 +106,7 @@ class AgentConfig:
     chunk_size: int = 15000
 
     # Primitives to track
-    primitives: List[str] = field(default_factory=lambda: [
+    primitives: list[str] = field(default_factory=lambda: [
         "low_stock",
         "high_margin_leak",
         "dead_item",
@@ -175,8 +165,8 @@ class TemporalWorkingMemory:
         self.decay_rate = decay_rate
         self.max_events = max_events
 
-        self.events: List[TemporalEvent] = []
-        self.temporal_bundle: Optional[torch.Tensor] = None
+        self.events: list[TemporalEvent] = []
+        self.temporal_bundle: torch.Tensor | None = None
         self.reference_time: float = time.time()
 
     def add_event(
@@ -185,7 +175,7 @@ class TemporalWorkingMemory:
         sku: str,
         score: float,
         fact_vector: torch.Tensor,
-        timestamp: Optional[float] = None
+        timestamp: float | None = None
     ) -> None:
         """Add timestamped fact to temporal memory.
 
@@ -273,7 +263,7 @@ class TemporalWorkingMemory:
         self,
         query_vector: torch.Tensor,
         days_back: int = 7
-    ) -> List[Tuple[TemporalEvent, float]]:
+    ) -> list[tuple[TemporalEvent, float]]:
         """Query for matching events in recent window.
 
         Args:
@@ -299,7 +289,7 @@ class TemporalWorkingMemory:
         start_time: float,
         end_time: float,
         num_samples: int = 20
-    ) -> List[Tuple[float, float]]:
+    ) -> list[tuple[float, float]]:
         """Query for pattern across time range.
 
         Returns similarity scores at sampled time points.
@@ -337,7 +327,7 @@ class TemporalWorkingMemory:
         self,
         primitive_vector: torch.Tensor,
         days_back: int = 14
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Analyze trend for a primitive over time.
 
         Returns:
@@ -415,13 +405,13 @@ class HypothesisEngine:
         """
         self.ctx = ctx
         self.collapse_threshold = collapse_threshold
-        self.active_hypotheses: Dict[str, HypothesisBundle] = {}
-        self.collapsed_conclusions: List[Dict[str, Any]] = []
+        self.active_hypotheses: dict[str, HypothesisBundle] = {}
+        self.collapsed_conclusions: list[dict[str, Any]] = []
 
     def create_hypothesis_bundle(
         self,
         sku: str,
-        candidate_primitives: List[Tuple[str, float]]
+        candidate_primitives: list[tuple[str, float]]
     ) -> HypothesisBundle:
         """Create hypothesis bundle for SKU anomaly.
 
@@ -447,7 +437,7 @@ class HypothesisEngine:
         self,
         sku: str,
         evidence_vector: torch.Tensor
-    ) -> Optional[str]:
+    ) -> str | None:
         """Update hypothesis bundle with new evidence.
 
         Args:
@@ -488,11 +478,11 @@ class HypothesisEngine:
         """Add or replace hypothesis bundle for SKU."""
         self.active_hypotheses[sku] = bundle
 
-    def get_hypothesis(self, sku: str) -> Optional[HypothesisBundle]:
+    def get_hypothesis(self, sku: str) -> HypothesisBundle | None:
         """Get hypothesis bundle for SKU."""
         return self.active_hypotheses.get(sku)
 
-    def get_recent_conclusions(self, n: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_conclusions(self, n: int = 10) -> list[dict[str, Any]]:
         """Get most recent collapsed conclusions."""
         return self.collapsed_conclusions[-n:]
 
@@ -509,15 +499,15 @@ class Alert:
     confidence: float
     primitive: str
     timestamp: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class AlertDispatcher:
     """Dispatches alerts to configured channels."""
 
     def __init__(self):
-        self.handlers: List[Callable[[Alert], None]] = []
-        self.alert_history: List[Alert] = []
+        self.handlers: list[Callable[[Alert], None]] = []
+        self.alert_history: list[Alert] = []
 
     def register_handler(self, handler: Callable[[Alert], None]) -> None:
         """Register alert handler."""
@@ -536,7 +526,7 @@ class AlertDispatcher:
             except Exception as e:
                 logger.error(f"Alert handler error: {e}")
 
-    def get_recent_alerts(self, n: int = 20) -> List[Alert]:
+    def get_recent_alerts(self, n: int = 20) -> list[Alert]:
         """Get recent alerts."""
         return self.alert_history[-n:]
 
@@ -595,15 +585,15 @@ class SentinelAgent:
         self.alert_dispatcher = AlertDispatcher()
 
         # Track processed files
-        self.processed_files: Set[Path] = set()
+        self.processed_files: set[Path] = set()
 
         # Latest analysis results
-        self.latest_result: Optional[StreamingResult] = None
+        self.latest_result: StreamingResult | None = None
 
     async def start(self) -> None:
         """Start the agent event loop."""
         self.running = True
-        logger.info(f"Starting Sentinel Agent v3.1.0")
+        logger.info("Starting Sentinel Agent v3.1.0")
         logger.info(f"  Watch directories: {self.config.watch_directories}")
         logger.info(f"  Working memory: {self.config.working_memory_window_days} days")
         logger.info(f"  Dimensions: {self.config.dimensions}")
@@ -786,7 +776,7 @@ class SentinelAgent:
     # PUBLIC API
     # ==========================================================================
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current agent status."""
         return {
             "running": self.running,
@@ -804,7 +794,7 @@ class SentinelAgent:
         self,
         primitive: str,
         days_back: int = 7
-    ) -> List[Tuple[TemporalEvent, float]]:
+    ) -> list[tuple[TemporalEvent, float]]:
         """Query working memory for primitive matches.
 
         Args:

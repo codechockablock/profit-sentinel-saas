@@ -19,11 +19,9 @@ Output:
 
 import json
 import random
-import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, List, Set, Tuple, Optional
 from pathlib import Path
 
 
@@ -31,7 +29,7 @@ from pathlib import Path
 class DetectionResult:
     """Results from a detector for a single primitive."""
     primitive: str
-    detected_skus: Set[str] = field(default_factory=set)
+    detected_skus: set[str] = field(default_factory=set)
     true_positives: int = 0
     false_positives: int = 0
     false_negatives: int = 0
@@ -39,7 +37,7 @@ class DetectionResult:
     recall: float = 0.0
     f1: float = 0.0
 
-    def calculate(self, ground_truth: Set[str]):
+    def calculate(self, ground_truth: set[str]):
         """Calculate metrics against ground truth."""
         truth_lower = {s.lower() for s in ground_truth}
         detected_lower = {s.lower() for s in self.detected_skus}
@@ -83,7 +81,7 @@ class SyntheticDataGenerator:
         self,
         n_total: int = 10000,
         anomaly_rate: float = 0.05
-    ) -> Tuple[List[Dict], Dict[str, Set[str]]]:
+    ) -> tuple[list[dict], dict[str, set[str]]]:
         """
         Generate dataset with specified anomaly rate per primitive.
 
@@ -116,7 +114,7 @@ class SyntheticDataGenerator:
         random.shuffle(rows)
         return rows, ground_truth
 
-    def _normal_item(self, sku: str) -> Dict:
+    def _normal_item(self, sku: str) -> dict:
         """Generate a healthy item with no anomalies."""
         cost = random.uniform(5, 100)
         margin = random.uniform(0.25, 0.50)  # 25-50% healthy margin
@@ -139,7 +137,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_low_stock(self, sku: str) -> Dict:
+    def _gen_low_stock(self, sku: str) -> dict:
         """Low stock: qty < 5, high sales velocity."""
         cost = random.uniform(10, 80)
         margin = random.uniform(0.30, 0.45)
@@ -158,7 +156,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_high_margin_leak(self, sku: str) -> Dict:
+    def _gen_high_margin_leak(self, sku: str) -> dict:
         """Margin leak: selling at or below cost."""
         cost = random.uniform(20, 100)
         # Negative or very low margin
@@ -180,7 +178,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_dead_item(self, sku: str) -> Dict:
+    def _gen_dead_item(self, sku: str) -> dict:
         """Dead inventory: no sales in 90+ days."""
         cost = random.uniform(10, 60)
         margin = random.uniform(0.30, 0.40)
@@ -199,7 +197,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_negative_inventory(self, sku: str) -> Dict:
+    def _gen_negative_inventory(self, sku: str) -> dict:
         """Negative inventory: qty < 0."""
         cost = random.uniform(15, 120)
         margin = random.uniform(0.30, 0.40)
@@ -218,7 +216,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_overstock(self, sku: str) -> Dict:
+    def _gen_overstock(self, sku: str) -> dict:
         """Overstock: >180 days of supply."""
         cost = random.uniform(10, 50)
         margin = random.uniform(0.30, 0.40)
@@ -239,7 +237,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_price_discrepancy(self, sku: str) -> Dict:
+    def _gen_price_discrepancy(self, sku: str) -> dict:
         """Price discrepancy: actual price << suggested retail."""
         cost = random.uniform(20, 80)
         sug_retail = cost * random.uniform(1.8, 2.5)
@@ -258,7 +256,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_shrinkage_pattern(self, sku: str) -> Dict:
+    def _gen_shrinkage_pattern(self, sku: str) -> dict:
         """Shrinkage: significant negative qty_difference."""
         cost = random.uniform(20, 100)
         margin = random.uniform(0.30, 0.40)
@@ -277,7 +275,7 @@ class SyntheticDataGenerator:
             "qty_difference": random.randint(-30, -5),  # SHRINKAGE
         }
 
-    def _gen_margin_erosion(self, sku: str) -> Dict:
+    def _gen_margin_erosion(self, sku: str) -> dict:
         """Margin erosion: margin between 5-18% (below healthy)."""
         cost = random.uniform(30, 100)
         margin = random.uniform(0.05, 0.18)  # Low but positive
@@ -310,7 +308,7 @@ class BaselineDetector:
     - high_margin_leak: Uses category-aware thresholds
     """
 
-    def detect(self, rows: List[Dict]) -> Dict[str, Set[str]]:
+    def detect(self, rows: list[dict]) -> dict[str, set[str]]:
         """
         Run all detection rules on dataset.
 
@@ -331,11 +329,11 @@ class BaselineDetector:
         # Compute dataset averages for relative thresholds
         quantities = [self._safe_float(r.get("quantity", 0)) for r in rows]
         sold_vals = [self._safe_float(r.get("sold", 0)) for r in rows]
-        avg_qty = sum(quantities) / len(quantities) if quantities else 0
+        sum(quantities) / len(quantities) if quantities else 0
         avg_sold = sum(sold_vals) / len(sold_vals) if sold_vals else 0
 
         # Compute category-specific margin averages for calibrated thresholds
-        category_margins: Dict[str, List[float]] = {}
+        category_margins: dict[str, list[float]] = {}
         for row in rows:
             category = str(row.get("category", "unknown")).lower()
             cost = self._safe_float(row.get("cost", 0))
@@ -451,7 +449,7 @@ class VSADetector:
         except ImportError as e:
             print(f"WARNING: sentinel_engine not available: {e}")
 
-    def detect(self, rows: List[Dict], score_threshold: float = 0.01) -> Dict[str, Set[str]]:
+    def detect(self, rows: list[dict], score_threshold: float = 0.01) -> dict[str, set[str]]:
         """
         Run VSA detection on dataset.
 
@@ -580,7 +578,7 @@ def run_validation(dimensions: int = 8192):
     baseline_avg_prec = sum(m.precision for m in baseline_metrics.values()) / len(baseline_metrics)
     baseline_avg_recall = sum(m.recall for m in baseline_metrics.values()) / len(baseline_metrics)
 
-    print(f"\nBASELINE Averages:")
+    print("\nBASELINE Averages:")
     print(f"  Precision: {baseline_avg_prec:.1%}")
     print(f"  Recall:    {baseline_avg_recall:.1%}")
     print(f"  F1:        {baseline_avg_f1:.1%}")
@@ -591,14 +589,14 @@ def run_validation(dimensions: int = 8192):
         vsa_avg_prec = sum(m.precision for m in vsa_metrics.values()) / len(vsa_metrics)
         vsa_avg_recall = sum(m.recall for m in vsa_metrics.values()) / len(vsa_metrics)
 
-        print(f"\nVSA Averages:")
+        print("\nVSA Averages:")
         print(f"  Precision: {vsa_avg_prec:.1%}")
         print(f"  Recall:    {vsa_avg_recall:.1%}")
         print(f"  F1:        {vsa_avg_f1:.1%}")
         print(f"  Time:      {vsa_time:.2f}s")
 
         # Comparison
-        print(f"\nVSA vs BASELINE:")
+        print("\nVSA vs BASELINE:")
         f1_diff = vsa_avg_f1 - baseline_avg_f1
         print(f"  F1 Difference: {f1_diff:+.1%} ({'VSA better' if f1_diff > 0 else 'Baseline better'})")
 

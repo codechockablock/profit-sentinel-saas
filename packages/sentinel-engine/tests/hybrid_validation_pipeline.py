@@ -34,18 +34,16 @@ Architecture:
 """
 
 import json
-import random
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Dict, List, Set, Tuple, Optional, Any
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 # Import from validation_runner
 from validation_runner import (
-    SyntheticDataGenerator,
     BaselineDetector,
     DetectionResult,
+    SyntheticDataGenerator,
 )
 
 
@@ -80,8 +78,8 @@ class VSAResonatorSanityChecker:
 
         try:
             import torch
-            from sentinel_engine.context import create_analysis_context
             from sentinel_engine import core
+            from sentinel_engine.context import create_analysis_context
 
             self._torch = torch
             self._create_ctx = create_analysis_context
@@ -93,9 +91,9 @@ class VSAResonatorSanityChecker:
 
     def validate_detections(
         self,
-        rows: List[Dict],
-        baseline_detections: Dict[str, Set[str]],
-    ) -> Dict[str, ResonatorValidation]:
+        rows: list[dict],
+        baseline_detections: dict[str, set[str]],
+    ) -> dict[str, ResonatorValidation]:
         """
         Validate baseline detections using VSA resonator.
 
@@ -148,8 +146,8 @@ class VSAResonatorSanityChecker:
         ctx,
         bundle,
         primitive: str,
-        detected_skus: Set[str],
-        rows: List[Dict],
+        detected_skus: set[str],
+        rows: list[dict],
     ) -> ResonatorValidation:
         """Validate a single primitive's detections."""
         validation = ResonatorValidation(primitive=primitive)
@@ -195,7 +193,7 @@ class VSAResonatorSanityChecker:
             "overstock": "low_stock",
         }
         if primitive in opposing_primitives:
-            opposite = opposing_primitives[primitive]
+            opposing_primitives[primitive]
             # This would need cross-primitive checking in full implementation
             pass
 
@@ -235,7 +233,7 @@ def run_hybrid_validation():
     rows, ground_truth = gen.generate(n_total=5000, anomaly_rate=0.05)
 
     print(f"  Dataset: {len(rows)} rows")
-    print(f"  Anomaly rate: 5% per primitive")
+    print("  Anomaly rate: 5% per primitive")
     print(f"  Primitives: {len(ground_truth)}")
     for p, skus in ground_truth.items():
         print(f"    - {p}: {len(skus)} anomalies")
@@ -253,7 +251,7 @@ def run_hybrid_validation():
     baseline_time = time.time() - t0
 
     print(f"  Completed in {baseline_time:.3f}s")
-    print(f"  Detections per primitive:")
+    print("  Detections per primitive:")
     for p, skus in baseline_detections.items():
         print(f"    - {p}: {len(skus)} flagged")
     print()
@@ -281,7 +279,7 @@ def run_hybrid_validation():
     resonator_time = time.time() - t0
 
     print(f"  Completed in {resonator_time:.1f}s")
-    print(f"  Validation results:")
+    print("  Validation results:")
     for p, val in resonator_validations.items():
         status_icon = "✅" if "PASS" in val.status else ("⚠️" if "WARN" in val.status else "❌")
         print(f"    {status_icon} {p}: {val.status}")
@@ -363,7 +361,7 @@ def run_hybrid_validation():
     return results
 
 
-def generate_executive_report(results: Dict) -> str:
+def generate_executive_report(results: dict) -> str:
     """Generate a Markdown executive report from validation results."""
 
     baseline = results["baseline"]
@@ -434,7 +432,7 @@ def generate_executive_report(results: Dict) -> str:
         status = "✅" if m["f1"] >= 0.6 else ("⚠️" if m["f1"] >= 0.4 else "❌")
         report += f"| {p} | {m['precision']*100:.1f}% | {m['recall']*100:.1f}% | {m['f1']*100:.1f}% | {m['true_positives']} | {m['false_positives']} | {m['false_negatives']} | {status} |\n"
 
-    report += f"""
+    report += """
 ### Resonator Validation Status
 
 | Primitive | Candidates | Converged | Flagged | Status |

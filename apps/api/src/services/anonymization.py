@@ -13,7 +13,7 @@ import logging
 import os
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -135,7 +135,7 @@ class AnonymizationService:
         salted = f"{self.hash_salt}:{value}"
         return hashlib.sha256(salted.encode()).hexdigest()[:16]
 
-    def extract_aggregated_stats(self, results: List[Dict]) -> Dict:
+    def extract_aggregated_stats(self, results: list[dict]) -> dict:
         """
         Extract anonymized, aggregated statistics from analysis results.
 
@@ -196,7 +196,7 @@ class AnonymizationService:
 
     async def store_anonymized_analytics(
         self,
-        results: List[Dict],
+        results: list[dict],
         report_sent: bool = False
     ) -> bool:
         """
@@ -262,7 +262,7 @@ class AnonymizationService:
 
 
 # Singleton instance
-_anonymization_service: Optional[AnonymizationService] = None
+_anonymization_service: AnonymizationService | None = None
 
 
 def get_anonymization_service() -> AnonymizationService:

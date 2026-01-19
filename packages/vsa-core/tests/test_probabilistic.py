@@ -10,26 +10,26 @@ Verifies:
     - Adding/removing hypotheses
     - Merging bundles from multiple sources
 """
+import math
+import os
+import sys
+
 import pytest
 import torch
-import math
-import sys
-import os
 
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from vsa_core import seed_hash, similarity, configure
+from vsa_core import configure, seed_hash, similarity
 from vsa_core.probabilistic import (
     HypothesisBundle,
     p_sup,
-    p_sup_update,
-    p_sup_collapse,
     p_sup_add_hypothesis,
-    p_sup_remove_hypothesis,
+    p_sup_collapse,
     p_sup_merge,
+    p_sup_remove_hypothesis,
+    p_sup_update,
 )
-
 
 # =============================================================================
 # FIXTURES

@@ -10,7 +10,6 @@ SECURITY:
 
 import io
 import logging
-from typing import Optional, Tuple
 
 import pandas as pd
 
@@ -36,7 +35,7 @@ MAGIC_BYTES = {
 }
 
 
-def _validate_magic_bytes(content: bytes, extension: str) -> Tuple[bool, str]:
+def _validate_magic_bytes(content: bytes, extension: str) -> tuple[bool, str]:
     """
     Validate file content matches expected magic bytes for extension.
 
@@ -113,7 +112,7 @@ class S3Service:
         key: str,
         expires_in: int = 3600,
         content_type: str = "application/octet-stream",
-        max_size_mb: Optional[int] = None,
+        max_size_mb: int | None = None,
     ) -> str:
         """
         Generate a presigned URL for uploading with optional size limit.
@@ -166,7 +165,7 @@ class S3Service:
     def load_dataframe(
         self,
         key: str,
-        sample_rows: Optional[int] = None,
+        sample_rows: int | None = None,
         max_size_mb: int = DEFAULT_MAX_FILE_SIZE_MB,
         max_rows: int = DEFAULT_MAX_ROWS,
     ) -> pd.DataFrame:

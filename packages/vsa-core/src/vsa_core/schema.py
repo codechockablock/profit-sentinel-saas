@@ -30,23 +30,25 @@ Example:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Callable, Any
-import torch
-import hashlib
 
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+import torch
+
+from .operators import bind, bundle, unbind
 from .vectors import normalize, random_vector, similarity
-from .operators import bind, unbind, bundle
 
 
 @dataclass
 class FieldSpec:
     """Specification for a schema field."""
     canonical_name: str
-    aliases: List[str] = field(default_factory=list)
-    vector: Optional[torch.Tensor] = None
-    transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    aliases: list[str] = field(default_factory=list)
+    vector: torch.Tensor | None = None
+    transform: Callable[[torch.Tensor], torch.Tensor] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class SchemaRegistry:
@@ -71,7 +73,7 @@ class SchemaRegistry:
         self,
         version: str,
         dimensions: int = 8192,
-        seed: Optional[int] = None
+        seed: int | None = None
     ):
         """Initialize schema registry.
 
@@ -84,16 +86,16 @@ class SchemaRegistry:
         self.dimensions = dimensions
         self.seed = seed or hash(version) % (2**31)
 
-        self.fields: Dict[str, FieldSpec] = {}
-        self._alias_map: Dict[str, str] = {}  # alias -> canonical
-        self._vectors: Dict[str, torch.Tensor] = {}
+        self.fields: dict[str, FieldSpec] = {}
+        self._alias_map: dict[str, str] = {}  # alias -> canonical
+        self._vectors: dict[str, torch.Tensor] = {}
 
     def add_field(
         self,
         canonical_name: str,
-        aliases: Optional[List[str]] = None,
-        transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        aliases: list[str] | None = None,
+        transform: Callable[[torch.Tensor], torch.Tensor] | None = None,
+        metadata: dict[str, Any] | None = None
     ) -> None:
         """Add a field to the schema.
 
@@ -167,7 +169,7 @@ class SchemaRegistry:
     def get_transform(
         self,
         field_name: str
-    ) -> Optional[Callable[[torch.Tensor], torch.Tensor]]:
+    ) -> Callable[[torch.Tensor], torch.Tensor] | None:
         """Get transformation function for field.
 
         Args:
@@ -200,17 +202,17 @@ class SchemaRegistry:
         self.fields[canonical_name].aliases.append(alias)
         self._alias_map[alias.lower()] = canonical_name
 
-    def list_fields(self) -> List[str]:
+    def list_fields(self) -> list[str]:
         """List all canonical field names."""
         return list(self.fields.keys())
 
-    def list_aliases(self, canonical_name: str) -> List[str]:
+    def list_aliases(self, canonical_name: str) -> list[str]:
         """List all aliases for a canonical field."""
         if canonical_name not in self.fields:
             raise KeyError(f"Unknown field: {canonical_name}")
         return self.fields[canonical_name].aliases
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Export registry as dictionary."""
         return {
             "version": self.version,
@@ -228,9 +230,9 @@ class SchemaRegistry:
     @classmethod
     def from_dict(
         cls,
-        data: Dict[str, Any],
-        transforms: Optional[Dict[str, Callable]] = None
-    ) -> "SchemaRegistry":
+        data: dict[str, Any],
+        transforms: dict[str, Callable] | None = None
+    ) -> SchemaRegistry:
         """Create registry from dictionary.
 
         Args:
@@ -316,7 +318,7 @@ def se_unbind(
 
 
 def create_schema_record(
-    field_values: Dict[str, torch.Tensor],
+    field_values: dict[str, torch.Tensor],
     schema: SchemaRegistry,
     auto_add: bool = False
 ) -> torch.Tensor:
@@ -356,7 +358,7 @@ def migrate_bundle(
     old_bundle: torch.Tensor,
     old_schema: SchemaRegistry,
     new_schema: SchemaRegistry,
-    field_mapping: Optional[Dict[str, str]] = None
+    field_mapping: dict[str, str] | None = None
 ) -> torch.Tensor:
     """Migrate a bundle from old schema to new schema.
 
@@ -423,7 +425,7 @@ def migrate_bundle(
 def schema_compatibility_check(
     schema_a: SchemaRegistry,
     schema_b: SchemaRegistry
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Check compatibility between two schemas.
 
     Args:
@@ -469,7 +471,7 @@ def schema_compatibility_check(
 
 def create_retail_schema(
     version: str = "retail-v1",
-    dimensions: Optional[int] = None
+    dimensions: int | None = None
 ) -> SchemaRegistry:
     """Create standard retail inventory schema.
 

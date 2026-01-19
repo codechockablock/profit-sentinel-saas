@@ -9,11 +9,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
-from uuid import UUID
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
-
 
 # =============================================================================
 # ENUMS
@@ -125,33 +123,33 @@ def expertise_multiplier(level: int) -> float:
 class DiagnoseRequest(BaseModel):
     """Request to diagnose a repair problem."""
 
-    text_description: Optional[str] = Field(
+    text_description: str | None = Field(
         None,
         description="Text description of the problem",
         max_length=2000
     )
-    voice_transcript: Optional[str] = Field(
+    voice_transcript: str | None = Field(
         None,
         description="Transcript from voice input",
         max_length=2000
     )
-    image_base64: Optional[str] = Field(
+    image_base64: str | None = Field(
         None,
         description="Base64-encoded image (max 1024px, EXIF stripped)"
     )
     store_id: str = Field(..., description="Store identifier")
-    employee_id: Optional[str] = Field(
+    employee_id: str | None = Field(
         None,
         description="Employee ID (None for anonymous customer)"
     )
-    session_id: Optional[str] = Field(
+    session_id: str | None = Field(
         None,
         description="Anonymous session ID for customers"
     )
 
     @field_validator("text_description", "voice_transcript")
     @classmethod
-    def not_empty_if_provided(cls, v: Optional[str]) -> Optional[str]:
+    def not_empty_if_provided(cls, v: str | None) -> str | None:
         if v is not None and len(v.strip()) == 0:
             return None
         return v
@@ -169,13 +167,13 @@ class RefineRequest(BaseModel):
     """Request to refine diagnosis with additional information."""
 
     problem_id: str = Field(..., description="Problem ID to refine")
-    additional_text: Optional[str] = Field(None, max_length=1000)
-    additional_image_base64: Optional[str] = None
-    answer_to_question: Optional[str] = Field(
+    additional_text: str | None = Field(None, max_length=1000)
+    additional_image_base64: str | None = None
+    answer_to_question: str | None = Field(
         None,
         description="Answer to a follow-up question"
     )
-    question_index: Optional[int] = Field(
+    question_index: int | None = Field(
         None,
         description="Index of question being answered"
     )
@@ -190,7 +188,7 @@ class CorrectionRequest(BaseModel):
         ...,
         description="Correct category slug"
     )
-    correction_notes: Optional[str] = Field(
+    correction_notes: str | None = Field(
         None,
         description="Optional notes explaining the correction",
         max_length=500
@@ -207,8 +205,8 @@ class Hypothesis(BaseModel):
     category_slug: str
     category_name: str
     probability: float = Field(..., ge=0.0, le=1.0)
-    explanation: Optional[str] = None
-    icon: Optional[str] = None
+    explanation: str | None = None
+    icon: str | None = None
 
 
 class DiagnoseResponse(BaseModel):
@@ -218,7 +216,7 @@ class DiagnoseResponse(BaseModel):
     status: ProblemStatus = ProblemStatus.DIAGNOSED
 
     # Hypotheses (P-Sup results)
-    hypotheses: List[Hypothesis]
+    hypotheses: list[Hypothesis]
     top_hypothesis: Hypothesis
 
     # Confidence metrics
@@ -230,10 +228,10 @@ class DiagnoseResponse(BaseModel):
 
     # Next steps
     needs_more_info: bool = False
-    follow_up_questions: List[str] = Field(default_factory=list)
+    follow_up_questions: list[str] = Field(default_factory=list)
 
     # Context (if employee)
-    similar_recent_problems: Optional[int] = Field(
+    similar_recent_problems: int | None = Field(
         None,
         description="Count of similar problems at this store recently"
     )
@@ -244,29 +242,29 @@ class SolutionStep(BaseModel):
 
     order: int
     instruction: str
-    tip: Optional[str] = None
-    caution: Optional[str] = None
-    image_url: Optional[str] = None
+    tip: str | None = None
+    caution: str | None = None
+    image_url: str | None = None
 
 
 class SolutionPart(BaseModel):
     """Part needed for repair solution."""
 
     part_name: str
-    part_description: Optional[str] = None
+    part_description: str | None = None
     quantity: int = 1
     is_required: bool = True
 
     # Inventory status
-    sku: Optional[str] = None
-    in_stock: Optional[bool] = None
-    stock_quantity: Optional[int] = None
-    unit_price: Optional[float] = None
+    sku: str | None = None
+    in_stock: bool | None = None
+    stock_quantity: int | None = None
+    unit_price: float | None = None
 
     # Substitute if out of stock
     has_substitute: bool = False
-    substitute_sku: Optional[str] = None
-    substitute_name: Optional[str] = None
+    substitute_sku: str | None = None
+    substitute_name: str | None = None
 
 
 class SolutionResponse(BaseModel):
@@ -280,20 +278,20 @@ class SolutionResponse(BaseModel):
     # Solution content
     title: str
     summary: str
-    steps: List[SolutionStep]
-    parts: List[SolutionPart]
+    steps: list[SolutionStep]
+    parts: list[SolutionPart]
 
     # Requirements
-    tools_required: List[str] = Field(default_factory=list)
-    estimated_time_minutes: Optional[int] = None
+    tools_required: list[str] = Field(default_factory=list)
+    estimated_time_minutes: int | None = None
     difficulty_level: int = Field(..., ge=1, le=5)
 
     # Video references
-    video_urls: List[str] = Field(default_factory=list)
+    video_urls: list[str] = Field(default_factory=list)
 
     # Inventory summary
     all_parts_available: bool
-    parts_total_cost: Optional[float] = None
+    parts_total_cost: float | None = None
 
 
 # =============================================================================
@@ -316,7 +314,7 @@ class Badge(BaseModel):
     badge_type: BadgeType
     badge_name: str
     badge_description: str
-    category_slug: Optional[str] = None
+    category_slug: str | None = None
     earned_at: datetime
 
 
@@ -341,11 +339,11 @@ class EmployeeProfile(BaseModel):
     acceptance_rate: float = 0.0
 
     # Skills
-    skills: List[SkillMastery] = Field(default_factory=list)
-    top_categories: List[str] = Field(default_factory=list)
+    skills: list[SkillMastery] = Field(default_factory=list)
+    top_categories: list[str] = Field(default_factory=list)
 
     # Badges
-    badges: List[Badge] = Field(default_factory=list)
+    badges: list[Badge] = Field(default_factory=list)
     badge_count: int = 0
 
     # Expertise multiplier for knowledge weighting
@@ -362,11 +360,11 @@ class LearningEvent(BaseModel):
     xp_delta: int
     xp_after: int
 
-    problem_id: Optional[str] = None
-    category_slug: Optional[str] = None
-    badge_type: Optional[BadgeType] = None
+    problem_id: str | None = None
+    category_slug: str | None = None
+    badge_type: BadgeType | None = None
 
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
 
@@ -381,10 +379,10 @@ class CorrectionResult(BaseModel):
     xp_awarded: int
     new_total_xp: int
     leveled_up: bool = False
-    new_level: Optional[int] = None
+    new_level: int | None = None
 
     # Badge earned
-    badge_earned: Optional[Badge] = None
+    badge_earned: Badge | None = None
 
     # Streak
     streak_extended: bool = False
@@ -401,19 +399,19 @@ class ProblemCategory(BaseModel):
     category_id: str
     name: str
     slug: str
-    description: Optional[str] = None
-    icon: Optional[str] = None
-    parent_slug: Optional[str] = None
+    description: str | None = None
+    icon: str | None = None
+    parent_slug: str | None = None
     is_active: bool = True
 
     # Subcategories (for hierarchical display)
-    subcategories: List[ProblemCategory] = Field(default_factory=list)
+    subcategories: list[ProblemCategory] = Field(default_factory=list)
 
 
 class CategoryList(BaseModel):
     """List of problem categories."""
 
-    categories: List[ProblemCategory]
+    categories: list[ProblemCategory]
     total_count: int
 
 
@@ -428,8 +426,8 @@ class VSAHypothesisState(BaseModel):
     """
 
     # Hypothesis labels and probabilities
-    hypotheses: List[str]
-    probabilities: List[float]
+    hypotheses: list[str]
+    probabilities: list[float]
 
     # Vector data (base64 encoded torch tensors)
     superposition_vector: str  # Base64 encoded
@@ -438,7 +436,7 @@ class VSAHypothesisState(BaseModel):
     # Metadata
     dimensions: int
     update_count: int = 0
-    last_evidence_similarity: Optional[float] = None
+    last_evidence_similarity: float | None = None
 
 
 class StoreMemoryState(BaseModel):
@@ -455,7 +453,7 @@ class StoreMemoryState(BaseModel):
 
     # Stats
     total_problems: int
-    category_distribution: Dict[str, int]
+    category_distribution: dict[str, int]
 
     # Config
     dimensions: int
@@ -478,7 +476,7 @@ class KnowledgeBaseState(BaseModel):
 
     # Stats
     total_corrections: int
-    correction_weights: List[float]  # Expertise weights of contributors
+    correction_weights: list[float]  # Expertise weights of contributors
 
     # Config
     dimensions: int

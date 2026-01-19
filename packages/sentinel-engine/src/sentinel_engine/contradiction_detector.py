@@ -12,7 +12,6 @@ These contradictions indicate either:
 3. Edge cases requiring manual review
 """
 
-from typing import Dict, Set, List, Tuple
 from dataclasses import dataclass
 
 
@@ -35,8 +34,8 @@ CONTRADICTORY_PAIRS = [
 
 
 def detect_contradictions(
-    detections: Dict[str, Set[str]]
-) -> Tuple[List[Contradiction], Dict[str, int]]:
+    detections: dict[str, set[str]]
+) -> tuple[list[Contradiction], dict[str, int]]:
     """
     Detect contradictory anomaly classifications.
 
@@ -72,9 +71,9 @@ def detect_contradictions(
 
 
 def resolve_contradictions(
-    detections: Dict[str, Set[str]],
-    priority_order: List[str] = None
-) -> Dict[str, Set[str]]:
+    detections: dict[str, set[str]],
+    priority_order: list[str] = None
+) -> dict[str, set[str]]:
     """
     Resolve contradictions by keeping higher-priority primitive.
 
@@ -133,15 +132,15 @@ def resolve_contradictions(
 
 
 def generate_contradiction_report(
-    contradictions: List[Contradiction],
-    summary: Dict[str, int]
+    contradictions: list[Contradiction],
+    summary: dict[str, int]
 ) -> str:
     """Generate Markdown report of contradictions."""
 
     if not contradictions:
         return "## Contradiction Analysis\n\nNo contradictions detected. ✅\n"
 
-    report = f"""## Contradiction Analysis
+    report = """## Contradiction Analysis
 
 ### Summary
 

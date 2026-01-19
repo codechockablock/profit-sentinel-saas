@@ -6,12 +6,12 @@ Provides mocked dependencies for all external services (S3, Supabase, Grok).
 
 import io
 import json
-import pytest
-from typing import Generator, Any, Dict
-from unittest.mock import MagicMock, AsyncMock, patch
-import pandas as pd
-from fastapi.testclient import TestClient
+from collections.abc import Generator
+from unittest.mock import MagicMock, patch
 
+import pandas as pd
+import pytest
+from fastapi.testclient import TestClient
 
 # =============================================================================
 # SAMPLE DATA FIXTURES
@@ -43,7 +43,7 @@ def sample_pos_records(sample_pos_dataframe: pd.DataFrame) -> list:
 
 
 @pytest.fixture
-def sample_column_mapping() -> Dict[str, str]:
+def sample_column_mapping() -> dict[str, str]:
     """Sample column mapping for analysis."""
     return {
         "sku": "sku",

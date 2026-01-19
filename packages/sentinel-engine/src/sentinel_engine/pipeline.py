@@ -21,15 +21,15 @@ This tiered approach reduces the effective workload:
 - 100x reduction in resonator calls
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Tuple
-from enum import Enum
-import time
-import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import torch
+import logging
+import time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
 import numpy as np
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -45,22 +45,22 @@ class PipelineStage(Enum):
 class StageResult:
     """Result from a pipeline stage."""
     stage: PipelineStage
-    candidates: List[str]  # Entity IDs that passed
-    scores: Dict[str, float]  # Entity → score
+    candidates: list[str]  # Entity IDs that passed
+    scores: dict[str, float]  # Entity → score
     elapsed_ms: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class PipelineResult:
     """Complete pipeline result."""
     entity_id: str
-    detected_anomalies: List[str]
+    detected_anomalies: list[str]
     confidence: float
-    root_causes: List[Dict[str, Any]]
-    stage_results: List[StageResult]
+    root_causes: list[dict[str, Any]]
+    stage_results: list[StageResult]
     total_elapsed_ms: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -70,9 +70,9 @@ class PrefilterRule:
     field: str
     operator: str  # <, >, <=, >=, ==, between, zscore
     threshold: float
-    secondary_threshold: Optional[float] = None  # For 'between'
+    secondary_threshold: float | None = None  # For 'between'
 
-    def evaluate(self, value: float, stats: Optional[Dict] = None) -> bool:
+    def evaluate(self, value: float, stats: dict | None = None) -> bool:
         """Evaluate rule against value."""
         if self.operator == "<":
             return value < self.threshold
@@ -102,8 +102,8 @@ class StatisticalPrefilter:
     """
 
     def __init__(self):
-        self.rules: List[PrefilterRule] = []
-        self.field_stats: Dict[str, Dict[str, float]] = {}
+        self.rules: list[PrefilterRule] = []
+        self.field_stats: dict[str, dict[str, float]] = {}
 
     def add_rule(
         self,
@@ -111,7 +111,7 @@ class StatisticalPrefilter:
         field: str,
         operator: str,
         threshold: float,
-        secondary: Optional[float] = None
+        secondary: float | None = None
     ) -> None:
         """Add a prefilter rule."""
         self.rules.append(PrefilterRule(
@@ -122,12 +122,12 @@ class StatisticalPrefilter:
             secondary_threshold=secondary
         ))
 
-    def compute_statistics(self, data: List[Dict[str, Any]]) -> None:
+    def compute_statistics(self, data: list[dict[str, Any]]) -> None:
         """Compute field statistics for z-score rules."""
         import numpy as np
 
         # Collect values by field
-        field_values: Dict[str, List[float]] = {}
+        field_values: dict[str, list[float]] = {}
         for record in data:
             for key, value in record.items():
                 if isinstance(value, (int, float)):
@@ -149,7 +149,7 @@ class StatisticalPrefilter:
                 "p95": float(np.percentile(arr, 95)),
             }
 
-    def filter(self, data: List[Dict[str, Any]]) -> StageResult:
+    def filter(self, data: list[dict[str, Any]]) -> StageResult:
         """Run prefilter on data.
 
         Args:
@@ -235,7 +235,7 @@ class TieredPipeline:
         self._resonator = None
         self._primitive_loader = None
         self._faiss_index = None
-        self._entity_vectors: Dict[str, torch.Tensor] = {}
+        self._entity_vectors: dict[str, torch.Tensor] = {}
 
     def set_resonator(self, resonator) -> None:
         """Set VSA resonator for deep analysis."""
@@ -245,7 +245,7 @@ class TieredPipeline:
         """Set primitive loader for vector generation."""
         self._primitive_loader = loader
 
-    def build_index(self, entities: Dict[str, torch.Tensor]) -> None:
+    def build_index(self, entities: dict[str, torch.Tensor]) -> None:
         """Build FAISS index for fast screening.
 
         Args:
@@ -279,8 +279,8 @@ class TieredPipeline:
 
     def _screening_stage(
         self,
-        candidates: List[str],
-        query_vectors: Dict[str, torch.Tensor]
+        candidates: list[str],
+        query_vectors: dict[str, torch.Tensor]
     ) -> StageResult:
         """Stage 2: VSA screening with FAISS.
 
@@ -292,7 +292,7 @@ class TieredPipeline:
             StageResult with top candidates
         """
         start = time.time()
-        scores: Dict[str, float] = {}
+        scores: dict[str, float] = {}
 
         if self._faiss_index is None:
             # Fallback to brute force
@@ -342,9 +342,9 @@ class TieredPipeline:
 
     def _deep_analysis_stage(
         self,
-        candidates: List[str],
-        data_lookup: Dict[str, Dict]
-    ) -> Tuple[StageResult, List[PipelineResult]]:
+        candidates: list[str],
+        data_lookup: dict[str, dict]
+    ) -> tuple[StageResult, list[PipelineResult]]:
         """Stage 3: Full VSA resonator analysis.
 
         Args:
@@ -355,8 +355,8 @@ class TieredPipeline:
             (StageResult, list of PipelineResults)
         """
         start = time.time()
-        results: List[PipelineResult] = []
-        scores: Dict[str, float] = {}
+        results: list[PipelineResult] = []
+        scores: dict[str, float] = {}
 
         for entity_id in candidates:
             if entity_id not in self._entity_vectors:
@@ -400,9 +400,9 @@ class TieredPipeline:
 
     def run(
         self,
-        data: List[Dict[str, Any]],
-        primitives: Optional[List[str]] = None
-    ) -> List[PipelineResult]:
+        data: list[dict[str, Any]],
+        primitives: list[str] | None = None
+    ) -> list[PipelineResult]:
         """Run full pipeline on data.
 
         Args:

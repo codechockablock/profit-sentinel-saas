@@ -43,49 +43,49 @@ __version__ = "3.0.0"
 
 # Context-based API (v2.1 - Recommended)
 from .context import (
-    AnalysisContext,
-    create_analysis_context,
-    analysis_context,
     DEFAULT_DIMENSIONS,
     DEFAULT_MAX_CODEBOOK_SIZE,
+    AnalysisContext,
+    analysis_context,
+    create_analysis_context,
 )
 
 # Core analysis functions
 from .core import (
-    # Main functions
-    bundle_pos_facts,
-    query_bundle,
-    reset_codebook,  # Now a no-op for backward compatibility
-    get_primitive_metadata,
-    get_all_primitives,
-    # VSA utilities (legacy - prefer context methods)
-    seed_hash,
-    normalize_torch,
-    add_to_codebook,
-    convergence_lock_resonator_gpu,
+    CATEGORY_ALIASES,
+    COST_ALIASES,
+    LAST_SALE_ALIASES,
+    LEAK_METADATA,
+    MARGIN_ALIASES,
     # Data structures
     PRIMITIVES,
-    codebook_dict,  # Deprecated - use ctx.codebook instead
-    LEAK_METADATA,
-    THRESHOLDS,
+    QTY_DIFF_ALIASES,
     # Column aliases (for reference)
     QUANTITY_ALIASES,
-    COST_ALIASES,
     REVENUE_ALIASES,
-    SOLD_ALIASES,
-    QTY_DIFF_ALIASES,
-    MARGIN_ALIASES,
-    LAST_SALE_ALIASES,
     SKU_ALIASES,
+    SOLD_ALIASES,
+    THRESHOLDS,
     VENDOR_ALIASES,
-    CATEGORY_ALIASES,
+    add_to_codebook,
+    # Main functions
+    bundle_pos_facts,
+    codebook_dict,  # Deprecated - use ctx.codebook instead
+    convergence_lock_resonator_gpu,
+    get_all_primitives,
+    get_primitive_metadata,
+    normalize_torch,
+    query_bundle,
+    reset_codebook,  # Now a no-op for backward compatibility
+    # VSA utilities (legacy - prefer context methods)
+    seed_hash,
 )
 
 # Pipeline components (if they exist and are complete)
 try:
-    from .pipeline import TieredPipeline, PipelineStage, PipelineResult
-    from .codebook import PersistentCodebook, CodebookManager
     from .batch import BatchProcessor, StreamProcessor
+    from .codebook import CodebookManager, PersistentCodebook
+    from .pipeline import PipelineResult, PipelineStage, TieredPipeline
     _PIPELINE_AVAILABLE = True
 except ImportError:
     _PIPELINE_AVAILABLE = False
@@ -107,22 +107,22 @@ except ImportError:
 
 # Contradiction Detector (v2.1.0)
 from .contradiction_detector import (
-    detect_contradictions,
-    resolve_contradictions,
-    generate_contradiction_report,
-    Contradiction,
     CONTRADICTORY_PAIRS,
+    Contradiction,
+    detect_contradictions,
+    generate_contradiction_report,
+    resolve_contradictions,
 )
 
 # Streaming module for large files (v3.0.0)
 from .streaming import (
-    process_large_file,
-    process_dataframe,
     StreamingResult,
     StreamingStats,
-    read_file_chunked,
-    compute_streaming_stats,
     bundle_pos_facts_streaming,
+    compute_streaming_stats,
+    process_dataframe,
+    process_large_file,
+    read_file_chunked,
 )
 
 __all__ = [

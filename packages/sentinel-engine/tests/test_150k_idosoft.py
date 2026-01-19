@@ -17,16 +17,16 @@ Expected output:
 """
 
 import argparse
-import sys
 import logging
+import sys
 from pathlib import Path
 
 # Add package paths for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "vsa-core" / "src"))
 
-from sentinel_engine.streaming import process_large_file, DEFAULT_CHUNK_SIZE
 from sentinel_engine.context import DEFAULT_DIMENSIONS
+from sentinel_engine.streaming import DEFAULT_CHUNK_SIZE, process_large_file
 
 logging.basicConfig(
     level=logging.INFO,

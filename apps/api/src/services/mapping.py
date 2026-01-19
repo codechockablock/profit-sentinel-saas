@@ -8,11 +8,10 @@ Supports 15+ major POS systems with fuzzy matching and synonym detection.
 import json
 import logging
 import re
-from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from ..config import STANDARD_FIELDS, FIELD_IMPORTANCE, get_settings
+from ..config import FIELD_IMPORTANCE, STANDARD_FIELDS
 from ..dependencies import get_grok_client
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,7 @@ class MappingService:
     def __init__(self):
         """Initialize with precomputed lookup tables for fast matching."""
         # Build reverse lookup: normalized_alias -> standard_field
-        self._alias_lookup: Dict[str, str] = {}
+        self._alias_lookup: dict[str, str] = {}
         self._build_alias_lookup()
 
     def _build_alias_lookup(self):
@@ -50,7 +49,7 @@ class MappingService:
         norm = re.sub(r'[\s._\-#$%()]+', '', norm)
         return norm
 
-    def suggest_mapping(self, df: pd.DataFrame, filename: str) -> Dict:
+    def suggest_mapping(self, df: pd.DataFrame, filename: str) -> dict:
         """
         Suggest column mappings for uploaded data.
 
@@ -109,10 +108,10 @@ class MappingService:
     def _ai_mapping(
         self,
         client,
-        columns: List[str],
-        sample: List[Dict],
+        columns: list[str],
+        sample: list[dict],
         filename: str
-    ) -> Dict:
+    ) -> dict:
         """Use Grok AI for intelligent column mapping with POS expertise."""
         prompt = f"""
 You are Profit Sentinel's expert column mapper for retail POS/ERP data.
@@ -181,9 +180,9 @@ Return ONLY valid JSON:
 
     def _aggressive_heuristic_mapping(
         self,
-        columns: List[str],
-        sample: Optional[List[Dict]] = None
-    ) -> Dict:
+        columns: list[str],
+        sample: list[dict] | None = None
+    ) -> dict:
         """
         Aggressive heuristic mapping with multi-tier matching.
 
@@ -212,9 +211,9 @@ Return ONLY valid JSON:
     def _match_column(
         self,
         col: str,
-        sample: Optional[List[Dict]],
+        sample: list[dict] | None,
         used_targets: set
-    ) -> Tuple[Optional[str], float]:
+    ) -> tuple[str | None, float]:
         """
         Match a single column using multi-tier strategy.
 
@@ -258,9 +257,9 @@ Return ONLY valid JSON:
     def _infer_from_sample(
         self,
         col: str,
-        sample: List[Dict],
+        sample: list[dict],
         used_targets: set
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Infer field type from sample values.
 
@@ -336,7 +335,7 @@ Return ONLY valid JSON:
 
         return None
 
-    def validate_mapping_completeness(self, mapping: Dict[str, str]) -> Dict:
+    def validate_mapping_completeness(self, mapping: dict[str, str]) -> dict:
         """
         Validate mapping has critical fields for leak detection.
 

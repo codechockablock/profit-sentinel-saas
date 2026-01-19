@@ -16,11 +16,12 @@ Key Properties:
     - Similarity measured via normalized real inner product
 """
 from __future__ import annotations
-import torch
+
 import hashlib
 import math
-from typing import Optional, Tuple, Dict, Any, Union
-from functools import lru_cache
+from typing import Any
+
+import torch
 
 from .types import VectorConfig
 
@@ -29,13 +30,13 @@ from .types import VectorConfig
 # =============================================================================
 
 _config = VectorConfig()
-_device: Optional[torch.device] = None
+_device: torch.device | None = None
 
 
 def configure(
-    dimensions: Optional[int] = None,
-    dtype: Optional[str] = None,
-    device: Optional[str] = None,
+    dimensions: int | None = None,
+    dtype: str | None = None,
+    device: str | None = None,
 ) -> VectorConfig:
     """Configure global VSA settings.
 
@@ -144,9 +145,9 @@ def normalize_global(v: torch.Tensor) -> torch.Tensor:
 
 def seed_hash(
     seed: str,
-    dimensions: Optional[int] = None,
-    device: Optional[torch.device] = None,
-    dtype: Optional[torch.dtype] = None
+    dimensions: int | None = None,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None
 ) -> torch.Tensor:
     """Generate deterministic phasor vector from seed string.
 
@@ -197,9 +198,9 @@ def seed_hash(
 
 
 def random_vector(
-    dimensions: Optional[int] = None,
-    device: Optional[torch.device] = None,
-    dtype: Optional[torch.dtype] = None
+    dimensions: int | None = None,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None
 ) -> torch.Tensor:
     """Generate random phasor vector.
 
@@ -227,9 +228,9 @@ def random_vector(
 
 
 def identity_vector(
-    dimensions: Optional[int] = None,
-    device: Optional[torch.device] = None,
-    dtype: Optional[torch.dtype] = None
+    dimensions: int | None = None,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None
 ) -> torch.Tensor:
     """Generate multiplicative identity vector (all ones).
 
@@ -251,9 +252,9 @@ def identity_vector(
 
 
 def zero_vector(
-    dimensions: Optional[int] = None,
-    device: Optional[torch.device] = None,
-    dtype: Optional[torch.dtype] = None
+    dimensions: int | None = None,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None
 ) -> torch.Tensor:
     """Generate additive identity vector (all zeros).
 
@@ -344,7 +345,7 @@ def top_k_similar(
     query: torch.Tensor,
     codebook: torch.Tensor,
     k: int = 10
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Find top-k most similar vectors in codebook.
 
     Args:
@@ -365,7 +366,7 @@ def top_k_similar(
 # VECTOR INFO & DEBUGGING
 # =============================================================================
 
-def vector_info(v: torch.Tensor) -> Dict[str, Any]:
+def vector_info(v: torch.Tensor) -> dict[str, Any]:
     """Get diagnostic information about a vector.
 
     Args:
@@ -421,9 +422,9 @@ def angular_distance(a: torch.Tensor, b: torch.Tensor) -> float:
 
 def batch_seed_hash(
     seeds: list[str],
-    dimensions: Optional[int] = None,
-    device: Optional[torch.device] = None,
-    dtype: Optional[torch.dtype] = None
+    dimensions: int | None = None,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None
 ) -> torch.Tensor:
     """Generate multiple vectors from seed strings.
 
@@ -440,7 +441,7 @@ def batch_seed_hash(
     return torch.stack(vectors)
 
 
-def ensure_device(v: torch.Tensor, device: Optional[torch.device] = None) -> torch.Tensor:
+def ensure_device(v: torch.Tensor, device: torch.device | None = None) -> torch.Tensor:
     """Ensure vector is on specified device.
 
     Args:

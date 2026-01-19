@@ -10,7 +10,7 @@ Supports GDPR/CCPA compliant email delivery with:
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +44,10 @@ class EmailService:
     async def send_analysis_report(
         self,
         to_email: str,
-        results: List[Dict],
+        results: list[dict],
         consent_given: bool = True,
-        consent_timestamp: Optional[str] = None
-    ) -> Dict[str, Any]:
+        consent_timestamp: str | None = None
+    ) -> dict[str, Any]:
         """
         Send analysis report email.
 
@@ -91,7 +91,7 @@ class EmailService:
         subject: str,
         html_content: str,
         text_content: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Send email via Resend API."""
         try:
             import resend
@@ -124,13 +124,11 @@ class EmailService:
         subject: str,
         html_content: str,
         text_content: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Send email via SendGrid API."""
         try:
             from sendgrid import SendGridAPIClient
-            from sendgrid.helpers.mail import (
-                Mail, Email, To, Content, Header
-            )
+            from sendgrid.helpers.mail import Content, Email, Header, Mail, To
 
             sg = SendGridAPIClient(self.sendgrid_api_key)
 
@@ -163,7 +161,7 @@ class EmailService:
             logger.error(f"SendGrid API error: {e}")
             return {"success": False, "error": str(e)}
 
-    def _generate_report_html(self, results: List[Dict], to_email: str) -> str:
+    def _generate_report_html(self, results: list[dict], to_email: str) -> str:
         """Generate HTML email content for analysis report."""
         # Calculate totals
         total_flagged = 0
@@ -296,7 +294,7 @@ class EmailService:
         """
         return html
 
-    def _generate_report_text(self, results: List[Dict]) -> str:
+    def _generate_report_text(self, results: list[dict]) -> str:
         """Generate plain text email content for analysis report."""
         lines = [
             "PROFIT SENTINEL - Analysis Report",
@@ -366,7 +364,7 @@ class EmailService:
 
 
 # Singleton instance
-_email_service: Optional[EmailService] = None
+_email_service: EmailService | None = None
 
 
 def get_email_service() -> EmailService:

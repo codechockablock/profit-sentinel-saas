@@ -8,15 +8,15 @@ Provides efficient batch processing for large datasets:
 - Progress tracking
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Iterator, Callable, TypeVar, Generic
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
-import time
-import logging
-from queue import Queue
-import threading
 
-import torch
+import logging
+import threading
+import time
+from collections.abc import Callable, Iterator
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from queue import Queue
+from typing import Any, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,9 @@ R = TypeVar('R')
 class BatchResult(Generic[T]):
     """Result from batch processing."""
     batch_idx: int
-    results: List[T]
+    results: list[T]
     elapsed_ms: float
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -85,12 +85,12 @@ class BatchProcessor(Generic[T, R]):
             "total_time_ms": 0,
         }
 
-    def _chunk(self, items: List[T]) -> Iterator[List[T]]:
+    def _chunk(self, items: list[T]) -> Iterator[list[T]]:
         """Split items into chunks."""
         for i in range(0, len(items), self.batch_size):
             yield items[i:i + self.batch_size]
 
-    def _process_batch(self, batch_idx: int, batch: List[T]) -> BatchResult[R]:
+    def _process_batch(self, batch_idx: int, batch: list[T]) -> BatchResult[R]:
         """Process a single batch."""
         start = time.time()
         results = []
@@ -115,9 +115,9 @@ class BatchProcessor(Generic[T, R]):
 
     def process(
         self,
-        items: List[T],
-        progress_callback: Optional[Callable[[int, int], None]] = None
-    ) -> List[R]:
+        items: list[T],
+        progress_callback: Callable[[int, int], None] | None = None
+    ) -> list[R]:
         """Process all items in parallel batches.
 
         Args:
@@ -129,7 +129,7 @@ class BatchProcessor(Generic[T, R]):
         """
         total_start = time.time()
         batches = list(self._chunk(items))
-        all_results: Dict[int, List[R]] = {}
+        all_results: dict[int, list[R]] = {}
         total_errors = []
 
         ExecutorClass = ProcessPoolExecutor if self.use_processes else ThreadPoolExecutor
@@ -169,7 +169,7 @@ class BatchProcessor(Generic[T, R]):
         return ordered_results
 
     @property
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """Get processing statistics."""
         return dict(self._stats)
 
@@ -219,9 +219,9 @@ class StreamProcessor(Generic[T, R]):
         self.max_queue_size = max_queue_size
         self.num_workers = num_workers
 
-        self._input_queue: Queue[Optional[T]] = Queue(max_queue_size)
+        self._input_queue: Queue[T | None] = Queue(max_queue_size)
         self._result_queue: Queue[R] = Queue(result_buffer_size)
-        self._workers: List[threading.Thread] = []
+        self._workers: list[threading.Thread] = []
         self._running = False
         self._stats = StreamStats()
         self._stats_lock = threading.Lock()
@@ -289,7 +289,7 @@ class StreamProcessor(Generic[T, R]):
         self._workers = []
         logger.info("Stopped stream processor")
 
-    def put(self, item: T, block: bool = True, timeout: Optional[float] = None) -> bool:
+    def put(self, item: T, block: bool = True, timeout: float | None = None) -> bool:
         """Add item to processing queue.
 
         Args:
@@ -322,7 +322,7 @@ class StreamProcessor(Generic[T, R]):
             except Exception:
                 break
 
-    def get_result(self, timeout: float = 1.0) -> Optional[R]:
+    def get_result(self, timeout: float = 1.0) -> R | None:
         """Get single result.
 
         Args:

@@ -10,12 +10,11 @@ Provides endpoints for employee management and stats:
 
 import logging
 from datetime import datetime
-from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..dependencies import get_current_user, get_supabase_client
+from ..dependencies import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -30,7 +29,7 @@ class EmployeeRegisterRequest(BaseModel):
     employee_id: str = Field(..., min_length=1)
     store_id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1, max_length=100)
-    email: Optional[str] = None
+    email: str | None = None
     role: str = Field(default="associate", pattern="^(associate|manager|admin)$")
 
 
@@ -39,7 +38,7 @@ class EmployeeResponse(BaseModel):
     employee_id: str
     store_id: str
     name: str
-    email: Optional[str] = None
+    email: str | None = None
     role: str
     created_at: str
     is_active: bool = True
@@ -52,8 +51,8 @@ class EmployeeStatsResponse(BaseModel):
     total_corrections: int
     corrections_accepted: int
     accuracy_rate: float  # % of corrections that were accurate
-    categories_helped: List[str]
-    last_activity: Optional[str] = None
+    categories_helped: list[str]
+    last_activity: str | None = None
 
 
 class CorrectionHistoryItem(BaseModel):
@@ -62,7 +61,7 @@ class CorrectionHistoryItem(BaseModel):
     problem_id: str
     original_category: str
     corrected_category: str
-    correction_notes: Optional[str] = None
+    correction_notes: str | None = None
     created_at: str
     was_accepted: bool = True
 
@@ -70,7 +69,7 @@ class CorrectionHistoryItem(BaseModel):
 class CorrectionHistoryResponse(BaseModel):
     """Response for correction history."""
     employee_id: str
-    corrections: List[CorrectionHistoryItem]
+    corrections: list[CorrectionHistoryItem]
     total_count: int
 
 
@@ -80,7 +79,7 @@ class CorrectionHistoryResponse(BaseModel):
 
 _employees: dict[str, dict] = {}
 _employee_stats: dict[str, dict] = {}
-_corrections: dict[str, List[dict]] = {}
+_corrections: dict[str, list[dict]] = {}
 
 
 # =============================================================================
@@ -100,7 +99,7 @@ async def employee_health():
 @router.post("/register", response_model=EmployeeResponse)
 async def register_employee(
     request: EmployeeRegisterRequest,
-    user_id: Optional[str] = Depends(get_current_user),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Register a new employee in the system.
@@ -139,7 +138,7 @@ async def register_employee(
 @router.get("/{employee_id}", response_model=EmployeeResponse)
 async def get_employee(
     employee_id: str,
-    user_id: Optional[str] = Depends(get_current_user),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Get employee profile by ID.
@@ -153,7 +152,7 @@ async def get_employee(
 @router.get("/{employee_id}/stats", response_model=EmployeeStatsResponse)
 async def get_employee_stats(
     employee_id: str,
-    user_id: Optional[str] = Depends(get_current_user),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Get employee activity statistics.
@@ -190,7 +189,7 @@ async def get_correction_history(
     employee_id: str,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    user_id: Optional[str] = Depends(get_current_user),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Get employee's correction history.
@@ -216,7 +215,7 @@ async def get_correction_history(
 @router.put("/{employee_id}/deactivate")
 async def deactivate_employee(
     employee_id: str,
-    user_id: Optional[str] = Depends(get_current_user),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Deactivate an employee account.
@@ -249,7 +248,7 @@ def record_correction(
     problem_id: str,
     original_category: str,
     corrected_category: str,
-    notes: Optional[str] = None,
+    notes: str | None = None,
 ):
     """Record a correction for stats and history."""
     if employee_id in _employee_stats:

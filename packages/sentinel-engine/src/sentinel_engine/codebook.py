@@ -8,18 +8,19 @@ Provides efficient codebook storage and retrieval for large-scale VSA:
 - Incremental updates and versioning
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
-from pathlib import Path
-from collections import OrderedDict
-import time
-import json
+
 import hashlib
+import json
 import logging
 import threading
+import time
+from collections import OrderedDict
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
-import torch
 import numpy as np
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -72,14 +73,14 @@ class PersistentCodebook:
         self.dimensions = dimensions
         self.max_size = max_size
 
-        self._labels: List[str] = []
-        self._label_to_idx: Dict[str, int] = {}
-        self._vectors: Optional[torch.Tensor] = None
-        self._metadata: Optional[CodebookMetadata] = None
+        self._labels: list[str] = []
+        self._label_to_idx: dict[str, int] = {}
+        self._vectors: torch.Tensor | None = None
+        self._metadata: CodebookMetadata | None = None
         self._dirty = False
 
         # Memory map file
-        self._mmap: Optional[np.memmap] = None
+        self._mmap: np.memmap | None = None
 
         # Lock for thread safety
         self._lock = threading.RLock()
@@ -123,7 +124,7 @@ class PersistentCodebook:
             self._dirty = True
             return idx
 
-    def get(self, label: str) -> Optional[torch.Tensor]:
+    def get(self, label: str) -> torch.Tensor | None:
         """Get vector by label."""
         with self._lock:
             idx = self._label_to_idx.get(label)
@@ -131,7 +132,7 @@ class PersistentCodebook:
                 return None
             return self._vectors[idx]
 
-    def get_batch(self, labels: List[str]) -> Tuple[List[str], torch.Tensor]:
+    def get_batch(self, labels: list[str]) -> tuple[list[str], torch.Tensor]:
         """Get multiple vectors by labels.
 
         Args:
@@ -277,11 +278,11 @@ class PersistentCodebook:
         return label in self._label_to_idx
 
     @property
-    def labels(self) -> List[str]:
+    def labels(self) -> list[str]:
         return list(self._labels)
 
     @property
-    def vectors(self) -> Optional[torch.Tensor]:
+    def vectors(self) -> torch.Tensor | None:
         return self._vectors
 
 
@@ -298,10 +299,10 @@ class LRUCodebook:
 
         # OrderedDict for LRU ordering
         self._cache: OrderedDict[str, torch.Tensor] = OrderedDict()
-        self._access_count: Dict[str, int] = {}
+        self._access_count: dict[str, int] = {}
         self._lock = threading.RLock()
 
-    def get(self, label: str) -> Optional[torch.Tensor]:
+    def get(self, label: str) -> torch.Tensor | None:
         """Get vector, updating access tracking."""
         with self._lock:
             if label not in self._cache:
@@ -349,7 +350,7 @@ class LRUCodebook:
         return label in self._cache
 
     @property
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         with self._lock:
             total_accesses = sum(self._access_count.values())
@@ -372,8 +373,8 @@ class CodebookManager:
 
     def __init__(self, base_path: str = "./codebooks"):
         self.base_path = Path(base_path)
-        self._codebooks: Dict[str, PersistentCodebook] = {}
-        self._sessions: Dict[str, LRUCodebook] = {}
+        self._codebooks: dict[str, PersistentCodebook] = {}
+        self._sessions: dict[str, LRUCodebook] = {}
         self._lock = threading.RLock()
 
     def get_or_create_codebook(
@@ -416,7 +417,7 @@ class CodebookManager:
             self._sessions[session_id] = session
             return session
 
-    def get_session(self, session_id: str) -> Optional[LRUCodebook]:
+    def get_session(self, session_id: str) -> LRUCodebook | None:
         """Get session codebook."""
         return self._sessions.get(session_id)
 

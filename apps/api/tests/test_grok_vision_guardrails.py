@@ -10,13 +10,13 @@ Tests the security guardrails for the Grok Vision service including:
 NOTE: This test file imports the guardrails directly from the source file
 to avoid the complex dependency chain of the full service.
 """
-import pytest
 import base64
 import json
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 
+import pytest
 
 # =============================================================================
 # COPY OF GUARDRAILS CODE FOR TESTING (avoids dependency chain)
@@ -75,7 +75,7 @@ class VisionGuardrails:
     VALID_SEVERITIES = {"minor", "moderate", "major"}
 
     @classmethod
-    def sanitize_user_text(cls, text: Optional[str]) -> Optional[str]:
+    def sanitize_user_text(cls, text: str | None) -> str | None:
         """
         Sanitize user-provided text context.
 
@@ -112,7 +112,7 @@ class VisionGuardrails:
         return text.strip() if text.strip() else None
 
     @classmethod
-    def validate_image_data(cls, image_base64: str) -> Tuple[bool, str]:
+    def validate_image_data(cls, image_base64: str) -> tuple[bool, str]:
         """
         Validate base64 image data.
 
@@ -158,7 +158,7 @@ class VisionGuardrails:
             return False, "Invalid image format. Supported: JPEG, PNG, WebP"
 
     @classmethod
-    def validate_response(cls, data: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
+    def validate_response(cls, data: dict[str, Any]) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate and sanitize API response.
 
@@ -257,7 +257,7 @@ class VisionGuardrails:
     @classmethod
     def build_safe_prompt(
         cls,
-        user_context: Optional[str],
+        user_context: str | None,
         base_prompt: str
     ) -> str:
         """
@@ -300,19 +300,19 @@ class VisionGuardrails:
 class VisionAnalysisResult:
     """Result from Grok Vision image analysis."""
     primary_category: str
-    subcategory: Optional[str]
+    subcategory: str | None
     confidence: float
     description: str
-    visible_components: List[str]
-    damage_indicators: List[str]
-    likely_parts_needed: List[str]
-    tools_needed: List[str]
+    visible_components: list[str]
+    damage_indicators: list[str]
+    likely_parts_needed: list[str]
+    tools_needed: list[str]
     severity_estimate: str
     diy_feasible: bool
     professional_recommended: bool
-    safety_concerns: List[str]
-    keywords: List[str]
-    raw_response: Optional[str] = None
+    safety_concerns: list[str]
+    keywords: list[str]
+    raw_response: str | None = None
 
 
 @dataclass
@@ -320,8 +320,8 @@ class ImageFeatures:
     """Features extracted for VSA encoding."""
     image_hash: str
     category_hint: str
-    subcategory_hint: Optional[str]
-    keywords: List[str]
+    subcategory_hint: str | None
+    keywords: list[str]
     severity: str
     description_for_encoding: str
 
@@ -336,7 +336,7 @@ class GrokVisionService:
     def client(self):
         return self._client
 
-    def analyze_image(self, image_base64: str, text_context: Optional[str] = None):
+    def analyze_image(self, image_base64: str, text_context: str | None = None):
         if not self.client:
             raise ValueError("Grok client not configured")
 
@@ -349,7 +349,7 @@ class GrokVisionService:
 
     def _fallback_analysis(
         self,
-        text_context: Optional[str],
+        text_context: str | None,
         image_hash: str,
         error: str
     ) -> VisionAnalysisResult:

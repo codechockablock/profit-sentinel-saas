@@ -39,12 +39,12 @@ UNBINDING:
     If bound = a ⊗ b, then unbind(bound, a) ≈ b
 """
 from __future__ import annotations
-import torch
-from typing import List, Optional, Tuple, Union
+
 import math
 
-from .vectors import normalize, normalize_global, get_device, get_dtype, similarity
+import torch
 
+from .vectors import normalize, similarity
 
 # =============================================================================
 # BINDING OPERATIONS
@@ -174,8 +174,8 @@ def bundle_many(*vectors: torch.Tensor) -> torch.Tensor:
 
 
 def weighted_bundle(
-    vectors: List[torch.Tensor],
-    weights: List[float]
+    vectors: list[torch.Tensor],
+    weights: list[float]
 ) -> torch.Tensor:
     """Bundle vectors with weights.
 
@@ -207,7 +207,7 @@ def unbind_from_bundle(
     bundle_vec: torch.Tensor,
     key: torch.Tensor,
     codebook: torch.Tensor
-) -> Tuple[int, float]:
+) -> tuple[int, float]:
     """Probe a bundle to find bound partner of key.
 
     If bundle contains (key ⊗ value), this finds value in codebook.
@@ -266,8 +266,8 @@ def inverse_permute(v: torch.Tensor, shift: int) -> torch.Tensor:
 
 
 def sequence_encode(
-    vectors: List[torch.Tensor],
-    position_shifts: Optional[List[int]] = None
+    vectors: list[torch.Tensor],
+    position_shifts: list[int] | None = None
 ) -> torch.Tensor:
     """Encode ordered sequence using permutation.
 
@@ -353,7 +353,7 @@ def role_filler_bind(role: torch.Tensor, filler: torch.Tensor) -> torch.Tensor:
 
 
 def create_record(
-    role_filler_pairs: List[Tuple[torch.Tensor, torch.Tensor]]
+    role_filler_pairs: list[tuple[torch.Tensor, torch.Tensor]]
 ) -> torch.Tensor:
     """Create structured record from role-filler pairs.
 
@@ -380,7 +380,7 @@ def query_record(
     record: torch.Tensor,
     role: torch.Tensor,
     codebook: torch.Tensor
-) -> Tuple[int, float]:
+) -> tuple[int, float]:
     """Query a record for a role's filler.
 
     Args:
@@ -491,7 +491,7 @@ def bundle_capacity(dimensions: int) -> int:
 
 
 def orthogonality_check(
-    vectors: List[torch.Tensor],
+    vectors: list[torch.Tensor],
     threshold: float = 0.1
 ) -> bool:
     """Check if vectors are approximately orthogonal.
@@ -569,10 +569,10 @@ def query_excluding(
 
 
 def cw_bundle(
-    vectors: List[torch.Tensor],
-    confidences: List[float],
+    vectors: list[torch.Tensor],
+    confidences: list[float],
     temperature: float = 1.0
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Confidence-weighted bundling with learned magnitude encoding.
 
     Instead of just weighting the sum, encode confidence in magnitude:

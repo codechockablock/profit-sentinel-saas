@@ -20,10 +20,10 @@ Decision Criteria:
 """
 
 import random
-import pytest
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Set, Optional
 from datetime import datetime, timedelta
+
+import pytest
 
 
 @dataclass
@@ -36,9 +36,9 @@ class ValidationResult:
     precision: float = 0.0
     recall: float = 0.0
     f1_score: float = 0.0
-    detected_skus: Set[str] = field(default_factory=set)
-    missed_skus: Set[str] = field(default_factory=set)
-    spurious_skus: Set[str] = field(default_factory=set)
+    detected_skus: set[str] = field(default_factory=set)
+    missed_skus: set[str] = field(default_factory=set)
+    spurious_skus: set[str] = field(default_factory=set)
 
     def calculate_metrics(self):
         """Calculate precision, recall, F1 from counts."""
@@ -68,7 +68,7 @@ class SyntheticDataGenerator:
         self,
         n_normal: int = 100,
         n_per_anomaly: int = 10,
-    ) -> Tuple[List[Dict], Dict[str, Set[str]]]:
+    ) -> tuple[list[dict], dict[str, set[str]]]:
         """
         Generate a synthetic dataset with known anomalies.
 
@@ -117,7 +117,7 @@ class SyntheticDataGenerator:
         random.shuffle(rows)
         return rows, ground_truth
 
-    def _generate_normal_item(self, sku: str) -> Dict:
+    def _generate_normal_item(self, sku: str) -> dict:
         """Generate a healthy item with no anomalies."""
         cost = random.uniform(5, 50)
         margin = random.uniform(0.25, 0.45)  # 25-45% margin (healthy)
@@ -137,7 +137,7 @@ class SyntheticDataGenerator:
             "last_sale": (datetime.now() - timedelta(days=random.randint(1, 14))).strftime("%Y-%m-%d"),
         }
 
-    def _generate_low_stock_item(self, sku: str) -> Dict:
+    def _generate_low_stock_item(self, sku: str) -> dict:
         """Generate item with low stock signal (qty < 5, high sales velocity)."""
         cost = random.uniform(10, 100)
         margin = random.uniform(0.30, 0.40)
@@ -155,7 +155,7 @@ class SyntheticDataGenerator:
             "last_sale": datetime.now().strftime("%Y-%m-%d"),
         }
 
-    def _generate_margin_leak_item(self, sku: str) -> Dict:
+    def _generate_margin_leak_item(self, sku: str) -> dict:
         """Generate item with negative or very low margin."""
         cost = random.uniform(20, 80)
         # Margin leak: selling below cost or near cost
@@ -176,7 +176,7 @@ class SyntheticDataGenerator:
             "last_sale": (datetime.now() - timedelta(days=random.randint(1, 7))).strftime("%Y-%m-%d"),
         }
 
-    def _generate_dead_item(self, sku: str) -> Dict:
+    def _generate_dead_item(self, sku: str) -> dict:
         """Generate dead inventory item (high qty, no recent sales)."""
         cost = random.uniform(10, 50)
         margin = random.uniform(0.30, 0.40)
@@ -194,7 +194,7 @@ class SyntheticDataGenerator:
             "last_sale": (datetime.now() - timedelta(days=random.randint(120, 365))).strftime("%Y-%m-%d"),
         }
 
-    def _generate_negative_inventory_item(self, sku: str) -> Dict:
+    def _generate_negative_inventory_item(self, sku: str) -> dict:
         """Generate item with negative quantity (data integrity issue)."""
         cost = random.uniform(10, 100)
         margin = random.uniform(0.30, 0.40)
@@ -212,7 +212,7 @@ class SyntheticDataGenerator:
             "last_sale": datetime.now().strftime("%Y-%m-%d"),
         }
 
-    def _generate_overstock_item(self, sku: str) -> Dict:
+    def _generate_overstock_item(self, sku: str) -> dict:
         """Generate overstocked item (>180 days of supply)."""
         cost = random.uniform(10, 50)
         margin = random.uniform(0.30, 0.40)
@@ -232,7 +232,7 @@ class SyntheticDataGenerator:
             "last_sale": (datetime.now() - timedelta(days=random.randint(7, 30))).strftime("%Y-%m-%d"),
         }
 
-    def _generate_price_discrepancy_item(self, sku: str) -> Dict:
+    def _generate_price_discrepancy_item(self, sku: str) -> dict:
         """Generate item with price significantly below suggested retail."""
         cost = random.uniform(20, 60)
         suggested_retail = cost * random.uniform(1.8, 2.5)  # Normal markup
@@ -251,7 +251,7 @@ class SyntheticDataGenerator:
             "last_sale": datetime.now().strftime("%Y-%m-%d"),
         }
 
-    def _generate_shrinkage_item(self, sku: str) -> Dict:
+    def _generate_shrinkage_item(self, sku: str) -> dict:
         """Generate item with significant inventory shrinkage."""
         cost = random.uniform(20, 80)
         margin = random.uniform(0.30, 0.40)
@@ -273,7 +273,7 @@ class SyntheticDataGenerator:
             "last_sale": datetime.now().strftime("%Y-%m-%d"),
         }
 
-    def _generate_margin_erosion_item(self, sku: str) -> Dict:
+    def _generate_margin_erosion_item(self, sku: str) -> dict:
         """Generate item with margin erosion (margin < 15%)."""
         cost = random.uniform(30, 80)
         # Margin erosion: 5-15% margin
@@ -300,13 +300,13 @@ class VSAValidator:
 
     def __init__(self):
         """Initialize validator."""
-        self.results: Dict[str, ValidationResult] = {}
+        self.results: dict[str, ValidationResult] = {}
 
     def validate(
         self,
-        detected: Dict[str, List[str]],
-        ground_truth: Dict[str, Set[str]],
-    ) -> Dict[str, ValidationResult]:
+        detected: dict[str, list[str]],
+        ground_truth: dict[str, set[str]],
+    ) -> dict[str, ValidationResult]:
         """
         Compare detection results against ground truth.
 
@@ -507,8 +507,8 @@ class TestVSAIntegration:
     def engine_available(self):
         """Check if sentinel engine is available."""
         try:
-            from sentinel_engine import bundle_pos_facts, query_bundle
-            from sentinel_engine.context import create_analysis_context
+            from sentinel_engine import bundle_pos_facts, query_bundle  # noqa: F401
+            from sentinel_engine.context import create_analysis_context  # noqa: F401
             return True
         except ImportError:
             return False

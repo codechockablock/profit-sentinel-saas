@@ -5,7 +5,6 @@ Provides request-level authentication handling.
 """
 
 import logging
-from typing import Optional
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware

@@ -11,14 +11,17 @@ Features:
 - Persistence support (JSON/YAML)
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Iterator, Any, Callable
-from collections import defaultdict
+
 import json
+from collections import defaultdict
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
+from typing import Any
+
 import yaml
 
-from .terms import Term, Var, Atom, Clause, TermLike
-from .unification import unify, substitute, Substitution
+from .terms import Atom, Clause, Term, TermLike, Var
+from .unification import Substitution, unify
 
 
 @dataclass
@@ -26,8 +29,8 @@ class Fact:
     """A ground fact in the knowledge base."""
     term: Term
     confidence: float = 1.0
-    source: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    source: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.term.is_ground():
@@ -38,8 +41,8 @@ class Fact:
 class RuleDefinition:
     """A rule definition with metadata."""
     clause: Clause
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
     priority: int = 0
     enabled: bool = True
 
@@ -48,7 +51,7 @@ class RuleDefinition:
         return self.clause.head
 
     @property
-    def body(self) -> List[Term]:
+    def body(self) -> list[Term]:
         return self.clause.body
 
 
@@ -78,16 +81,16 @@ class KnowledgeBase:
 
     def __init__(self):
         # Index facts by predicate name and arity
-        self._facts: Dict[str, List[Fact]] = defaultdict(list)
+        self._facts: dict[str, list[Fact]] = defaultdict(list)
 
         # Index rules by head predicate
-        self._rules: Dict[str, List[RuleDefinition]] = defaultdict(list)
+        self._rules: dict[str, list[RuleDefinition]] = defaultdict(list)
 
         # All clauses (for iteration)
-        self._clauses: List[Clause] = []
+        self._clauses: list[Clause] = []
 
         # Integrity constraints
-        self._constraints: List[Callable[[Term], bool]] = []
+        self._constraints: list[Callable[[Term], bool]] = []
 
         # Statistics
         self._stats = {
@@ -100,8 +103,8 @@ class KnowledgeBase:
         self,
         term: Term,
         confidence: float = 1.0,
-        source: Optional[str] = None,
-        metadata: Optional[Dict] = None
+        source: str | None = None,
+        metadata: dict | None = None
     ) -> None:
         """Add a fact to the knowledge base.
 
@@ -132,8 +135,8 @@ class KnowledgeBase:
         self,
         head: Term,
         *body: Term,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
         priority: int = 0
     ) -> None:
         """Add a rule to the knowledge base.
@@ -214,12 +217,12 @@ class KnowledgeBase:
             if unify(pattern, renamed.head) is not None:
                 yield renamed
 
-    def get_facts(self, predicate: str, arity: int) -> List[Fact]:
+    def get_facts(self, predicate: str, arity: int) -> list[Fact]:
         """Get all facts for a predicate."""
         key = f"{predicate}/{arity}"
         return list(self._facts.get(key, []))
 
-    def get_rules(self, predicate: str, arity: int) -> List[RuleDefinition]:
+    def get_rules(self, predicate: str, arity: int) -> list[RuleDefinition]:
         """Get all rules for a predicate."""
         key = f"{predicate}/{arity}"
         return list(self._rules.get(key, []))
@@ -267,7 +270,7 @@ class KnowledgeBase:
         return sum(len(rules) for rules in self._rules.values())
 
     @property
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         """Get statistics."""
         return dict(self._stats)
 
@@ -275,7 +278,7 @@ class KnowledgeBase:
     # Persistence
     # -------------------------------------------------------------------------
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Export to dictionary."""
         return {
             "facts": [
@@ -302,7 +305,7 @@ class KnowledgeBase:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'KnowledgeBase':
+    def from_dict(cls, data: dict[str, Any]) -> KnowledgeBase:
         """Import from dictionary."""
         kb = cls()
 
@@ -333,7 +336,7 @@ class KnowledgeBase:
             json.dump(self.to_dict(), f, indent=2)
 
     @classmethod
-    def from_json(cls, path: str) -> 'KnowledgeBase':
+    def from_json(cls, path: str) -> KnowledgeBase:
         """Load from JSON file."""
         with open(path) as f:
             return cls.from_dict(json.load(f))
@@ -344,13 +347,13 @@ class KnowledgeBase:
             yaml.dump(self.to_dict(), f, default_flow_style=False)
 
     @classmethod
-    def from_yaml(cls, path: str) -> 'KnowledgeBase':
+    def from_yaml(cls, path: str) -> KnowledgeBase:
         """Load from YAML file."""
         with open(path) as f:
             return cls.from_dict(yaml.safe_load(f))
 
 
-def _term_to_dict(term: TermLike) -> Dict:
+def _term_to_dict(term: TermLike) -> dict:
     """Convert term to dictionary."""
     if isinstance(term, Var):
         return {"type": "var", "name": term.name}
@@ -365,7 +368,7 @@ def _term_to_dict(term: TermLike) -> Dict:
     raise ValueError(f"Unknown term type: {type(term)}")
 
 
-def _dict_to_term(data: Dict) -> TermLike:
+def _dict_to_term(data: dict) -> TermLike:
     """Convert dictionary to term."""
     t = data["type"]
     if t == "var":

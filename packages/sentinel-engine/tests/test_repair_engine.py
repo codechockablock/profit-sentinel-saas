@@ -10,17 +10,18 @@ Tests the Visual AI Repair Diagnosis Engine including:
     - CW-Bundle knowledge incorporation
     - Serialization/deserialization
 """
+import os
+import sys
+
 import pytest
 import torch
-import time
-import sys
-import os
 
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # Configure VSA before imports
 from vsa_core import configure
+
 configure(dimensions=4096, device="cpu")
 
 
@@ -33,22 +34,19 @@ def to_real_float(val):
     return float(val)
 
 from sentinel_engine.repair_engine import (
-    RepairEngineConfig,
     CategoryCodebook,
+    RepairEngineConfig,
     TextEncoder,
-    RepairDiagnosisEngine,
     create_engine,
 )
 from sentinel_engine.repair_models import (
-    DiagnoseRequest,
-    ProblemStatus,
     KnowledgeBaseState,
-    expertise_multiplier,
+    ProblemStatus,
     calculate_level,
+    expertise_multiplier,
     xp_for_next_level,
 )
 from vsa_core.probabilistic import HypothesisBundle
-
 
 # =============================================================================
 # FIXTURES

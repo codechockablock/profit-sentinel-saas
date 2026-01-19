@@ -5,10 +5,9 @@ Comprehensive tests for all API endpoints including health, uploads, and analysi
 """
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
-from fastapi.testclient import TestClient
 
+from fastapi.testclient import TestClient
 
 # =============================================================================
 # HEALTH ROUTES TESTS

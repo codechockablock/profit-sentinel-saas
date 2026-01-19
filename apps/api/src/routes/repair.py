@@ -17,38 +17,38 @@ Security:
 
 import logging
 import uuid
-from datetime import datetime, timedelta
-from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ..dependencies import get_current_user, get_supabase_client
+from ..dependencies import get_current_user
 from ..services.grok_vision import (
     GrokVisionService,
     VisionAnalysisResult,
-    get_image_vsa_vector,
 )
 
 # Import from sentinel-engine (path may need adjustment based on package setup)
 try:
-    from sentinel_engine.repair_engine import RepairDiagnosisEngine, create_engine
-    from sentinel_engine.repair_models import (
-        DiagnoseRequest,
-        DiagnoseResponse,
-        RefineRequest,
+    from sentinel_engine.repair_engine import (  # noqa: F401
+        RepairDiagnosisEngine,
+        create_engine,
+    )
+    from sentinel_engine.repair_models import (  # noqa: F401
+        XP_REWARDS,
+        CategoryList,
         CorrectionRequest,
         CorrectionResult,
-        SolutionResponse,
-        SolutionStep,
-        SolutionPart,
+        DiagnoseRequest,
+        DiagnoseResponse,
         Hypothesis,
         ProblemCategory,
-        CategoryList,
         ProblemStatus,
+        RefineRequest,
+        SolutionPart,
+        SolutionResponse,
+        SolutionStep,
         calculate_level,
         xp_for_next_level,
-        XP_REWARDS,
     )
     ENGINE_AVAILABLE = True
 except ImportError:
@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 
 # Global engine instance (singleton)
 # Use Any type to avoid issues when sentinel_engine not installed
-_engine: Optional["RepairDiagnosisEngine"] = None  # type: ignore
+_engine: "RepairDiagnosisEngine | None" = None  # type: ignore
 
 
 def get_engine() -> "RepairDiagnosisEngine":  # type: ignore
@@ -83,21 +83,21 @@ def get_engine() -> "RepairDiagnosisEngine":  # type: ignore
 
 class DiagnoseRequestAPI(BaseModel):
     """API request model for diagnosis."""
-    text_description: Optional[str] = Field(None, max_length=2000)
-    voice_transcript: Optional[str] = Field(None, max_length=2000)
-    image_base64: Optional[str] = Field(None, description="Base64-encoded image")
+    text_description: str | None = Field(None, max_length=2000)
+    voice_transcript: str | None = Field(None, max_length=2000)
+    image_base64: str | None = Field(None, description="Base64-encoded image")
     store_id: str = Field(..., min_length=1)
-    employee_id: Optional[str] = None
-    session_id: Optional[str] = None
+    employee_id: str | None = None
+    session_id: str | None = None
 
 
 class RefineRequestAPI(BaseModel):
     """API request for refining diagnosis."""
     problem_id: str
-    additional_text: Optional[str] = Field(None, max_length=1000)
-    additional_image_base64: Optional[str] = None
-    answer_to_question: Optional[str] = Field(None, max_length=500)
-    question_index: Optional[int] = None
+    additional_text: str | None = Field(None, max_length=1000)
+    additional_image_base64: str | None = None
+    answer_to_question: str | None = Field(None, max_length=500)
+    question_index: int | None = None
 
 
 class CorrectionRequestAPI(BaseModel):
@@ -105,7 +105,7 @@ class CorrectionRequestAPI(BaseModel):
     problem_id: str
     employee_id: str
     correct_category_slug: str
-    correction_notes: Optional[str] = Field(None, max_length=500)
+    correction_notes: str | None = Field(None, max_length=500)
 
 
 class HypothesisAPI(BaseModel):
@@ -113,8 +113,8 @@ class HypothesisAPI(BaseModel):
     category_slug: str
     category_name: str
     probability: float
-    explanation: Optional[str] = None
-    icon: Optional[str] = None
+    explanation: str | None = None
+    icon: str | None = None
 
 
 class DiagnoseResponseAPI(BaseModel):
@@ -122,44 +122,44 @@ class DiagnoseResponseAPI(BaseModel):
     problem_id: str
     status: str
 
-    hypotheses: List[HypothesisAPI]
+    hypotheses: list[HypothesisAPI]
     top_hypothesis: HypothesisAPI
 
     confidence: float
     entropy: float
 
     needs_more_info: bool
-    follow_up_questions: List[str]
+    follow_up_questions: list[str]
 
     # Vision analysis extras (if image provided)
-    likely_parts_needed: Optional[List[str]] = None
-    tools_needed: Optional[List[str]] = None
-    safety_concerns: Optional[List[str]] = None
-    diy_feasible: Optional[bool] = None
-    professional_recommended: Optional[bool] = None
+    likely_parts_needed: list[str] | None = None
+    tools_needed: list[str] | None = None
+    safety_concerns: list[str] | None = None
+    diy_feasible: bool | None = None
+    professional_recommended: bool | None = None
 
 
 class SolutionPartAPI(BaseModel):
     """Part in solution response."""
     part_name: str
-    part_description: Optional[str] = None
+    part_description: str | None = None
     quantity: int = 1
     is_required: bool = True
-    sku: Optional[str] = None
-    in_stock: Optional[bool] = None
-    stock_quantity: Optional[int] = None
-    unit_price: Optional[float] = None
+    sku: str | None = None
+    in_stock: bool | None = None
+    stock_quantity: int | None = None
+    unit_price: float | None = None
     has_substitute: bool = False
-    substitute_sku: Optional[str] = None
-    substitute_name: Optional[str] = None
+    substitute_sku: str | None = None
+    substitute_name: str | None = None
 
 
 class SolutionStepAPI(BaseModel):
     """Step in solution response."""
     order: int
     instruction: str
-    tip: Optional[str] = None
-    caution: Optional[str] = None
+    tip: str | None = None
+    caution: str | None = None
 
 
 class SolutionResponseAPI(BaseModel):
@@ -171,17 +171,17 @@ class SolutionResponseAPI(BaseModel):
 
     title: str
     summary: str
-    steps: List[SolutionStepAPI]
-    parts: List[SolutionPartAPI]
+    steps: list[SolutionStepAPI]
+    parts: list[SolutionPartAPI]
 
-    tools_required: List[str]
-    estimated_time_minutes: Optional[int] = None
+    tools_required: list[str]
+    estimated_time_minutes: int | None = None
     difficulty_level: int
 
-    video_urls: List[str]
+    video_urls: list[str]
 
     all_parts_available: bool
-    parts_total_cost: Optional[float] = None
+    parts_total_cost: float | None = None
 
 
 class CorrectionResultAPI(BaseModel):
@@ -193,9 +193,9 @@ class CorrectionResultAPI(BaseModel):
     xp_awarded: int
     new_total_xp: int
     leveled_up: bool
-    new_level: Optional[int] = None
+    new_level: int | None = None
 
-    badge_earned: Optional[str] = None
+    badge_earned: str | None = None
     streak_extended: bool
     current_streak: int
 
@@ -205,10 +205,10 @@ class CategoryAPI(BaseModel):
     category_id: str
     name: str
     slug: str
-    description: Optional[str] = None
-    icon: Optional[str] = None
-    parent_slug: Optional[str] = None
-    subcategories: List["CategoryAPI"] = []
+    description: str | None = None
+    icon: str | None = None
+    parent_slug: str | None = None
+    subcategories: list["CategoryAPI"] = []
 
 
 CategoryAPI.model_rebuild()
@@ -221,7 +221,7 @@ CategoryAPI.model_rebuild()
 @router.post("/diagnose", response_model=DiagnoseResponseAPI)
 async def diagnose_problem(
     request: DiagnoseRequestAPI,
-    user_id: Optional[str] = Depends(get_current_user),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Diagnose a repair problem from text and/or image.
@@ -241,7 +241,7 @@ async def diagnose_problem(
         )
 
     engine = get_engine()
-    vision_result: Optional[VisionAnalysisResult] = None
+    vision_result: VisionAnalysisResult | None = None
 
     # Process image if provided
     image_features = None
@@ -329,7 +329,7 @@ async def diagnose_problem(
 @router.post("/diagnose/refine", response_model=DiagnoseResponseAPI)
 async def refine_diagnosis(
     request: RefineRequestAPI,
-    user_id: Optional[str] = Depends(get_current_user),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Refine an existing diagnosis with additional information.
@@ -351,7 +351,7 @@ async def refine_diagnosis(
 @router.get("/solution/{problem_id}", response_model=SolutionResponseAPI)
 async def get_solution(
     problem_id: str,
-    user_id: Optional[str] = Depends(get_current_user),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Get repair solution for a diagnosed problem.
@@ -375,7 +375,7 @@ async def get_solution(
 async def submit_correction(
     request: CorrectionRequestAPI,
     background_tasks: BackgroundTasks,
-    user_id: Optional[str] = Depends(get_current_user),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Employee submits correction to AI diagnosis.
@@ -417,7 +417,7 @@ async def submit_correction(
     )
 
 
-@router.get("/categories", response_model=List[CategoryAPI])
+@router.get("/categories", response_model=list[CategoryAPI])
 async def list_categories():
     """
     List all problem categories.

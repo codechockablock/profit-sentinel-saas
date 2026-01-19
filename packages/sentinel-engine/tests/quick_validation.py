@@ -6,15 +6,12 @@ Tests VSA functionality without full resonator convergence.
 """
 
 import json
-import random
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Dict, List, Set, Tuple
+from datetime import datetime
 from pathlib import Path
 
 # Import validation_runner components
-from validation_runner import SyntheticDataGenerator, BaselineDetector, DetectionResult
+from validation_runner import BaselineDetector, DetectionResult, SyntheticDataGenerator
 
 
 class QuickVSADetector:
@@ -27,8 +24,8 @@ class QuickVSADetector:
         self.iters = iters
         try:
             import torch
-            from sentinel_engine.context import create_analysis_context
             from sentinel_engine import core
+            from sentinel_engine.context import create_analysis_context
 
             self._torch = torch
             self._create_ctx = create_analysis_context
@@ -38,7 +35,7 @@ class QuickVSADetector:
         except ImportError as e:
             print(f"  WARNING: VSA not available: {e}")
 
-    def detect(self, rows: List[Dict], score_threshold: float = 0.05) -> Dict[str, Set[str]]:
+    def detect(self, rows: list[dict], score_threshold: float = 0.05) -> dict[str, set[str]]:
         """Run VSA detection with reduced iterations."""
         if not self.available:
             return {p: set() for p in [
@@ -177,7 +174,7 @@ def run_quick_validation():
     baseline_avg_prec = sum(m.precision for m in baseline_metrics.values()) / len(baseline_metrics)
     baseline_avg_recall = sum(m.recall for m in baseline_metrics.values()) / len(baseline_metrics)
 
-    print(f"\nBASELINE Averages:")
+    print("\nBASELINE Averages:")
     print(f"  Precision: {baseline_avg_prec:.1%}")
     print(f"  Recall:    {baseline_avg_recall:.1%}")
     print(f"  F1:        {baseline_avg_f1:.1%}")
@@ -188,14 +185,14 @@ def run_quick_validation():
         vsa_avg_prec = sum(m.precision for m in vsa_metrics.values()) / len(vsa_metrics)
         vsa_avg_recall = sum(m.recall for m in vsa_metrics.values()) / len(vsa_metrics)
 
-        print(f"\nVSA Averages:")
+        print("\nVSA Averages:")
         print(f"  Precision: {vsa_avg_prec:.1%}")
         print(f"  Recall:    {vsa_avg_recall:.1%}")
         print(f"  F1:        {vsa_avg_f1:.1%}")
         print(f"  Time:      {vsa_time:.2f}s")
 
         # Comparison
-        print(f"\nVSA vs BASELINE:")
+        print("\nVSA vs BASELINE:")
         f1_diff = vsa_avg_f1 - baseline_avg_f1
         print(f"  F1 Difference: {f1_diff:+.1%} ({'VSA better' if f1_diff > 0 else 'Baseline better'})")
 

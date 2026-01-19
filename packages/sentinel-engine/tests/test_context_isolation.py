@@ -10,11 +10,8 @@ These tests ensure that:
 CRITICAL: These tests validate the security fix for the global codebook bug.
 """
 
-import pytest
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict
 
 import torch
 
@@ -199,8 +196,8 @@ class TestAnalysisFunctionIsolation:
 
     def test_bundle_pos_facts_uses_context_codebook(self):
         """bundle_pos_facts should populate context's codebook, not global."""
-        from sentinel_engine.context import create_analysis_context
         from sentinel_engine import bundle_pos_facts
+        from sentinel_engine.context import create_analysis_context
 
         ctx1 = create_analysis_context()
         ctx2 = create_analysis_context()
@@ -222,8 +219,8 @@ class TestAnalysisFunctionIsolation:
 
     def test_query_bundle_uses_context_codebook(self):
         """query_bundle should query from context's codebook only."""
-        from sentinel_engine.context import create_analysis_context
         from sentinel_engine import bundle_pos_facts, query_bundle
+        from sentinel_engine.context import create_analysis_context
 
         ctx1 = create_analysis_context()
         ctx2 = create_analysis_context()
@@ -254,13 +251,13 @@ class TestAnalysisFunctionIsolation:
 
     def test_concurrent_analysis_different_datasets(self):
         """Concurrent analyses of different datasets should not contaminate."""
-        from sentinel_engine.context import create_analysis_context
         from sentinel_engine import bundle_pos_facts, query_bundle
+        from sentinel_engine.context import create_analysis_context
 
         results = {}
         errors = []
 
-        def run_analysis(analysis_id: int, unique_skus: List[str]):
+        def run_analysis(analysis_id: int, unique_skus: list[str]):
             try:
                 ctx = create_analysis_context()
 
@@ -313,7 +310,8 @@ class TestBackwardCompatibility:
     def test_legacy_api_still_works_with_deprecation(self):
         """Legacy API without context should work but emit deprecation warning."""
         import warnings
-        from sentinel_engine import bundle_pos_facts, query_bundle, reset_codebook
+
+        from sentinel_engine import bundle_pos_facts
 
         # This should work but emit deprecation warning
         with warnings.catch_warnings(record=True) as w:
@@ -324,7 +322,7 @@ class TestBackwardCompatibility:
             ]
 
             # Legacy call without context
-            bundle = bundle_pos_facts(rows)
+            bundle_pos_facts(rows)
 
             # Should have emitted deprecation warning
             deprecation_warnings = [

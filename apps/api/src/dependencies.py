@@ -8,7 +8,6 @@ Invalid tokens raise 401, expired tokens raise 401, service errors raise 503.
 """
 
 import logging
-from typing import Optional
 
 import boto3
 from fastapi import Header, HTTPException
@@ -36,7 +35,7 @@ def get_s3_client():
     return boto3.client("s3")
 
 
-def get_supabase_client() -> Optional[Client]:
+def get_supabase_client() -> Client | None:
     """Get Supabase client instance."""
     settings = get_settings()
     if settings.supabase_url and settings.supabase_service_key:
@@ -44,7 +43,7 @@ def get_supabase_client() -> Optional[Client]:
     return None
 
 
-def get_grok_client() -> Optional[OpenAI]:
+def get_grok_client() -> OpenAI | None:
     """Get Grok AI client (OpenAI-compatible)."""
     settings = get_settings()
     if settings.ai_api_key:
@@ -56,8 +55,8 @@ def get_grok_client() -> Optional[OpenAI]:
 
 
 async def get_current_user(
-    authorization: Optional[str] = Header(None),
-) -> Optional[str]:
+    authorization: str | None = Header(None),
+) -> str | None:
     """
     Extract current user ID from Supabase JWT token.
 
@@ -104,7 +103,7 @@ async def get_current_user(
         # Specific Supabase auth errors (invalid token, expired, etc.)
         error_msg = str(e).lower()
         if "expired" in error_msg:
-            logger.info(f"Token expired for request")
+            logger.info("Token expired for request")
             raise HTTPException(status_code=401, detail="Token expired")
         elif "invalid" in error_msg or "malformed" in error_msg:
             logger.warning(f"Invalid token: {e}")
@@ -127,7 +126,7 @@ async def get_current_user(
 
 
 async def require_user(
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
 ) -> str:
     """
     Require authenticated user. Raises 401 if not authenticated.
