@@ -17,9 +17,9 @@ interface PrivacyBannerProps {
  * PrivacyBanner - Communicates data handling practices
  *
  * Shows users that:
- * 1. Files are processed locally (never uploaded)
- * 2. No PII leaves their browser
- * 3. Only aggregate statistics are stored
+ * 1. Files are encrypted in transit and at rest
+ * 2. Files are auto-deleted within 1 hour
+ * 3. Only aggregate statistics are retained (no SKUs)
  *
  * Two variants:
  * - default: Full banner with icon and detailed message
@@ -45,8 +45,8 @@ export function PrivacyBanner({
       <div className={`flex items-center gap-2 text-xs text-slate-400 ${className}`}>
         <ShieldIcon className="w-3.5 h-3.5 text-emerald-500/70" />
         <span>
-          Your data stays in your browser.{' '}
-          <span className="text-emerald-400/80">No files uploaded.</span>
+          Files encrypted & {' '}
+          <span className="text-emerald-400/80">auto-deleted in 1 hour.</span>
         </span>
       </div>
     )
@@ -62,17 +62,17 @@ export function PrivacyBanner({
         </div>
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-semibold text-emerald-300 mb-1">
-            Your Data Stays Private
+            Your Data Stays Protected
           </h4>
           <p className="text-xs text-slate-300 leading-relaxed">
-            All analysis happens <span className="text-emerald-400 font-medium">locally in your browser</span>.
-            Your inventory files are never uploaded to our servers. We only store
-            aggregate statistics (counts, not SKUs) to improve our detection algorithms.
+            Files are <span className="text-emerald-400 font-medium">encrypted in transit and at rest</span>,
+            then automatically deleted within 1 hour. We only retain aggregate statistics
+            (counts, not SKUs) to improve our detection algorithms.
           </p>
           <div className="mt-3 flex flex-wrap gap-3 text-xs">
-            <PrivacyPoint icon={<BrowserIcon />} text="Client-side processing" />
-            <PrivacyPoint icon={<LockClosedIcon />} text="No file uploads" />
-            <PrivacyPoint icon={<EyeOffIcon />} text="SKUs never leave browser" />
+            <PrivacyPoint icon={<LockClosedIcon />} text="Encrypted storage" />
+            <PrivacyPoint icon={<ClockIcon />} text="Auto-deleted in 1 hour" />
+            <PrivacyPoint icon={<EyeOffIcon />} text="No SKUs retained" />
           </div>
         </div>
         {onDismiss && (
@@ -109,7 +109,7 @@ export function PrivacyBadge({ className = '' }: { className?: string }) {
       className={`inline-flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-xs text-emerald-400 ${className}`}
     >
       <ShieldIcon className="w-3 h-3" />
-      <span>Processed locally</span>
+      <span>Encrypted & auto-deleted</span>
     </div>
   )
 }
@@ -121,8 +121,8 @@ export function PrivacyFooter({ className = '' }: { className?: string }) {
   return (
     <p className={`text-xs text-slate-500 ${className}`}>
       <ShieldIcon className="w-3 h-3 inline-block mr-1 text-emerald-500/50" />
-      We respect your privacy. Your inventory data is processed entirely in your browser
-      and is never uploaded to our servers. Only your email address is stored.{' '}
+      We respect your privacy. Your files are encrypted and automatically deleted within 1 hour.
+      We only retain anonymized statistics. Your email is stored only if you opt in.{' '}
       <a
         href="/privacy"
         className="text-emerald-400/70 hover:text-emerald-400 underline"
@@ -151,7 +151,7 @@ function ShieldIcon({ className }: { className?: string }) {
   )
 }
 
-function BrowserIcon() {
+function ClockIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -161,7 +161,7 @@ function BrowserIcon() {
     >
       <path
         fillRule="evenodd"
-        d="M3 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H3Zm0 1h10a1 1 0 0 1 1 1v1H2V5a1 1 0 0 1 1-1Zm1 3.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0ZM5.5 7a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1ZM7 7.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0Z"
+        d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v4c0 .414.336.75.75.75h3a.75.75 0 0 0 0-1.5H8.75v-3.25Z"
         clipRule="evenodd"
       />
     </svg>

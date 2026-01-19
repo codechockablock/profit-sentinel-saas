@@ -30,11 +30,20 @@ Modules:
     vsa_core.resonator         - Iterative query cleanup
     vsa_core.loader            - YAML primitive/rule loading
     vsa_core.types             - Pydantic type definitions
+    vsa_core.probabilistic     - Probabilistic superposition (P-Sup)
+    vsa_core.schema            - Schema evolution binding (SE-Bind)
+
+Novel Primitives (v3.1.0):
+    - n_bind: Negation binding for exclusion queries
+    - cw_bundle: Confidence-weighted bundling
+    - t_bind/t_unbind: Temporal binding with decay
+    - p_sup: Probabilistic superposition of hypotheses
+    - se_bind: Schema-evolution-aware binding
 
 Note: geodesic_resonator and manifolds modules were removed in v3.0.0 (unused complexity).
 """
 
-__version__ = "3.0.0"
+__version__ = "3.1.0"
 
 # Core vector operations
 from .vectors import (
@@ -66,6 +75,35 @@ from .operators import (
     role_filler_bind,
     create_record,
     query_record,
+    # Novel primitives (v3.1.0)
+    n_bind,
+    query_excluding,
+    cw_bundle,
+    t_bind,
+    t_unbind,
+)
+
+# Probabilistic superposition
+from .probabilistic import (
+    HypothesisBundle,
+    p_sup,
+    p_sup_update,
+    p_sup_collapse,
+    p_sup_add_hypothesis,
+    p_sup_remove_hypothesis,
+    p_sup_merge,
+)
+
+# Schema evolution
+from .schema import (
+    SchemaRegistry,
+    FieldSpec,
+    se_bind,
+    se_unbind,
+    create_schema_record,
+    migrate_bundle,
+    schema_compatibility_check,
+    create_retail_schema,
 )
 
 # Resonator
@@ -115,6 +153,29 @@ __all__ = [
     "role_filler_bind",
     "create_record",
     "query_record",
+    # Novel primitives (v3.1.0)
+    "n_bind",
+    "query_excluding",
+    "cw_bundle",
+    "t_bind",
+    "t_unbind",
+    # Probabilistic superposition
+    "HypothesisBundle",
+    "p_sup",
+    "p_sup_update",
+    "p_sup_collapse",
+    "p_sup_add_hypothesis",
+    "p_sup_remove_hypothesis",
+    "p_sup_merge",
+    # Schema evolution
+    "SchemaRegistry",
+    "FieldSpec",
+    "se_bind",
+    "se_unbind",
+    "create_schema_record",
+    "migrate_bundle",
+    "schema_compatibility_check",
+    "create_retail_schema",
     # Resonator
     "Resonator",
     # Types

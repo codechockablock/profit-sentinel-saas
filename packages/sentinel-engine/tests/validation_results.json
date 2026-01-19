@@ -1,11 +1,12 @@
 {
-  "timestamp": "2026-01-17T13:08:33.031291",
+  "timestamp": "2026-01-17T14:21:47.650842",
+  "dimensions": 2048,
   "dataset_size": 10000,
   "baseline": {
     "avg_precision": 0.7386496014120938,
     "avg_recall": 0.971,
     "avg_f1": 0.8240830761593219,
-    "time_seconds": 0.045137882232666016,
+    "time_seconds": 0.026613950729370117,
     "per_primitive": {
       "low_stock": {
         "precision": 0.5494505494505495,
@@ -53,7 +54,7 @@
     "avg_precision": 0.0,
     "avg_recall": 0.0,
     "avg_f1": 0.0,
-    "time_seconds": 9.357324123382568,
+    "time_seconds": 2.5535387992858887,
     "per_primitive": {
       "low_stock": {
         "precision": 0.0,

@@ -23,6 +23,22 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = Field(default=False)
 
+    # Analysis thresholds (configurable via environment)
+    # Margin leak detection: flag items with margin below this threshold
+    margin_leak_threshold: float = Field(default=0.25, description="Margin below this triggers leak alert")
+    # Margin below average: flag items 30% below category average
+    margin_below_average_factor: float = Field(default=0.7, description="Flag if margin < avg * this factor")
+    # Dead stock days: items not sold in this many days
+    dead_stock_days: int = Field(default=90, description="Days without sale to flag as dead stock")
+    # Low stock threshold: quantity below this is flagged
+    low_stock_threshold: int = Field(default=10, description="Quantity below this is low stock")
+    # Overstock threshold: days of supply above this is overstock
+    overstock_days_supply: int = Field(default=180, description="Days supply above this is overstock")
+    # Price discrepancy threshold: % difference from MSRP to flag
+    price_discrepancy_threshold: float = Field(default=0.15, description="Price diff from MSRP to flag")
+    # Shrinkage threshold: variance % to flag as shrinkage
+    shrinkage_variance_threshold: float = Field(default=0.02, description="Inventory variance % to flag")
+
     # CORS - All allowed origins for frontend requests
     # Includes production domains, Vercel previews, and local development
     cors_origins: List[str] = Field(default=[

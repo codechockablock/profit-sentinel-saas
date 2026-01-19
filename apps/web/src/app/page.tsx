@@ -40,7 +40,7 @@ export default function Home() {
 
           {/* Trust Badges */}
           <div className="flex flex-wrap justify-center gap-6 mt-10 text-sm text-slate-400">
-            <Badge icon={<ShieldIcon />} text="Data never leaves your browser" />
+            <Badge icon={<ShieldIcon />} text="Files auto-deleted in 1 hour" />
             <Badge icon={<ClockIcon />} text="Results in 60 seconds" />
             <Badge icon={<CheckIcon />} text="No credit card required" />
           </div>
@@ -155,12 +155,12 @@ export default function Home() {
             <ShieldIcon className="w-8 h-8 text-emerald-400" />
           </div>
           <h2 className="text-3xl font-bold text-white mb-4">
-            Your Data Stays Private
+            Your Data Stays Protected
           </h2>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-8">
-            All analysis happens <strong className="text-emerald-400">locally in your browser</strong>.
-            Your inventory files are never uploaded to our servers. We only store
-            anonymized aggregate statistics - never your actual SKUs or item names.
+            Your files are <strong className="text-emerald-400">encrypted in transit and at rest</strong>.
+            Files are automatically deleted within 1 hour after analysis.
+            We only retain anonymized aggregate statistics - never your actual SKUs, item names, or customer data.
           </p>
           <Link
             href="/privacy"

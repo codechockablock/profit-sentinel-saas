@@ -68,10 +68,10 @@ export default function AboutPage() {
               </div>
               <div>
                 <p className="text-lg text-slate-300 leading-relaxed">
-                  <strong className="text-white">Your data stays private.</strong> All analysis
-                  happens locally in your browser. Your inventory files are never uploaded
-                  to our servers. We only store anonymized aggregate statistics to improve
-                  our detection algorithms - never your actual SKUs or item names.
+                  <strong className="text-white">Your data stays protected.</strong> Files are
+                  encrypted in transit and at rest, then automatically deleted within 1 hour.
+                  We only retain anonymized aggregate statistics to improve our detection
+                  algorithms - never your actual SKUs or item names.
                 </p>
                 <Link
                   href="/privacy"
