@@ -219,9 +219,7 @@ class TestMappingService:
 
         df = pd.DataFrame({"col1": ["test"]})
 
-        with patch(
-            "src.services.mapping.get_grok_client", return_value=mock_client
-        ):
+        with patch("src.services.mapping.get_grok_client", return_value=mock_client):
             service = MappingService()
             result = service.suggest_mapping(df, "test.csv")
 
@@ -236,9 +234,7 @@ class TestMappingService:
 
         df = pd.DataFrame({"sku": ["test"], "quantity": [1]})
 
-        with patch(
-            "src.services.mapping.get_grok_client", return_value=mock_client
-        ):
+        with patch("src.services.mapping.get_grok_client", return_value=mock_client):
             service = MappingService()
             result = service.suggest_mapping(df, "test.csv")
 
@@ -434,9 +430,7 @@ class TestDependencies:
         mock_settings = Settings(supabase_url=None, supabase_service_key=None)
 
         # Patch get_settings to return our mock settings
-        with patch(
-            "src.dependencies.get_settings", return_value=mock_settings
-        ):
+        with patch("src.dependencies.get_settings", return_value=mock_settings):
             result = get_supabase_client()
         assert result is None
 
@@ -449,9 +443,7 @@ class TestDependencies:
         mock_settings = Settings(xai_api_key=None, grok_api_key=None)
 
         # Patch get_settings to return our mock settings
-        with patch(
-            "src.dependencies.get_settings", return_value=mock_settings
-        ):
+        with patch("src.dependencies.get_settings", return_value=mock_settings):
             result = get_grok_client()
         assert result is None
 
@@ -466,8 +458,9 @@ class TestDependencies:
     @pytest.mark.asyncio
     async def test_require_user_raises_without_auth(self):
         """Test require_user raises 401 without authentication."""
-        from src.dependencies import require_user
         from fastapi import HTTPException
+
+        from src.dependencies import require_user
 
         with pytest.raises(HTTPException) as exc_info:
             await require_user(None)

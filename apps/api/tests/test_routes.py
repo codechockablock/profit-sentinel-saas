@@ -59,9 +59,7 @@ class TestUploadRoutes:
 
     def test_presign_returns_urls(self, client: TestClient, mock_s3_client: MagicMock):
         """Test presign endpoint returns presigned URLs."""
-        with patch(
-            "src.dependencies.get_s3_client", return_value=mock_s3_client
-        ):
+        with patch("src.dependencies.get_s3_client", return_value=mock_s3_client):
             response = client.post(
                 "/uploads/presign", data={"filenames": ["test.csv", "data.xlsx"]}
             )
@@ -80,9 +78,7 @@ class TestUploadRoutes:
         self, client: TestClient, mock_s3_client: MagicMock
     ):
         """Test presign generates unique S3 keys."""
-        with patch(
-            "src.dependencies.get_s3_client", return_value=mock_s3_client
-        ):
+        with patch("src.dependencies.get_s3_client", return_value=mock_s3_client):
             response = client.post(
                 "/uploads/presign", data={"filenames": ["same.csv", "same.csv"]}
             )
@@ -151,9 +147,7 @@ class TestUploadRoutes:
             "src.routes.uploads.get_s3_client",
             return_value=mock_s3_client_with_data,
         ):
-            with patch(
-                "src.services.mapping.get_grok_client", return_value=None
-            ):
+            with patch("src.services.mapping.get_grok_client", return_value=None):
                 response = client.post(
                     "/uploads/suggest-mapping",
                     data={"key": "test/file.csv", "filename": "file.csv"},
@@ -284,12 +278,8 @@ class TestAuthentication:
         """Test that invalid auth tokens don't crash endpoints."""
         # Mock get_supabase_client to return None so auth is bypassed
         # (endpoint allows anonymous access, so without supabase client it falls back)
-        with patch(
-            "src.routes.uploads.get_s3_client", return_value=mock_s3_client
-        ):
-            with patch(
-                "src.dependencies.get_supabase_client", return_value=None
-            ):
+        with patch("src.routes.uploads.get_s3_client", return_value=mock_s3_client):
+            with patch("src.dependencies.get_supabase_client", return_value=None):
                 response = client.post(
                     "/uploads/presign",
                     data={"filenames": ["test.csv"]},
