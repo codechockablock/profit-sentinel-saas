@@ -10,6 +10,7 @@ Tests the Visual AI Repair Diagnosis Engine including:
     - CW-Bundle knowledge incorporation
     - Serialization/deserialization
 """
+
 import os
 import sys
 
@@ -17,7 +18,9 @@ import pytest
 import torch
 
 # Add parent to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 # Configure VSA before imports
 from vsa_core import configure
@@ -32,6 +35,7 @@ def to_real_float(val):
             return float(torch.real(val))
         return float(val)
     return float(val)
+
 
 from sentinel_engine.repair_engine import (
     CategoryCodebook,
@@ -52,6 +56,7 @@ from vsa_core.probabilistic import HypothesisBundle
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def config():
     """Create test configuration."""
@@ -61,7 +66,7 @@ def config():
         min_hypothesis_prob=0.05,
         max_hypotheses=5,
         update_temperature=0.8,
-        device="cpu"
+        device="cpu",
     )
 
 
@@ -70,7 +75,9 @@ def codebook(config):
     """Create test category codebook."""
     cb = CategoryCodebook(config)
     cb.register_category("plumbing", "Plumbing", "Pipes and water")
-    cb.register_category("plumbing-faucet", "Leaky Faucet", "Dripping faucets", parent_slug="plumbing")
+    cb.register_category(
+        "plumbing-faucet", "Leaky Faucet", "Dripping faucets", parent_slug="plumbing"
+    )
     cb.register_category("electrical", "Electrical", "Wiring and power")
     cb.register_category("hvac", "HVAC", "Heating and cooling")
     return cb
@@ -91,6 +98,7 @@ def engine():
 # =============================================================================
 # CATEGORY CODEBOOK TESTS
 # =============================================================================
+
 
 class TestCategoryCodebook:
     """Tests for CategoryCodebook class."""
@@ -166,6 +174,7 @@ class TestCategoryCodebook:
 # TEXT ENCODER TESTS
 # =============================================================================
 
+
 class TestTextEncoder:
     """Tests for TextEncoder class."""
 
@@ -220,13 +229,15 @@ class TestTextEncoder:
         sim_13 = to_real_float(similarity(vec1, vec3))
 
         # Similar topics should have higher similarity
-        assert sim_12 > sim_13, \
-            f"Similar text should have higher sim: {sim_12} vs {sim_13}"
+        assert (
+            sim_12 > sim_13
+        ), f"Similar text should have higher sim: {sim_12} vs {sim_13}"
 
 
 # =============================================================================
 # REPAIR DIAGNOSIS ENGINE TESTS
 # =============================================================================
+
 
 class TestRepairDiagnosisEngine:
     """Tests for RepairDiagnosisEngine class."""
@@ -261,8 +272,7 @@ class TestRepairDiagnosisEngine:
     def test_diagnose_combined_inputs(self, engine):
         """Diagnosis should combine text and voice inputs."""
         bundle, metadata = engine.diagnose(
-            text="faucet",
-            voice_transcript="it's dripping constantly"
+            text="faucet", voice_transcript="it's dripping constantly"
         )
 
         assert isinstance(bundle, HypothesisBundle)
@@ -273,15 +283,11 @@ class TestRepairDiagnosisEngine:
         store_id = "test-store-123"
 
         # First diagnosis to build store memory
-        bundle1, _ = engine.diagnose(
-            text="leaky faucet",
-            store_id=store_id
-        )
+        bundle1, _ = engine.diagnose(text="leaky faucet", store_id=store_id)
 
         # Second diagnosis should have store context
         bundle2, metadata = engine.diagnose(
-            text="another faucet drip",
-            store_id=store_id
+            text="another faucet drip", store_id=store_id
         )
 
         # Should have store context similarity (second time)
@@ -330,9 +336,7 @@ class TestRepairDiagnosisEngine:
         bundle, metadata = engine.diagnose(text="faucet leak")
 
         response = engine.bundle_to_response(
-            bundle,
-            problem_id="test-123",
-            metadata=metadata
+            bundle, problem_id="test-123", metadata=metadata
         )
 
         assert response.problem_id == "test-123"
@@ -347,9 +351,7 @@ class TestRepairDiagnosisEngine:
         bundle, metadata = engine.diagnose(text="something wrong")
 
         response = engine.bundle_to_response(
-            bundle,
-            problem_id="test-456",
-            metadata=metadata
+            bundle, problem_id="test-456", metadata=metadata
         )
 
         # If needs_more_info, should have questions
@@ -360,6 +362,7 @@ class TestRepairDiagnosisEngine:
 # =============================================================================
 # STORE MEMORY (T-BIND) TESTS
 # =============================================================================
+
 
 class TestStoreMemory:
     """Tests for store temporal memory."""
@@ -389,6 +392,7 @@ class TestStoreMemory:
 
         # Memory should change
         from vsa_core import similarity
+
         sim = to_real_float(similarity(mem1, mem2))
         assert sim < 0.95, f"Memory should accumulate, sim={sim}"
 
@@ -402,6 +406,7 @@ class TestStoreMemory:
 
         # Different stores, different problems = different memories
         from vsa_core import similarity
+
         sim = to_real_float(similarity(mem_a, mem_b))
         # Should be somewhat different
         assert sim < 0.9
@@ -410,6 +415,7 @@ class TestStoreMemory:
 # =============================================================================
 # KNOWLEDGE INCORPORATION (CW-BUNDLE) TESTS
 # =============================================================================
+
 
 class TestKnowledgeIncorporation:
     """Tests for employee correction incorporation."""
@@ -423,7 +429,7 @@ class TestKnowledgeIncorporation:
             original_category="plumbing",
             corrected_category="plumbing-faucet",
             employee_level=5,
-            knowledge_state=None
+            knowledge_state=None,
         )
 
         assert isinstance(state, KnowledgeBaseState)
@@ -442,7 +448,7 @@ class TestKnowledgeIncorporation:
             original_category="plumbing",
             corrected_category="plumbing-faucet",
             employee_level=3,
-            knowledge_state=None
+            knowledge_state=None,
         )
 
         # Second correction
@@ -451,7 +457,7 @@ class TestKnowledgeIncorporation:
             original_category="plumbing",
             corrected_category="plumbing-faucet",
             employee_level=7,
-            knowledge_state=state1
+            knowledge_state=state1,
         )
 
         assert state2.total_corrections == 2
@@ -466,7 +472,7 @@ class TestKnowledgeIncorporation:
             original_category="plumbing",
             corrected_category="plumbing-faucet",
             employee_level=1,
-            knowledge_state=None
+            knowledge_state=None,
         )
 
         state_high = engine.incorporate_correction(
@@ -474,7 +480,7 @@ class TestKnowledgeIncorporation:
             original_category="plumbing",
             corrected_category="plumbing-faucet",
             employee_level=10,
-            knowledge_state=None
+            knowledge_state=None,
         )
 
         # Higher level = higher weight
@@ -484,6 +490,7 @@ class TestKnowledgeIncorporation:
 # =============================================================================
 # SERIALIZATION TESTS
 # =============================================================================
+
 
 class TestSerialization:
     """Tests for hypothesis state serialization."""
@@ -509,6 +516,7 @@ class TestSerialization:
         assert torch.allclose(bundle2.probabilities, bundle1.probabilities, atol=1e-5)
 
         from vsa_core import similarity
+
         sim = to_real_float(similarity(bundle2.vector, bundle1.vector))
         assert sim > 0.99, f"Roundtrip should preserve vector: {sim}"
 
@@ -525,6 +533,7 @@ class TestSerialization:
 # =============================================================================
 # GAMIFICATION HELPERS TESTS
 # =============================================================================
+
 
 class TestGamificationHelpers:
     """Tests for gamification helper functions."""
@@ -554,6 +563,7 @@ class TestGamificationHelpers:
 # INTEGRATION TESTS
 # =============================================================================
 
+
 class TestRepairEngineIntegration:
     """End-to-end integration tests."""
 
@@ -566,7 +576,7 @@ class TestRepairEngineIntegration:
         bundle1, metadata1 = engine.diagnose(
             text="my kitchen faucet is dripping",
             store_id=store_id,
-            employee_id=employee_id
+            employee_id=employee_id,
         )
 
         assert len(bundle1.hypotheses) > 0
@@ -589,7 +599,7 @@ class TestRepairEngineIntegration:
                 problem_vec=bundle2.vector,
                 original_category=winner or bundle2.top_hypothesis()[0],
                 corrected_category="plumbing-faucet",
-                employee_level=5
+                employee_level=5,
             )
             assert knowledge_state.total_corrections == 1
 
@@ -608,6 +618,7 @@ class TestRepairEngineIntegration:
         mem_b = engine._store_memories["store-b"]
 
         from vsa_core import similarity
+
         sim = to_real_float(similarity(mem_a, mem_b))
 
         # Different problem types = different memories

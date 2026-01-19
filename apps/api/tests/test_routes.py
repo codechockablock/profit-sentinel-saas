@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 # HEALTH ROUTES TESTS
 # =============================================================================
 
+
 class TestHealthRoutes:
     """Tests for health check endpoints."""
 
@@ -34,6 +35,7 @@ class TestHealthRoutes:
     def test_health_response_time(self, client: TestClient):
         """Test health endpoint responds quickly (< 100ms)."""
         import time
+
         start = time.time()
         response = client.get("/health")
         elapsed = time.time() - start
@@ -44,6 +46,7 @@ class TestHealthRoutes:
 # =============================================================================
 # UPLOAD ROUTES TESTS
 # =============================================================================
+
 
 class TestUploadRoutes:
     """Tests for file upload endpoints."""
@@ -56,10 +59,11 @@ class TestUploadRoutes:
 
     def test_presign_returns_urls(self, client: TestClient, mock_s3_client: MagicMock):
         """Test presign endpoint returns presigned URLs."""
-        with patch('apps.api.src.dependencies.get_s3_client', return_value=mock_s3_client):
+        with patch(
+            "apps.api.src.dependencies.get_s3_client", return_value=mock_s3_client
+        ):
             response = client.post(
-                "/uploads/presign",
-                data={"filenames": ["test.csv", "data.xlsx"]}
+                "/uploads/presign", data={"filenames": ["test.csv", "data.xlsx"]}
             )
 
         assert response.status_code == 200
@@ -72,12 +76,15 @@ class TestUploadRoutes:
             assert "key" in url_obj
             assert "url" in url_obj
 
-    def test_presign_generates_unique_keys(self, client: TestClient, mock_s3_client: MagicMock):
+    def test_presign_generates_unique_keys(
+        self, client: TestClient, mock_s3_client: MagicMock
+    ):
         """Test presign generates unique S3 keys."""
-        with patch('apps.api.src.dependencies.get_s3_client', return_value=mock_s3_client):
+        with patch(
+            "apps.api.src.dependencies.get_s3_client", return_value=mock_s3_client
+        ):
             response = client.post(
-                "/uploads/presign",
-                data={"filenames": ["same.csv", "same.csv"]}
+                "/uploads/presign", data={"filenames": ["same.csv", "same.csv"]}
             )
 
         assert response.status_code == 200
@@ -89,8 +96,7 @@ class TestUploadRoutes:
     def test_presign_includes_user_in_key(self, authenticated_client: TestClient):
         """Test presign includes user ID in S3 key when authenticated."""
         response = authenticated_client.post(
-            "/uploads/presign",
-            data={"filenames": ["test.csv"]}
+            "/uploads/presign", data={"filenames": ["test.csv"]}
         )
 
         assert response.status_code == 200
@@ -99,32 +105,34 @@ class TestUploadRoutes:
     def test_suggest_mapping_requires_key(self, client: TestClient):
         """Test suggest-mapping requires key parameter."""
         response = client.post(
-            "/uploads/suggest-mapping",
-            data={"filename": "test.csv"}
+            "/uploads/suggest-mapping", data={"filename": "test.csv"}
         )
         assert response.status_code == 422
 
     def test_suggest_mapping_requires_filename(self, client: TestClient):
         """Test suggest-mapping requires filename parameter."""
-        response = client.post(
-            "/uploads/suggest-mapping",
-            data={"key": "test-key"}
-        )
+        response = client.post("/uploads/suggest-mapping", data={"key": "test-key"})
         assert response.status_code == 422
 
     def test_suggest_mapping_returns_suggestions(
         self,
         client: TestClient,
         mock_s3_client_with_data: MagicMock,
-        mock_grok_client: MagicMock
+        mock_grok_client: MagicMock,
     ):
         """Test suggest-mapping returns column mapping suggestions."""
         # Patch at the module where it's imported, not where it's defined
-        with patch('apps.api.src.routes.uploads.get_s3_client', return_value=mock_s3_client_with_data):
-            with patch('apps.api.src.services.mapping.get_grok_client', return_value=mock_grok_client):
+        with patch(
+            "apps.api.src.routes.uploads.get_s3_client",
+            return_value=mock_s3_client_with_data,
+        ):
+            with patch(
+                "apps.api.src.services.mapping.get_grok_client",
+                return_value=mock_grok_client,
+            ):
                 response = client.post(
                     "/uploads/suggest-mapping",
-                    data={"key": "test/file.csv", "filename": "file.csv"}
+                    data={"key": "test/file.csv", "filename": "file.csv"},
                 )
 
         assert response.status_code == 200
@@ -135,17 +143,20 @@ class TestUploadRoutes:
         assert "confidences" in data
 
     def test_suggest_mapping_heuristic_fallback(
-        self,
-        client: TestClient,
-        mock_s3_client_with_data: MagicMock
+        self, client: TestClient, mock_s3_client_with_data: MagicMock
     ):
         """Test suggest-mapping falls back to heuristics when Grok unavailable."""
         # Patch at the module where it's imported, not where it's defined
-        with patch('apps.api.src.routes.uploads.get_s3_client', return_value=mock_s3_client_with_data):
-            with patch('apps.api.src.services.mapping.get_grok_client', return_value=None):
+        with patch(
+            "apps.api.src.routes.uploads.get_s3_client",
+            return_value=mock_s3_client_with_data,
+        ):
+            with patch(
+                "apps.api.src.services.mapping.get_grok_client", return_value=None
+            ):
                 response = client.post(
                     "/uploads/suggest-mapping",
-                    data={"key": "test/file.csv", "filename": "file.csv"}
+                    data={"key": "test/file.csv", "filename": "file.csv"},
                 )
 
         assert response.status_code == 200
@@ -159,30 +170,24 @@ class TestUploadRoutes:
 # ANALYSIS ROUTES TESTS
 # =============================================================================
 
+
 class TestAnalysisRoutes:
     """Tests for profit leak analysis endpoints."""
 
     def test_analyze_requires_key(self, client: TestClient):
         """Test analyze endpoint requires key parameter."""
-        response = client.post(
-            "/analysis/analyze",
-            data={"mapping": "{}"}
-        )
+        response = client.post("/analysis/analyze", data={"mapping": "{}"})
         assert response.status_code == 422
 
     def test_analyze_requires_mapping(self, client: TestClient):
         """Test analyze endpoint requires mapping parameter."""
-        response = client.post(
-            "/analysis/analyze",
-            data={"key": "test-key"}
-        )
+        response = client.post("/analysis/analyze", data={"key": "test-key"})
         assert response.status_code == 422
 
     def test_analyze_rejects_invalid_json(self, client: TestClient):
         """Test analyze endpoint rejects invalid JSON mapping."""
         response = client.post(
-            "/analysis/analyze",
-            data={"key": "test-key", "mapping": "invalid-json"}
+            "/analysis/analyze", data={"key": "test-key", "mapping": "invalid-json"}
         )
         assert response.status_code == 422
         assert "Invalid mapping JSON" in response.json()["detail"]
@@ -191,16 +196,19 @@ class TestAnalysisRoutes:
         self,
         client: TestClient,
         mock_s3_client_with_data: MagicMock,
-        sample_column_mapping: dict
+        sample_column_mapping: dict,
     ):
         """Test analyze endpoint accepts valid column mapping."""
-        with patch('apps.api.src.dependencies.get_s3_client', return_value=mock_s3_client_with_data):
+        with patch(
+            "apps.api.src.dependencies.get_s3_client",
+            return_value=mock_s3_client_with_data,
+        ):
             response = client.post(
                 "/analysis/analyze",
                 data={
                     "key": "test/file.csv",
-                    "mapping": json.dumps(sample_column_mapping)
-                }
+                    "mapping": json.dumps(sample_column_mapping),
+                },
             )
 
         # Should succeed or fail gracefully (sentinel engine may not be available)
@@ -210,16 +218,19 @@ class TestAnalysisRoutes:
         self,
         client: TestClient,
         mock_s3_client_with_data: MagicMock,
-        sample_column_mapping: dict
+        sample_column_mapping: dict,
     ):
         """Test analyze returns all expected leak categories."""
-        with patch('apps.api.src.dependencies.get_s3_client', return_value=mock_s3_client_with_data):
+        with patch(
+            "apps.api.src.dependencies.get_s3_client",
+            return_value=mock_s3_client_with_data,
+        ):
             response = client.post(
                 "/analysis/analyze",
                 data={
                     "key": "test/file.csv",
-                    "mapping": json.dumps(sample_column_mapping)
-                }
+                    "mapping": json.dumps(sample_column_mapping),
+                },
             )
 
         if response.status_code == 200:
@@ -228,23 +239,25 @@ class TestAnalysisRoutes:
             assert data["status"] == "success"
             assert "leaks" in data
 
-            expected_categories = ["low_stock", "high_margin_leak", "dead_item", "negative_inventory"]
+            expected_categories = [
+                "low_stock",
+                "high_margin_leak",
+                "dead_item",
+                "negative_inventory",
+            ]
             for category in expected_categories:
                 assert category in data["leaks"]
 
     def test_analyze_empty_mapping(
-        self,
-        client: TestClient,
-        mock_s3_client_with_data: MagicMock
+        self, client: TestClient, mock_s3_client_with_data: MagicMock
     ):
         """Test analyze handles empty mapping gracefully."""
-        with patch('apps.api.src.dependencies.get_s3_client', return_value=mock_s3_client_with_data):
+        with patch(
+            "apps.api.src.dependencies.get_s3_client",
+            return_value=mock_s3_client_with_data,
+        ):
             response = client.post(
-                "/analysis/analyze",
-                data={
-                    "key": "test/file.csv",
-                    "mapping": "{}"
-                }
+                "/analysis/analyze", data={"key": "test/file.csv", "mapping": "{}"}
             )
 
         # Should not crash with empty mapping
@@ -254,6 +267,7 @@ class TestAnalysisRoutes:
 # =============================================================================
 # AUTHENTICATION TESTS
 # =============================================================================
+
 
 class TestAuthentication:
     """Tests for authentication handling."""
@@ -265,19 +279,21 @@ class TestAuthentication:
         assert response.status_code == 200
 
     def test_invalid_token_handled_gracefully(
-        self,
-        client: TestClient,
-        mock_s3_client: MagicMock
+        self, client: TestClient, mock_s3_client: MagicMock
     ):
         """Test that invalid auth tokens don't crash endpoints."""
         # Mock get_supabase_client to return None so auth is bypassed
         # (endpoint allows anonymous access, so without supabase client it falls back)
-        with patch('apps.api.src.routes.uploads.get_s3_client', return_value=mock_s3_client):
-            with patch('apps.api.src.dependencies.get_supabase_client', return_value=None):
+        with patch(
+            "apps.api.src.routes.uploads.get_s3_client", return_value=mock_s3_client
+        ):
+            with patch(
+                "apps.api.src.dependencies.get_supabase_client", return_value=None
+            ):
                 response = client.post(
                     "/uploads/presign",
                     data={"filenames": ["test.csv"]},
-                    headers={"Authorization": "Bearer invalid-token"}
+                    headers={"Authorization": "Bearer invalid-token"},
                 )
 
         # Should return 503 (auth service unavailable) since we're sending a token
@@ -289,6 +305,7 @@ class TestAuthentication:
 # CORS TESTS
 # =============================================================================
 
+
 class TestCORS:
     """Tests for CORS configuration."""
 
@@ -298,8 +315,8 @@ class TestCORS:
             "/health",
             headers={
                 "Origin": "http://localhost:3000",
-                "Access-Control-Request-Method": "GET"
-            }
+                "Access-Control-Request-Method": "GET",
+            },
         )
         # FastAPI TestClient doesn't fully simulate CORS preflight,
         # but we can check the response headers exist
@@ -307,10 +324,7 @@ class TestCORS:
 
     def test_cors_headers_present(self, client: TestClient):
         """Test CORS headers are present in response."""
-        response = client.get(
-            "/health",
-            headers={"Origin": "http://localhost:3000"}
-        )
+        response = client.get("/health", headers={"Origin": "http://localhost:3000"})
         assert response.status_code == 200
         # Note: TestClient may not include all CORS headers
 
@@ -318,6 +332,7 @@ class TestCORS:
 # =============================================================================
 # ERROR HANDLING TESTS
 # =============================================================================
+
 
 class TestErrorHandling:
     """Tests for error handling."""
@@ -337,10 +352,10 @@ class TestErrorHandling:
         mock_s3 = MagicMock()
         mock_s3.get_object.side_effect = Exception("S3 connection failed")
 
-        with patch('apps.api.src.dependencies.get_s3_client', return_value=mock_s3):
+        with patch("apps.api.src.dependencies.get_s3_client", return_value=mock_s3):
             response = client.post(
                 "/uploads/suggest-mapping",
-                data={"key": "test-key", "filename": "test.csv"}
+                data={"key": "test-key", "filename": "test.csv"},
             )
 
         assert response.status_code == 500

@@ -34,7 +34,9 @@ class EmailService:
             logger.info("Email service initialized with SendGrid")
         else:
             self.provider = None
-            logger.warning("No email provider configured (RESEND_API_KEY or SENDGRID_API_KEY required)")
+            logger.warning(
+                "No email provider configured (RESEND_API_KEY or SENDGRID_API_KEY required)"
+            )
 
     @property
     def is_configured(self) -> bool:
@@ -46,7 +48,7 @@ class EmailService:
         to_email: str,
         results: list[dict],
         consent_given: bool = True,
-        consent_timestamp: str | None = None
+        consent_timestamp: str | None = None,
     ) -> dict[str, Any]:
         """
         Send analysis report email.
@@ -74,41 +76,48 @@ class EmailService:
         # Generate plain text fallback
         text_content = self._generate_report_text(results)
 
-        subject = f"Your Profit Leak Analysis Report - {datetime.now().strftime('%B %d, %Y')}"
+        subject = (
+            f"Your Profit Leak Analysis Report - {datetime.now().strftime('%B %d, %Y')}"
+        )
 
         try:
             if self.provider == "resend":
-                return await self._send_via_resend(to_email, subject, html_content, text_content)
+                return await self._send_via_resend(
+                    to_email, subject, html_content, text_content
+                )
             elif self.provider == "sendgrid":
-                return await self._send_via_sendgrid(to_email, subject, html_content, text_content)
+                return await self._send_via_sendgrid(
+                    to_email, subject, html_content, text_content
+                )
         except Exception as e:
             logger.error(f"Failed to send email: {e}")
             return {"success": False, "error": str(e)}
 
     async def _send_via_resend(
-        self,
-        to_email: str,
-        subject: str,
-        html_content: str,
-        text_content: str
+        self, to_email: str, subject: str, html_content: str, text_content: str
     ) -> dict[str, Any]:
         """Send email via Resend API."""
         try:
             import resend
+
             resend.api_key = self.resend_api_key
 
-            response = resend.Emails.send({
-                "from": f"{self.from_name} <{self.from_email}>",
-                "to": [to_email],
-                "subject": subject,
-                "html": html_content,
-                "text": text_content,
-                "headers": {
-                    "List-Unsubscribe": f"<mailto:unsubscribe@profitsentinel.com?subject=Unsubscribe {to_email}>"
+            response = resend.Emails.send(
+                {
+                    "from": f"{self.from_name} <{self.from_email}>",
+                    "to": [to_email],
+                    "subject": subject,
+                    "html": html_content,
+                    "text": text_content,
+                    "headers": {
+                        "List-Unsubscribe": f"<mailto:unsubscribe@profitsentinel.com?subject=Unsubscribe {to_email}>"
+                    },
                 }
-            })
+            )
 
-            logger.info(f"Email sent via Resend to {to_email}, ID: {response.get('id')}")
+            logger.info(
+                f"Email sent via Resend to {to_email}, ID: {response.get('id')}"
+            )
             return {"success": True, "message_id": response.get("id")}
 
         except ImportError:
@@ -119,11 +128,7 @@ class EmailService:
             return {"success": False, "error": str(e)}
 
     async def _send_via_sendgrid(
-        self,
-        to_email: str,
-        subject: str,
-        html_content: str,
-        text_content: str
+        self, to_email: str, subject: str, html_content: str, text_content: str
     ) -> dict[str, Any]:
         """Send email via SendGrid API."""
         try:
@@ -141,17 +146,21 @@ class EmailService:
             message.add_content(Content("text/html", html_content))
 
             # Add unsubscribe header
-            message.add_header(Header(
-                "List-Unsubscribe",
-                f"<mailto:unsubscribe@profitsentinel.com?subject=Unsubscribe {to_email}>"
-            ))
+            message.add_header(
+                Header(
+                    "List-Unsubscribe",
+                    f"<mailto:unsubscribe@profitsentinel.com?subject=Unsubscribe {to_email}>",
+                )
+            )
 
             response = sg.send(message)
 
-            logger.info(f"Email sent via SendGrid to {to_email}, status: {response.status_code}")
+            logger.info(
+                f"Email sent via SendGrid to {to_email}, status: {response.status_code}"
+            )
             return {
                 "success": response.status_code in [200, 201, 202],
-                "status_code": response.status_code
+                "status_code": response.status_code,
             }
 
         except ImportError:
@@ -328,23 +337,25 @@ class EmailService:
                 for item in items:
                     lines.append(f"  - {item}")
 
-        lines.extend([
-            "",
-            "=" * 40,
-            "RECOMMENDED NEXT STEPS:",
-            "1. Review critical and high-severity items first",
-            "2. Verify negative inventory with physical counts",
-            "3. Update pricing on margin leak items",
-            "4. Investigate shrinkage patterns",
-            "5. Plan clearance for dead inventory",
-            "",
-            "---",
-            "This report was generated by Profit Sentinel.",
-            "Your uploaded data has been processed and deleted.",
-            "Visit profitsentinel.com for more information.",
-            "",
-            "To unsubscribe, reply with 'Unsubscribe' in the subject.",
-        ])
+        lines.extend(
+            [
+                "",
+                "=" * 40,
+                "RECOMMENDED NEXT STEPS:",
+                "1. Review critical and high-severity items first",
+                "2. Verify negative inventory with physical counts",
+                "3. Update pricing on margin leak items",
+                "4. Investigate shrinkage patterns",
+                "5. Plan clearance for dead inventory",
+                "",
+                "---",
+                "This report was generated by Profit Sentinel.",
+                "Your uploaded data has been processed and deleted.",
+                "Visit profitsentinel.com for more information.",
+                "",
+                "To unsubscribe, reply with 'Unsubscribe' in the subject.",
+            ]
+        )
 
         return "\n".join(lines)
 

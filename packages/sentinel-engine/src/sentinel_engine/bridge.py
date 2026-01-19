@@ -13,6 +13,7 @@ This enables:
 2. Symbolic reasoning explains root causes (precise, explainable)
 3. Combined confidence from both systems
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BridgeResult:
     """Combined result from VSA + symbolic reasoning."""
+
     entity_id: str
     vsa_anomalies: list[tuple[str, float]]  # (anomaly, similarity)
     symbolic_conclusions: list[tuple[str, float]]  # (conclusion, confidence)
@@ -55,11 +57,7 @@ class VSASymbolicBridge:
         print(result.root_causes)
     """
 
-    def __init__(
-        self,
-        vsa_weight: float = 0.6,
-        symbolic_weight: float = 0.4
-    ):
+    def __init__(self, vsa_weight: float = 0.6, symbolic_weight: float = 0.4):
         """Initialize bridge.
 
         Args:
@@ -96,10 +94,7 @@ class VSASymbolicBridge:
         self._rule_mappings[vsa_primitive] = symbolic_predicate
 
     def vsa_to_facts(
-        self,
-        entity_id: str,
-        resonator_result,
-        threshold: float = 0.4
+        self, entity_id: str, resonator_result, threshold: float = 0.4
     ) -> list[Term]:
         """Convert VSA resonator results to symbolic facts.
 
@@ -125,7 +120,9 @@ class VSASymbolicBridge:
             facts.append(fact)
 
             # Also add confidence fact
-            conf_fact = Term("confidence", Atom(entity_id), Atom(anomaly_name), Atom(similarity))
+            conf_fact = Term(
+                "confidence", Atom(entity_id), Atom(anomaly_name), Atom(similarity)
+            )
             facts.append(conf_fact)
 
         return facts
@@ -134,7 +131,7 @@ class VSASymbolicBridge:
         self,
         entity_id: str,
         entity_vector: torch.Tensor,
-        context: dict[str, Any] | None = None
+        context: dict[str, Any] | None = None,
     ) -> BridgeResult:
         """Perform combined VSA + symbolic analysis.
 
@@ -181,17 +178,23 @@ class VSASymbolicBridge:
 
             # Query for root causes
             root_causes = []
-            for theta in self._kb.query(Term("root_cause", Atom(entity_id), Var("Cause"))):
+            for theta in self._kb.query(
+                Term("root_cause", Atom(entity_id), Var("Cause"))
+            ):
                 cause = theta.get("Cause")
                 if isinstance(cause, Atom):
-                    root_causes.append({
-                        "code": str(cause.value),
-                        "confidence": 0.8,  # Could be from proof
-                    })
+                    root_causes.append(
+                        {
+                            "code": str(cause.value),
+                            "confidence": 0.8,  # Could be from proof
+                        }
+                    )
 
             # Query for actions
             recommended_actions = []
-            for theta in self._kb.query(Term("recommended_action", Atom(entity_id), Var("Action"))):
+            for theta in self._kb.query(
+                Term("recommended_action", Atom(entity_id), Var("Action"))
+            ):
                 action = theta.get("Action")
                 if isinstance(action, Atom):
                     recommended_actions.append(str(action.value))
@@ -231,7 +234,7 @@ class VSASymbolicBridge:
             recommended_actions=recommended_actions,
             proof_tree=proof_tree,
             combined_confidence=combined,
-            explanation=explanation
+            explanation=explanation,
         )
 
     def _generate_explanation(
@@ -240,7 +243,7 @@ class VSASymbolicBridge:
         vsa_anomalies: list[tuple[str, float]],
         symbolic_conclusions: list[tuple[str, float]],
         root_causes: list[dict[str, Any]],
-        proof_tree: ProofTree | None
+        proof_tree: ProofTree | None,
     ) -> str:
         """Generate human-readable explanation."""
         lines = [f"Analysis for {entity_id}:"]
@@ -267,9 +270,7 @@ class VSASymbolicBridge:
         return "\n".join(lines)
 
     def batch_analyze(
-        self,
-        entities: dict[str, torch.Tensor],
-        contexts: dict[str, dict] | None = None
+        self, entities: dict[str, torch.Tensor], contexts: dict[str, dict] | None = None
     ) -> list[BridgeResult]:
         """Analyze multiple entities.
 
@@ -300,11 +301,7 @@ class PlaybookGenerator:
     def __init__(self):
         self._templates: dict[str, dict[str, Any]] = {}
 
-    def register_template(
-        self,
-        anomaly_type: str,
-        template: dict[str, Any]
-    ) -> None:
+    def register_template(self, anomaly_type: str, template: dict[str, Any]) -> None:
         """Register playbook template for anomaly type.
 
         Args:
@@ -337,12 +334,8 @@ class PlaybookGenerator:
         for anomaly, _ in result.vsa_anomalies:
             if anomaly in self._templates:
                 template = self._templates[anomaly]
-                playbook["investigation_steps"].extend(
-                    template.get("steps", [])
-                )
-                playbook["documentation_links"].extend(
-                    template.get("docs", [])
-                )
+                playbook["investigation_steps"].extend(template.get("steps", []))
+                playbook["documentation_links"].extend(template.get("docs", []))
 
         # Add recommended actions
         playbook["recommended_actions"] = result.recommended_actions
@@ -352,17 +345,15 @@ class PlaybookGenerator:
             code = cause.get("code", "")
             if code in self._templates:
                 template = self._templates[code]
-                playbook["investigation_steps"].extend(
-                    template.get("steps", [])
-                )
+                playbook["investigation_steps"].extend(template.get("steps", []))
 
         # Deduplicate
-        playbook["investigation_steps"] = list(dict.fromkeys(
-            playbook["investigation_steps"]
-        ))
-        playbook["documentation_links"] = list(dict.fromkeys(
-            playbook["documentation_links"]
-        ))
+        playbook["investigation_steps"] = list(
+            dict.fromkeys(playbook["investigation_steps"])
+        )
+        playbook["documentation_links"] = list(
+            dict.fromkeys(playbook["documentation_links"])
+        )
 
         return playbook
 
@@ -401,28 +392,32 @@ class PlaybookGenerator:
             f"**Severity:** {playbook['severity'].upper()}",
             "",
             "## Summary",
-            playbook['summary'],
+            playbook["summary"],
             "",
             "## Investigation Steps",
         ]
 
-        for i, step in enumerate(playbook['investigation_steps'], 1):
+        for i, step in enumerate(playbook["investigation_steps"], 1):
             lines.append(f"{i}. {step}")
 
-        lines.extend([
-            "",
-            "## Recommended Actions",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Recommended Actions",
+            ]
+        )
 
-        for action in playbook['recommended_actions']:
+        for action in playbook["recommended_actions"]:
             lines.append(f"- {action}")
 
-        if playbook['documentation_links']:
-            lines.extend([
-                "",
-                "## Documentation",
-            ])
-            for link in playbook['documentation_links']:
+        if playbook["documentation_links"]:
+            lines.extend(
+                [
+                    "",
+                    "## Documentation",
+                ]
+            )
+            for link in playbook["documentation_links"]:
                 lines.append(f"- {link}")
 
         return "\n".join(lines)
@@ -430,4 +425,5 @@ class PlaybookGenerator:
     def to_json(self, playbook: dict[str, Any]) -> str:
         """Export playbook to JSON."""
         import json
+
         return json.dumps(playbook, indent=2)

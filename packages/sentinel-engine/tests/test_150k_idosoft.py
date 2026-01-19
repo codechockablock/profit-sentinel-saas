@@ -29,8 +29,7 @@ from sentinel_engine.context import DEFAULT_DIMENSIONS
 from sentinel_engine.streaming import DEFAULT_CHUNK_SIZE, process_large_file
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
@@ -38,27 +37,24 @@ def main():
     parser = argparse.ArgumentParser(
         description="Test streaming processing on large IdoSoft file"
     )
-    parser.add_argument(
-        "filepath",
-        help="Path to IdoSoft CSV/TSV file (150k+ rows)"
-    )
+    parser.add_argument("filepath", help="Path to IdoSoft CSV/TSV file (150k+ rows)")
     parser.add_argument(
         "--chunk-size",
         type=int,
         default=DEFAULT_CHUNK_SIZE,
-        help=f"Rows per processing chunk (default: {DEFAULT_CHUNK_SIZE})"
+        help=f"Rows per processing chunk (default: {DEFAULT_CHUNK_SIZE})",
     )
     parser.add_argument(
         "--dimensions",
         type=int,
         default=DEFAULT_DIMENSIONS,
-        help=f"VSA dimensionality (default: {DEFAULT_DIMENSIONS})"
+        help=f"VSA dimensionality (default: {DEFAULT_DIMENSIONS})",
     )
     parser.add_argument(
         "--top-k",
         type=int,
         default=20,
-        help="Top leaks to show per primitive (default: 20)"
+        help="Top leaks to show per primitive (default: 20)",
     )
     args = parser.parse_args()
 
@@ -98,7 +94,9 @@ def main():
     rows_per_sec = result.processed_rows / result.elapsed_seconds
     print(f"  Processing rate: {rows_per_sec:,.0f} rows/sec")
     print(f"  Time target: {'PASS' if result.elapsed_seconds < 60 else 'FAIL'} (< 60s)")
-    print(f"  Memory target: {'PASS' if result.peak_memory_mb < 2048 else 'FAIL'} (< 2GB)")
+    print(
+        f"  Memory target: {'PASS' if result.peak_memory_mb < 2048 else 'FAIL'} (< 2GB)"
+    )
     print()
 
     # Top leaks by primitive

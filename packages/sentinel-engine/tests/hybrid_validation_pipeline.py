@@ -50,6 +50,7 @@ from validation_runner import (
 @dataclass
 class ResonatorValidation:
     """Results from resonator sanity checking."""
+
     primitive: str
     candidates_checked: int = 0
     convergence_passed: int = 0
@@ -111,7 +112,7 @@ class VSAResonatorSanityChecker:
                     primitive=p,
                     candidates_checked=len(skus),
                     convergence_passed=len(skus),
-                    status="PASS (resonator unavailable)"
+                    status="PASS (resonator unavailable)",
                 )
                 for p, skus in baseline_detections.items()
             }
@@ -127,7 +128,9 @@ class VSAResonatorSanityChecker:
         try:
             t0 = time.time()
             bundle = self._core.bundle_pos_facts(ctx, rows)
-            print(f"    Codebook built in {time.time()-t0:.1f}s ({len(ctx.codebook)} entries)")
+            print(
+                f"    Codebook built in {time.time()-t0:.1f}s ({len(ctx.codebook)} entries)"
+            )
 
             # Validate each primitive's detections
             for primitive, detected_skus in baseline_detections.items():
@@ -202,7 +205,11 @@ class VSAResonatorSanityChecker:
             validation.avg_confidence = sum(confidences) / len(confidences)
 
         # Determine status
-        total_checked = validation.convergence_passed + validation.convergence_failed + validation.hallucinations_flagged
+        total_checked = (
+            validation.convergence_passed
+            + validation.convergence_failed
+            + validation.hallucinations_flagged
+        )
         if total_checked == 0:
             validation.status = "PASS (empty)"
         elif validation.convergence_passed / total_checked >= 0.5:
@@ -269,10 +276,7 @@ def run_hybrid_validation():
     print("STEP 3: VSA/HDC RESONATOR (Sanity Checker)")
     print("-" * 40)
 
-    resonator = VSAResonatorSanityChecker(
-        convergence_threshold=0.01,
-        max_iters=100
-    )
+    resonator = VSAResonatorSanityChecker(convergence_threshold=0.01, max_iters=100)
 
     t0 = time.time()
     resonator_validations = resonator.validate_detections(rows, baseline_detections)
@@ -281,10 +285,14 @@ def run_hybrid_validation():
     print(f"  Completed in {resonator_time:.1f}s")
     print("  Validation results:")
     for p, val in resonator_validations.items():
-        status_icon = "✅" if "PASS" in val.status else ("⚠️" if "WARN" in val.status else "❌")
+        status_icon = (
+            "✅" if "PASS" in val.status else ("⚠️" if "WARN" in val.status else "❌")
+        )
         print(f"    {status_icon} {p}: {val.status}")
-        print(f"       Checked: {val.candidates_checked}, Converged: {val.convergence_passed}, "
-              f"Flagged: {val.hallucinations_flagged}")
+        print(
+            f"       Checked: {val.candidates_checked}, Converged: {val.convergence_passed}, "
+            f"Flagged: {val.hallucinations_flagged}"
+        )
     print()
 
     # =========================================================================
@@ -300,11 +308,17 @@ def run_hybrid_validation():
         m = baseline_metrics[primitive]
         r = resonator_validations[primitive]
         status = "✅" if "PASS" in r.status else ("⚠️" if "WARN" in r.status else "❌")
-        print(f"{primitive:<25} {m.precision:>7.1%} {m.recall:>7.1%} {m.f1:>7.1%} {status} {r.status:<12}")
+        print(
+            f"{primitive:<25} {m.precision:>7.1%} {m.recall:>7.1%} {m.f1:>7.1%} {status} {r.status:<12}"
+        )
 
     # Summary
-    avg_precision = sum(m.precision for m in baseline_metrics.values()) / len(baseline_metrics)
-    avg_recall = sum(m.recall for m in baseline_metrics.values()) / len(baseline_metrics)
+    avg_precision = sum(m.precision for m in baseline_metrics.values()) / len(
+        baseline_metrics
+    )
+    avg_recall = sum(m.recall for m in baseline_metrics.values()) / len(
+        baseline_metrics
+    )
     avg_f1 = sum(m.f1 for m in baseline_metrics.values()) / len(baseline_metrics)
 
     print("-" * 70)
@@ -334,7 +348,7 @@ def run_hybrid_validation():
                     "false_negatives": m.false_negatives,
                 }
                 for p, m in baseline_metrics.items()
-            }
+            },
         },
         "resonator": {
             "time_seconds": resonator_time,
@@ -349,8 +363,8 @@ def run_hybrid_validation():
                     "avg_confidence": v.avg_confidence,
                 }
                 for p, v in resonator_validations.items()
-            }
-        }
+            },
+        },
     }
 
     results_file = Path(__file__).parent / "hybrid_validation_results.json"
@@ -440,7 +454,9 @@ def generate_executive_report(results: dict) -> str:
 """
 
     for p, v in resonator["per_primitive"].items():
-        status_icon = "✅" if "PASS" in v["status"] else ("⚠️" if "WARN" in v["status"] else "❌")
+        status_icon = (
+            "✅" if "PASS" in v["status"] else ("⚠️" if "WARN" in v["status"] else "❌")
+        )
         report += f"| {p} | {v['candidates_checked']} | {v['convergence_passed']} | {v['hallucinations_flagged']} | {status_icon} {v['status']} |\n"
 
     report += """
@@ -456,7 +472,8 @@ F1 Score by Primitive (Baseline)
         bar = "█" * bar_len + "░" * (40 - bar_len)
         report += f"{p:<22} {bar} {m['f1']*100:>5.1f}%\n"
 
-    report += """
+    report += (
+        """
                        0%      25%      50%      75%     100%
 ```
 
@@ -509,28 +526,47 @@ The resonator provides an additional sanity check layer.
 
 ```
 Pipeline: Hybrid (Baseline + VSA Resonator)
-Dataset: """ + f"{results['dataset_size']:,}" + """ rows
-Anomaly Rate: """ + f"{results['anomaly_rate']*100:.0f}%" + """
+Dataset: """
+        + f"{results['dataset_size']:,}"
+        + """ rows
+Anomaly Rate: """
+        + f"{results['anomaly_rate']*100:.0f}%"
+        + """
 
 BASELINE DETECTOR
 -----------------
-Time: """ + f"{baseline['time_seconds']*1000:.1f}ms" + """
-Avg Precision: """ + f"{baseline['avg_precision']*100:.1f}%" + """
-Avg Recall: """ + f"{baseline['avg_recall']*100:.1f}%" + """
-Avg F1: """ + f"{baseline['avg_f1']*100:.1f}%" + """
+Time: """
+        + f"{baseline['time_seconds']*1000:.1f}ms"
+        + """
+Avg Precision: """
+        + f"{baseline['avg_precision']*100:.1f}%"
+        + """
+Avg Recall: """
+        + f"{baseline['avg_recall']*100:.1f}%"
+        + """
+Avg F1: """
+        + f"{baseline['avg_f1']*100:.1f}%"
+        + """
 
 VSA RESONATOR
 -------------
-Available: """ + str(resonator['available']) + """
-Time: """ + f"{resonator['time_seconds']:.1f}s" + """
+Available: """
+        + str(resonator["available"])
+        + """
+Time: """
+        + f"{resonator['time_seconds']:.1f}s"
+        + """
 Role: Sanity checker (does not override baseline)
 ```
 
 ---
 
-**Report Generated:** """ + datetime.now().isoformat() + """
+**Report Generated:** """
+        + datetime.now().isoformat()
+        + """
 **Contact:** engineering@profit-sentinel.io
 """
+    )
 
     return report
 
@@ -546,7 +582,11 @@ if __name__ == "__main__":
 
     report = generate_executive_report(results)
 
-    report_file = Path(__file__).parent.parent.parent.parent / "docs" / "HYBRID_VALIDATION_REPORT.md"
+    report_file = (
+        Path(__file__).parent.parent.parent.parent
+        / "docs"
+        / "HYBRID_VALIDATION_REPORT.md"
+    )
     with open(report_file, "w") as f:
         f.write(report)
 

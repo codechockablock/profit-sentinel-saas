@@ -10,6 +10,7 @@ Key Properties Tested:
     - Permutation: invertible
     - Unbinding: recovers bound components
 """
+
 import os
 import sys
 
@@ -17,7 +18,9 @@ import pytest
 import torch
 
 # Add parent to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from vsa_core import (
     configure,
@@ -46,6 +49,7 @@ from vsa_core.operators import (
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture(scope="module")
 def config():
     """Configure VSA for testing."""
@@ -71,6 +75,7 @@ def vec_c():
 # BINDING TESTS
 # =============================================================================
 
+
 class TestBinding:
     """Tests for binding operation algebraic properties."""
 
@@ -93,14 +98,18 @@ class TestBinding:
         identity = identity_vector()
         self_bound = bind(vec_a, torch.conj(vec_a))
         sim = similarity(self_bound, identity)
-        assert sim > 0.999, f"Self-binding with conjugate should yield identity, got sim={sim}"
+        assert (
+            sim > 0.999
+        ), f"Self-binding with conjugate should yield identity, got sim={sim}"
 
     def test_bind_identity(self, vec_a):
         """a ⊗ identity = a"""
         identity = identity_vector()
         result = bind(vec_a, identity)
         sim = similarity(result, vec_a)
-        assert sim > 0.999, f"Binding with identity should preserve vector, got sim={sim}"
+        assert (
+            sim > 0.999
+        ), f"Binding with identity should preserve vector, got sim={sim}"
 
     def test_bind_similarity_preservation(self, vec_a, vec_b, vec_c):
         """sim(a ⊗ c, b ⊗ c) = sim(a, b)"""
@@ -110,8 +119,9 @@ class TestBinding:
         bound_sim = similarity(ac, bc)
 
         # Should be very close
-        assert abs(original_sim - bound_sim) < 0.05, \
-            f"Binding should preserve similarity: original={original_sim}, bound={bound_sim}"
+        assert (
+            abs(original_sim - bound_sim) < 0.05
+        ), f"Binding should preserve similarity: original={original_sim}, bound={bound_sim}"
 
     def test_bind_dissimilarity(self, vec_a, vec_b):
         """Bound vector should be dissimilar to both inputs."""
@@ -134,6 +144,7 @@ class TestBinding:
 # =============================================================================
 # UNBINDING TESTS
 # =============================================================================
+
 
 class TestUnbinding:
     """Tests for unbinding operation."""
@@ -168,6 +179,7 @@ class TestUnbinding:
 # =============================================================================
 # BUNDLING TESTS
 # =============================================================================
+
 
 class TestBundling:
     """Tests for bundling operation."""
@@ -204,7 +216,9 @@ class TestBundling:
         sim_a = similarity(bundled, vec_a)
         sim_b = similarity(bundled, vec_b)
 
-        assert sim_a > sim_b, f"Higher weight should have higher similarity: {sim_a} vs {sim_b}"
+        assert (
+            sim_a > sim_b
+        ), f"Higher weight should have higher similarity: {sim_a} vs {sim_b}"
 
     def test_bundle_capacity(self):
         """Test bundle capacity estimate."""
@@ -215,6 +229,7 @@ class TestBundling:
 # =============================================================================
 # PERMUTATION TESTS
 # =============================================================================
+
 
 class TestPermutation:
     """Tests for permutation operation."""
@@ -246,6 +261,7 @@ class TestPermutation:
 # SEQUENCE ENCODING TESTS
 # =============================================================================
 
+
 class TestSequenceEncoding:
     """Tests for sequence encoding."""
 
@@ -270,6 +286,7 @@ class TestSequenceEncoding:
 # ANALOGY TESTS
 # =============================================================================
 
+
 class TestAnalogy:
     """Tests for analogy solving."""
 
@@ -284,6 +301,7 @@ class TestAnalogy:
 # RECORD OPERATIONS TESTS
 # =============================================================================
 
+
 class TestRecordOperations:
     """Tests for structured record operations."""
 
@@ -294,10 +312,7 @@ class TestRecordOperations:
         filler_sku = seed_hash("SKU:12345")
         filler_anomaly = seed_hash("ANOMALY:low_stock")
 
-        record = create_record([
-            (role_sku, filler_sku),
-            (role_anomaly, filler_anomaly)
-        ])
+        record = create_record([(role_sku, filler_sku), (role_anomaly, filler_anomaly)])
 
         # Create small codebook with fillers
         codebook = torch.stack([filler_sku, filler_anomaly])
@@ -317,14 +332,16 @@ class TestRecordOperations:
 # ORTHOGONALITY TESTS
 # =============================================================================
 
+
 class TestOrthogonality:
     """Tests for vector orthogonality."""
 
     def test_random_vectors_orthogonal(self):
         """Random seed_hash vectors should be nearly orthogonal."""
         vectors = [seed_hash(f"random_seed_{i}") for i in range(10)]
-        assert orthogonality_check(vectors, threshold=0.15), \
-            "Random vectors should be approximately orthogonal"
+        assert orthogonality_check(
+            vectors, threshold=0.15
+        ), "Random vectors should be approximately orthogonal"
 
     def test_similar_seeds_not_orthogonal(self):
         """Same seed should produce identical (not orthogonal) vectors."""
@@ -337,6 +354,7 @@ class TestOrthogonality:
 # =============================================================================
 # DETERMINISM TESTS
 # =============================================================================
+
 
 class TestDeterminism:
     """Tests for deterministic behavior."""
@@ -363,6 +381,7 @@ class TestDeterminism:
 # NUMERICAL STABILITY TESTS
 # =============================================================================
 
+
 class TestNumericalStability:
     """Tests for numerical stability."""
 
@@ -374,8 +393,9 @@ class TestNumericalStability:
 
         # Check still on manifold (unit magnitude components)
         mags = torch.abs(v)
-        assert torch.allclose(mags, torch.ones_like(mags), atol=0.01), \
-            "Many bindings should stay on unit hypersphere"
+        assert torch.allclose(
+            mags, torch.ones_like(mags), atol=0.01
+        ), "Many bindings should stay on unit hypersphere"
 
     def test_many_bundles_stable(self):
         """Many sequential bundles should not blow up."""
@@ -385,8 +405,9 @@ class TestNumericalStability:
 
         # Check still on manifold
         mags = torch.abs(v)
-        assert torch.allclose(mags, torch.ones_like(mags), atol=0.01), \
-            "Many bundles should stay on unit hypersphere"
+        assert torch.allclose(
+            mags, torch.ones_like(mags), atol=0.01
+        ), "Many bundles should stay on unit hypersphere"
 
 
 if __name__ == "__main__":

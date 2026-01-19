@@ -35,13 +35,24 @@ class QuickVSADetector:
         except ImportError as e:
             print(f"  WARNING: VSA not available: {e}")
 
-    def detect(self, rows: list[dict], score_threshold: float = 0.05) -> dict[str, set[str]]:
+    def detect(
+        self, rows: list[dict], score_threshold: float = 0.05
+    ) -> dict[str, set[str]]:
         """Run VSA detection with reduced iterations."""
         if not self.available:
-            return {p: set() for p in [
-                "low_stock", "high_margin_leak", "dead_item", "negative_inventory",
-                "overstock", "price_discrepancy", "shrinkage_pattern", "margin_erosion"
-            ]}
+            return {
+                p: set()
+                for p in [
+                    "low_stock",
+                    "high_margin_leak",
+                    "dead_item",
+                    "negative_inventory",
+                    "overstock",
+                    "price_discrepancy",
+                    "shrinkage_pattern",
+                    "margin_erosion",
+                ]
+            }
 
         # Create context with reduced iterations
         ctx = self._create_ctx(use_gpu=False)
@@ -59,11 +70,19 @@ class QuickVSADetector:
 
             # Query each primitive
             for primitive in [
-                "low_stock", "high_margin_leak", "dead_item", "negative_inventory",
-                "overstock", "price_discrepancy", "shrinkage_pattern", "margin_erosion"
+                "low_stock",
+                "high_margin_leak",
+                "dead_item",
+                "negative_inventory",
+                "overstock",
+                "price_discrepancy",
+                "shrinkage_pattern",
+                "margin_erosion",
             ]:
                 t0 = time.time()
-                items, scores = self._core.query_bundle(ctx, bundle, primitive, top_k=100)
+                items, scores = self._core.query_bundle(
+                    ctx, bundle, primitive, top_k=100
+                )
 
                 # Filter by score threshold and collect SKUs
                 detected = set()
@@ -71,20 +90,22 @@ class QuickVSADetector:
                     item_lower = item.lower()
                     # Only count actual SKU patterns (not descriptions/vendors)
                     if score > score_threshold and (
-                        item_lower.startswith('low_stock_') or
-                        item_lower.startswith('high_margin_leak_') or
-                        item_lower.startswith('dead_item_') or
-                        item_lower.startswith('negative_inventory_') or
-                        item_lower.startswith('overstock_') or
-                        item_lower.startswith('price_discrepancy_') or
-                        item_lower.startswith('shrinkage_pattern_') or
-                        item_lower.startswith('margin_erosion_') or
-                        item_lower.startswith('normal_')
+                        item_lower.startswith("low_stock_")
+                        or item_lower.startswith("high_margin_leak_")
+                        or item_lower.startswith("dead_item_")
+                        or item_lower.startswith("negative_inventory_")
+                        or item_lower.startswith("overstock_")
+                        or item_lower.startswith("price_discrepancy_")
+                        or item_lower.startswith("shrinkage_pattern_")
+                        or item_lower.startswith("margin_erosion_")
+                        or item_lower.startswith("normal_")
                     ):
                         detected.add(item_lower)
 
                 results[primitive] = detected
-                print(f"    {primitive}: {len(detected)} detections ({time.time()-t0:.1f}s)")
+                print(
+                    f"    {primitive}: {len(detected)} detections ({time.time()-t0:.1f}s)"
+                )
 
         finally:
             ctx.reset()
@@ -141,7 +162,9 @@ def run_quick_validation():
 
     primitives = list(ground_truth.keys())
 
-    print(f"{'Primitive':<25} {'Method':<10} {'Prec':>8} {'Recall':>8} {'F1':>8} {'TP':>6} {'FP':>6} {'FN':>6}")
+    print(
+        f"{'Primitive':<25} {'Method':<10} {'Prec':>8} {'Recall':>8} {'F1':>8} {'TP':>6} {'FP':>6} {'FN':>6}"
+    )
     print("-" * 85)
 
     baseline_metrics = {}
@@ -154,14 +177,18 @@ def run_quick_validation():
         br = DetectionResult(primitive, baseline_results[primitive])
         br.calculate(truth)
         baseline_metrics[primitive] = br
-        print(f"{primitive:<25} {'BASELINE':<10} {br.precision:>7.1%} {br.recall:>7.1%} {br.f1:>7.1%} {br.true_positives:>6} {br.false_positives:>6} {br.false_negatives:>6}")
+        print(
+            f"{primitive:<25} {'BASELINE':<10} {br.precision:>7.1%} {br.recall:>7.1%} {br.f1:>7.1%} {br.true_positives:>6} {br.false_positives:>6} {br.false_negatives:>6}"
+        )
 
         # VSA
         if vsa_results:
             vr = DetectionResult(primitive, vsa_results[primitive])
             vr.calculate(truth)
             vsa_metrics[primitive] = vr
-            print(f"{'':<25} {'VSA':<10} {vr.precision:>7.1%} {vr.recall:>7.1%} {vr.f1:>7.1%} {vr.true_positives:>6} {vr.false_positives:>6} {vr.false_negatives:>6}")
+            print(
+                f"{'':<25} {'VSA':<10} {vr.precision:>7.1%} {vr.recall:>7.1%} {vr.f1:>7.1%} {vr.true_positives:>6} {vr.false_positives:>6} {vr.false_negatives:>6}"
+            )
 
         print()
 
@@ -170,9 +197,15 @@ def run_quick_validation():
     print("SUMMARY")
     print("=" * 70)
 
-    baseline_avg_f1 = sum(m.f1 for m in baseline_metrics.values()) / len(baseline_metrics)
-    baseline_avg_prec = sum(m.precision for m in baseline_metrics.values()) / len(baseline_metrics)
-    baseline_avg_recall = sum(m.recall for m in baseline_metrics.values()) / len(baseline_metrics)
+    baseline_avg_f1 = sum(m.f1 for m in baseline_metrics.values()) / len(
+        baseline_metrics
+    )
+    baseline_avg_prec = sum(m.precision for m in baseline_metrics.values()) / len(
+        baseline_metrics
+    )
+    baseline_avg_recall = sum(m.recall for m in baseline_metrics.values()) / len(
+        baseline_metrics
+    )
 
     print("\nBASELINE Averages:")
     print(f"  Precision: {baseline_avg_prec:.1%}")
@@ -194,7 +227,9 @@ def run_quick_validation():
         # Comparison
         print("\nVSA vs BASELINE:")
         f1_diff = vsa_avg_f1 - baseline_avg_f1
-        print(f"  F1 Difference: {f1_diff:+.1%} ({'VSA better' if f1_diff > 0 else 'Baseline better'})")
+        print(
+            f"  F1 Difference: {f1_diff:+.1%} ({'VSA better' if f1_diff > 0 else 'Baseline better'})"
+        )
 
         # Critical primitives check
         critical = ["negative_inventory", "high_margin_leak"]
@@ -216,7 +251,9 @@ def run_quick_validation():
             print("\n  KILL - VSA significantly underperforms baseline")
         elif vsa_avg_f1 < baseline_avg_f1:
             decision = "CALIBRATE"
-            print("\n  CALIBRATE - VSA slightly underperforms baseline, tune thresholds")
+            print(
+                "\n  CALIBRATE - VSA slightly underperforms baseline, tune thresholds"
+            )
         elif vsa_avg_prec < 0.50:
             decision = "CALIBRATE"
             print("\n  CALIBRATE - VSA has too many false positives")
@@ -238,7 +275,7 @@ def run_quick_validation():
                 "per_primitive": {
                     p: {"precision": m.precision, "recall": m.recall, "f1": m.f1}
                     for p, m in baseline_metrics.items()
-                }
+                },
             },
             "vsa": {
                 "avg_precision": vsa_avg_prec,
@@ -248,9 +285,9 @@ def run_quick_validation():
                 "per_primitive": {
                     p: {"precision": m.precision, "recall": m.recall, "f1": m.f1}
                     for p, m in vsa_metrics.items()
-                }
+                },
             },
-            "decision": decision
+            "decision": decision,
         }
 
         results_file = Path(__file__).parent / "quick_validation_results.json"

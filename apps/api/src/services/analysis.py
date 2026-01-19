@@ -28,6 +28,7 @@ def _record_metrics(
     """Record analysis metrics (best-effort, won't fail analysis)."""
     try:
         from ..routes.metrics import record_analysis_metrics
+
         record_analysis_metrics(
             success=success,
             rows_processed=rows,
@@ -97,14 +98,14 @@ class AnalysisService:
 
     # All 8 analysis primitives - ordered by typical impact severity
     PRIMITIVES = [
-        "high_margin_leak",      # Critical - direct profit loss
-        "negative_inventory",    # Critical - data integrity / theft
-        "low_stock",             # High - lost sales
-        "shrinkage_pattern",     # High - inventory loss
-        "margin_erosion",        # High - profitability trend
-        "dead_item",             # Medium - capital tied up
-        "overstock",             # Medium - cash flow
-        "price_discrepancy",     # Warning - pricing integrity
+        "high_margin_leak",  # Critical - direct profit loss
+        "negative_inventory",  # Critical - data integrity / theft
+        "low_stock",  # High - lost sales
+        "shrinkage_pattern",  # High - inventory loss
+        "margin_erosion",  # High - profitability trend
+        "dead_item",  # Medium - capital tied up
+        "overstock",  # Medium - cash flow
+        "price_discrepancy",  # Warning - pricing integrity
     ]
 
     def __init__(self):
@@ -126,7 +127,9 @@ class AnalysisService:
             self._create_context = create_analysis_context
             self._leak_metadata = LEAK_METADATA
             self._engine_available = True
-            logger.info("Sentinel engine loaded successfully (8 primitives, context-isolated)")
+            logger.info(
+                "Sentinel engine loaded successfully (8 primitives, context-isolated)"
+            )
         except ImportError as e:
             logger.warning(f"Sentinel engine not available: {e}")
             self._engine_available = False
@@ -162,7 +165,9 @@ class AnalysisService:
             # Bundle facts with aggressive detection
             bundle_start = time.time()
             bundle = self._bundle_pos_facts(ctx, rows)
-            logger.info(f"Bundled {len(rows)} rows in {time.time() - bundle_start:.2f}s")
+            logger.info(
+                f"Bundled {len(rows)} rows in {time.time() - bundle_start:.2f}s"
+            )
 
             # Query each primitive
             leaks = {}
@@ -207,7 +212,9 @@ class AnalysisService:
                     high_count += len(filtered_items)
 
                 elapsed = time.time() - query_start
-                logger.info(f"Query {primitive}: {len(filtered_items)} items in {elapsed:.2f}s")
+                logger.info(
+                    f"Query {primitive}: {len(filtered_items)} items in {elapsed:.2f}s"
+                )
 
             # Calculate estimated $ impact (simplified - based on available data)
             estimated_impact = self._estimate_total_impact(rows, leaks)
@@ -284,8 +291,12 @@ class AnalysisService:
     def _calculate_item_impact(self, primitive: str, row: dict) -> float:
         """Calculate estimated $ impact for a single item."""
         cost = self._safe_float(row.get("cost", row.get("Cost", 0)))
-        revenue = self._safe_float(row.get("revenue", row.get("Retail", row.get("retail", 0))))
-        quantity = self._safe_float(row.get("quantity", row.get("Qty.", row.get("In Stock Qty.", 0))))
+        revenue = self._safe_float(
+            row.get("revenue", row.get("Retail", row.get("retail", 0)))
+        )
+        quantity = self._safe_float(
+            row.get("quantity", row.get("Qty.", row.get("In Stock Qty.", 0)))
+        )
         sold = self._safe_float(row.get("sold", row.get("Sold", 0)))
 
         if primitive == "high_margin_leak":
@@ -317,7 +328,9 @@ class AnalysisService:
 
         elif primitive == "shrinkage_pattern":
             # Impact = shrinkage value
-            diff = self._safe_float(row.get("qty_difference", row.get("Qty. Difference", 0)))
+            diff = self._safe_float(
+                row.get("qty_difference", row.get("Qty. Difference", 0))
+            )
             return abs(diff) * cost if diff < 0 else 0
 
         elif primitive == "margin_erosion":
@@ -329,7 +342,9 @@ class AnalysisService:
 
         elif primitive == "price_discrepancy":
             # Impact = revenue leakage
-            sug_retail = self._safe_float(row.get("sug. retail", row.get("Sug. Retail", row.get("msrp", 0))))
+            sug_retail = self._safe_float(
+                row.get("sug. retail", row.get("Sug. Retail", row.get("msrp", 0)))
+            )
             if sug_retail > 0 and revenue > 0 and revenue < sug_retail:
                 return (sug_retail - revenue) * max(sold, 1)
 
@@ -337,7 +352,16 @@ class AnalysisService:
 
     def _get_sku(self, row: dict) -> str | None:
         """Extract SKU from row using common aliases."""
-        sku_keys = ["sku", "SKU", "product_id", "item_id", "upc", "barcode", "item_no", "partnumber"]
+        sku_keys = [
+            "sku",
+            "SKU",
+            "product_id",
+            "item_id",
+            "upc",
+            "barcode",
+            "item_no",
+            "partnumber",
+        ]
         for key in sku_keys:
             if key in row and row[key]:
                 return str(row[key])
@@ -363,8 +387,16 @@ class AnalysisService:
         logger.warning("Using mock analysis - sentinel engine not available")
 
         mock_items = [
-            "SKU-001", "SKU-002", "SKU-003", "SKU-004", "SKU-005",
-            "ITEM-A100", "ITEM-B200", "PROD-X1", "PROD-Y2", "PROD-Z3",
+            "SKU-001",
+            "SKU-002",
+            "SKU-003",
+            "SKU-004",
+            "SKU-005",
+            "ITEM-A100",
+            "ITEM-B200",
+            "PROD-X1",
+            "PROD-Y2",
+            "PROD-Z3",
         ]
         mock_scores = [0.95, 0.87, 0.82, 0.78, 0.71, 0.65, 0.58, 0.52, 0.45, 0.38]
 
@@ -372,13 +404,17 @@ class AnalysisService:
         for primitive in self.PRIMITIVES:
             display = LEAK_DISPLAY.get(primitive, {})
             metadata = {
-                "severity": "high" if "margin" in primitive or "negative" in primitive else "medium",
+                "severity": (
+                    "high"
+                    if "margin" in primitive or "negative" in primitive
+                    else "medium"
+                ),
                 "category": primitive.replace("_", " ").title(),
                 "recommendations": [
                     "Review flagged items",
                     "Verify data accuracy",
                     "Take corrective action",
-                ]
+                ],
             }
 
             leaks[primitive] = {
@@ -423,7 +459,9 @@ class AnalysisService:
             return None
 
         display = LEAK_DISPLAY.get(primitive, {})
-        metadata = self._leak_metadata.get(primitive, {}) if self._engine_available else {}
+        metadata = (
+            self._leak_metadata.get(primitive, {}) if self._engine_available else {}
+        )
 
         return {
             "key": primitive,

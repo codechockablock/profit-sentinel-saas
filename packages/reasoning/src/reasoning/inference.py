@@ -17,6 +17,7 @@ BACKWARD CHAINING (Goal-Driven):
 
 Both return proof trees for explainability.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -31,6 +32,7 @@ from .unification import Substitution, compose_substitutions, substitute, unify
 
 class ProofStatus(Enum):
     """Status of a proof attempt."""
+
     SUCCESS = "success"
     FAILURE = "failure"
     PARTIAL = "partial"  # Some goals proved, others failed
@@ -43,6 +45,7 @@ class ProofNode:
 
     Represents a single step in a derivation.
     """
+
     goal: Term
     rule_used: Clause | None = None
     substitution: Substitution = field(default_factory=dict)
@@ -60,7 +63,11 @@ class ProofNode:
         return self.status == ProofStatus.SUCCESS
 
     def __repr__(self) -> str:
-        status_mark = "✓" if self.is_success else "✗" if self.status == ProofStatus.FAILURE else "?"
+        status_mark = (
+            "✓"
+            if self.is_success
+            else "✗" if self.status == ProofStatus.FAILURE else "?"
+        )
         return f"[{status_mark}] {self.goal}"
 
 
@@ -71,6 +78,7 @@ class ProofTree:
     Represents the full derivation of a goal, including all
     subgoals and their proofs.
     """
+
     root: ProofNode
     query: Term
     bindings: Substitution = field(default_factory=dict)
@@ -117,7 +125,7 @@ class ProofTree:
             "valid": self.is_valid,
             "status": self.status.value,
             "bindings": {k: str(v) for k, v in self.bindings.items()},
-            "tree": self._node_to_dict(self.root)
+            "tree": self._node_to_dict(self.root),
         }
 
     def _node_to_dict(self, node: ProofNode) -> dict[str, Any]:
@@ -126,7 +134,7 @@ class ProofTree:
             "status": node.status.value,
             "depth": node.depth,
             "rule": str(node.rule_used) if node.rule_used else None,
-            "children": [self._node_to_dict(c) for c in node.children]
+            "children": [self._node_to_dict(c) for c in node.children],
         }
 
 
@@ -134,9 +142,9 @@ class ProofTree:
 # FORWARD CHAINING
 # =============================================================================
 
+
 def forward_chain(
-    kb: KnowledgeBase,
-    max_iterations: int = 1000
+    kb: KnowledgeBase, max_iterations: int = 1000
 ) -> tuple[list[Term], int]:
     """Forward chaining inference.
 
@@ -187,9 +195,7 @@ def forward_chain(
 
 
 def _satisfy_body(
-    kb: KnowledgeBase,
-    body: list[Term],
-    derived: set[str]
+    kb: KnowledgeBase, body: list[Term], derived: set[str]
 ) -> Iterator[Substitution]:
     """Find all substitutions that satisfy a rule body."""
     if not body:
@@ -210,11 +216,8 @@ def _satisfy_body(
 # BACKWARD CHAINING
 # =============================================================================
 
-def backward_chain(
-    kb: KnowledgeBase,
-    goal: Term,
-    max_depth: int = 100
-) -> ProofTree:
+
+def backward_chain(kb: KnowledgeBase, goal: Term, max_depth: int = 100) -> ProofTree:
     """Backward chaining inference with proof tree.
 
     Works backwards from goal to find supporting facts.
@@ -244,7 +247,7 @@ def _prove_goal(
     node: ProofNode,
     theta: Substitution,
     depth: int,
-    max_depth: int
+    max_depth: int,
 ) -> tuple[bool, Substitution]:
     """Recursively prove a goal."""
     if depth > max_depth:
@@ -276,8 +279,7 @@ def _prove_goal(
 
         for body_goal in clause.body:
             child_node = ProofNode(
-                goal=substitute(body_goal, current_theta),
-                depth=depth + 1
+                goal=substitute(body_goal, current_theta), depth=depth + 1
             )
             body_nodes.append(child_node)
 
@@ -305,10 +307,7 @@ def _prove_goal(
 
 
 def backward_chain_all(
-    kb: KnowledgeBase,
-    goal: Term,
-    max_results: int = 100,
-    max_depth: int = 100
+    kb: KnowledgeBase, goal: Term, max_results: int = 100, max_depth: int = 100
 ) -> list[ProofTree]:
     """Find all proofs for a goal.
 
@@ -339,7 +338,7 @@ def _prove_all(
     goals: list[Term],
     theta: Substitution,
     depth: int,
-    max_depth: int
+    max_depth: int,
 ) -> Iterator[Substitution]:
     """Generate all solutions for a list of goals."""
     if depth > max_depth:
@@ -372,11 +371,9 @@ def _prove_all(
 # SPECIALIZED INFERENCE
 # =============================================================================
 
+
 def abductive_inference(
-    kb: KnowledgeBase,
-    observation: Term,
-    hypotheses: list[Term],
-    max_depth: int = 50
+    kb: KnowledgeBase, observation: Term, hypotheses: list[Term], max_depth: int = 50
 ) -> list[tuple[Term, ProofTree]]:
     """Abductive reasoning: find hypotheses that explain observation.
 
@@ -411,10 +408,7 @@ def abductive_inference(
 
 
 def counterfactual_query(
-    kb: KnowledgeBase,
-    intervention: Term,
-    query: Term,
-    max_depth: int = 50
+    kb: KnowledgeBase, intervention: Term, query: Term, max_depth: int = 50
 ) -> tuple[ProofTree, ProofTree]:
     """Counterfactual reasoning: what if X were true/false?
 

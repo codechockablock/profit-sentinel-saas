@@ -67,6 +67,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
+
 @dataclass
 class RepairEngineConfig:
     """Configuration for the repair diagnosis engine."""
@@ -96,6 +97,7 @@ class RepairEngineConfig:
 # CATEGORY CODEBOOK
 # =============================================================================
 
+
 class CategoryCodebook:
     """
     VSA codebook for problem categories.
@@ -122,7 +124,11 @@ class CategoryCodebook:
         gen = torch.Generator(device=self.device)
         gen.manual_seed(seed_int)
 
-        phases = torch.rand(self.dimensions, generator=gen, device=self.device) * 2 * torch.pi
+        phases = (
+            torch.rand(self.dimensions, generator=gen, device=self.device)
+            * 2
+            * torch.pi
+        )
         return torch.exp(1j * phases).to(torch.complex64)
 
     def register_category(
@@ -131,7 +137,7 @@ class CategoryCodebook:
         name: str,
         description: str | None = None,
         icon: str | None = None,
-        parent_slug: str | None = None
+        parent_slug: str | None = None,
     ) -> torch.Tensor:
         """Register a category and return its vector."""
         if slug not in self._vectors:
@@ -165,9 +171,7 @@ class CategoryCodebook:
         return list(self._vectors.keys())
 
     def find_nearest(
-        self,
-        query: torch.Tensor,
-        top_k: int = 5
+        self, query: torch.Tensor, top_k: int = 5
     ) -> list[tuple[str, float]]:
         """Find nearest categories to query vector."""
         all_vectors = self.get_all_vectors()
@@ -180,15 +184,13 @@ class CategoryCodebook:
         k = min(top_k, len(slugs))
         values, indices = torch.topk(sims_real, k)
 
-        return [
-            (slugs[int(idx)], float(values[i]))
-            for i, idx in enumerate(indices)
-        ]
+        return [(slugs[int(idx)], float(values[i])) for i, idx in enumerate(indices)]
 
 
 # =============================================================================
 # TEXT ENCODER
 # =============================================================================
+
 
 class TextEncoder:
     """
@@ -208,18 +210,37 @@ class TextEncoder:
         # Common repair keywords with boosted weights
         self._keyword_weights = {
             # Plumbing
-            "leak": 2.0, "drip": 2.0, "faucet": 2.0, "pipe": 2.0,
-            "drain": 2.0, "clog": 2.0, "toilet": 2.0, "water": 1.5,
-            "pressure": 1.5, "hot": 1.5, "cold": 1.5,
-
+            "leak": 2.0,
+            "drip": 2.0,
+            "faucet": 2.0,
+            "pipe": 2.0,
+            "drain": 2.0,
+            "clog": 2.0,
+            "toilet": 2.0,
+            "water": 1.5,
+            "pressure": 1.5,
+            "hot": 1.5,
+            "cold": 1.5,
             # Electrical
-            "outlet": 2.0, "switch": 2.0, "light": 2.0, "wire": 2.0,
-            "circuit": 2.0, "breaker": 2.0, "spark": 2.0, "power": 1.5,
-            "electric": 1.5, "voltage": 1.5,
-
+            "outlet": 2.0,
+            "switch": 2.0,
+            "light": 2.0,
+            "wire": 2.0,
+            "circuit": 2.0,
+            "breaker": 2.0,
+            "spark": 2.0,
+            "power": 1.5,
+            "electric": 1.5,
+            "voltage": 1.5,
             # General repair
-            "broken": 1.5, "fix": 1.5, "repair": 1.5, "replace": 1.5,
-            "install": 1.5, "damage": 1.5, "crack": 1.5, "loose": 1.5,
+            "broken": 1.5,
+            "fix": 1.5,
+            "repair": 1.5,
+            "replace": 1.5,
+            "install": 1.5,
+            "damage": 1.5,
+            "crack": 1.5,
+            "loose": 1.5,
         }
 
     def _get_word_vector(self, word: str) -> torch.Tensor:
@@ -233,7 +254,11 @@ class TextEncoder:
             gen = torch.Generator(device=self.device)
             gen.manual_seed(seed_int)
 
-            phases = torch.rand(self.dimensions, generator=gen, device=self.device) * 2 * torch.pi
+            phases = (
+                torch.rand(self.dimensions, generator=gen, device=self.device)
+                * 2
+                * torch.pi
+            )
             self._word_vectors[word_lower] = torch.exp(1j * phases).to(torch.complex64)
 
         return self._word_vectors[word_lower]
@@ -246,7 +271,8 @@ class TextEncoder:
 
         # Tokenize (simple whitespace + punctuation split)
         import re
-        words = re.findall(r'\b\w+\b', text.lower())
+
+        words = re.findall(r"\b\w+\b", text.lower())
 
         if not words:
             return random_vector(self.dimensions, device=self.device)
@@ -267,6 +293,7 @@ class TextEncoder:
 # =============================================================================
 # REPAIR DIAGNOSIS ENGINE
 # =============================================================================
+
 
 class RepairDiagnosisEngine:
     """
@@ -297,15 +324,50 @@ class RepairDiagnosisEngine:
         """Initialize default problem categories."""
         categories = [
             ("plumbing", "Plumbing", "Pipes, faucets, toilets, drains", "plumbing"),
-            ("plumbing-faucet", "Leaky Faucet", "Dripping or running faucets", "plumbing"),
+            (
+                "plumbing-faucet",
+                "Leaky Faucet",
+                "Dripping or running faucets",
+                "plumbing",
+            ),
             ("plumbing-drain", "Clogged Drain", "Slow or blocked drains", "plumbing"),
-            ("plumbing-toilet", "Running Toilet", "Toilet won't stop running", "plumbing"),
-            ("plumbing-pipe", "Pipe Leak", "Leaking pipes under sink or wall", "plumbing"),
+            (
+                "plumbing-toilet",
+                "Running Toilet",
+                "Toilet won't stop running",
+                "plumbing",
+            ),
+            (
+                "plumbing-pipe",
+                "Pipe Leak",
+                "Leaking pipes under sink or wall",
+                "plumbing",
+            ),
             ("plumbing-waterheater", "Water Heater", "Hot water issues", "plumbing"),
-            ("electrical", "Electrical", "Wiring, outlets, switches, lights", "electrical"),
-            ("electrical-outlet", "Outlet Issue", "Dead or sparking outlets", "electrical"),
-            ("electrical-switch", "Switch Problem", "Light switch not working", "electrical"),
-            ("electrical-lighting", "Lighting Issue", "Flickering or dead lights", "electrical"),
+            (
+                "electrical",
+                "Electrical",
+                "Wiring, outlets, switches, lights",
+                "electrical",
+            ),
+            (
+                "electrical-outlet",
+                "Outlet Issue",
+                "Dead or sparking outlets",
+                "electrical",
+            ),
+            (
+                "electrical-switch",
+                "Switch Problem",
+                "Light switch not working",
+                "electrical",
+            ),
+            (
+                "electrical-lighting",
+                "Lighting Issue",
+                "Flickering or dead lights",
+                "electrical",
+            ),
             ("hvac", "HVAC", "Heating, cooling, ventilation", "hvac"),
             ("carpentry", "Carpentry", "Wood, framing, trim, doors", "carpentry"),
             ("painting", "Painting", "Interior, exterior, staining", "painting"),
@@ -323,7 +385,7 @@ class RepairDiagnosisEngine:
                 name=name,
                 description=desc,
                 icon=icon,
-                parent_slug=parent if parent != slug else None
+                parent_slug=parent if parent != slug else None,
             )
 
     def diagnose(
@@ -360,7 +422,9 @@ class RepairDiagnosisEngine:
             input_vectors.append(("text", text_vec, 1.0))
 
         if image_features is not None:
-            input_vectors.append(("image", image_features, 1.2))  # Slightly higher weight
+            input_vectors.append(
+                ("image", image_features, 1.2)
+            )  # Slightly higher weight
 
         if not input_vectors:
             raise ValueError("At least one input (text, voice, or image) required")
@@ -382,7 +446,7 @@ class RepairDiagnosisEngine:
                 time.time(),
                 ref_time,
                 decay_rate=self.config.temporal_decay_rate,
-                max_shift=self.config.temporal_max_shift
+                max_shift=self.config.temporal_max_shift,
             )
 
             # Blend with query (light influence)
@@ -393,7 +457,9 @@ class RepairDiagnosisEngine:
             store_context_similarity = float(sim_val)
 
         # Find nearest categories
-        matches = self.codebook.find_nearest(query_vec, top_k=self.config.max_hypotheses)
+        matches = self.codebook.find_nearest(
+            query_vec, top_k=self.config.max_hypotheses
+        )
 
         # Build hypotheses with normalized probabilities
         hypotheses = []
@@ -443,9 +509,7 @@ class RepairDiagnosisEngine:
         # Initialize store memory if needed
         if store_id not in self._store_memories:
             self._store_memories[store_id] = torch.zeros(
-                self.config.dimensions,
-                dtype=torch.complex64,
-                device=self.device
+                self.config.dimensions, dtype=torch.complex64, device=self.device
             )
             self._store_reference_times[store_id] = now
 
@@ -457,13 +521,12 @@ class RepairDiagnosisEngine:
             now,
             ref_time,
             decay_rate=self.config.temporal_decay_rate,
-            max_shift=self.config.temporal_max_shift
+            max_shift=self.config.temporal_max_shift,
         )
 
         # Bundle into memory
         self._store_memories[store_id] = bundle(
-            self._store_memories[store_id],
-            t_encoded
+            self._store_memories[store_id], t_encoded
         )
 
     def refine_diagnosis(
@@ -482,15 +545,10 @@ class RepairDiagnosisEngine:
             Updated HypothesisBundle
         """
         return p_sup_update(
-            bundle,
-            evidence,
-            temperature=self.config.update_temperature
+            bundle, evidence, temperature=self.config.update_temperature
         )
 
-    def check_collapse(
-        self,
-        bundle: HypothesisBundle
-    ) -> str | None:
+    def check_collapse(self, bundle: HypothesisBundle) -> str | None:
         """
         Check if hypothesis should collapse to single answer.
 
@@ -499,10 +557,7 @@ class RepairDiagnosisEngine:
         return p_sup_collapse(bundle, threshold=self.config.collapse_threshold)
 
     def bundle_to_response(
-        self,
-        bundle: HypothesisBundle,
-        problem_id: str,
-        metadata: dict[str, Any]
+        self, bundle: HypothesisBundle, problem_id: str, metadata: dict[str, Any]
     ) -> DiagnoseResponse:
         """Convert HypothesisBundle to API response."""
         hypotheses = []
@@ -510,13 +565,15 @@ class RepairDiagnosisEngine:
             zip(bundle.hypotheses, bundle.probabilities.tolist())
         ):
             info = self.codebook.get_info(label)
-            hypotheses.append(Hypothesis(
-                category_slug=label,
-                category_name=info.get("name", label),
-                probability=prob,
-                explanation=info.get("description"),
-                icon=info.get("icon"),
-            ))
+            hypotheses.append(
+                Hypothesis(
+                    category_slug=label,
+                    category_name=info.get("name", label),
+                    probability=prob,
+                    explanation=info.get("description"),
+                    icon=info.get("icon"),
+                )
+            )
 
         # Sort by probability
         hypotheses.sort(key=lambda h: h.probability, reverse=True)
@@ -545,9 +602,7 @@ class RepairDiagnosisEngine:
         )
 
     def _generate_follow_up_questions(
-        self,
-        h1: Hypothesis,
-        h2: Hypothesis
+        self, h1: Hypothesis, h2: Hypothesis
     ) -> list[str]:
         """Generate questions to disambiguate between top hypotheses."""
         questions = []
@@ -582,7 +637,7 @@ class RepairDiagnosisEngine:
         original_category: str,
         corrected_category: str,
         employee_level: int,
-        knowledge_state: KnowledgeBaseState | None = None
+        knowledge_state: KnowledgeBaseState | None = None,
     ) -> KnowledgeBaseState:
         """
         Incorporate employee correction into knowledge base.
@@ -624,7 +679,7 @@ class RepairDiagnosisEngine:
         combined, conf = cw_bundle(
             [existing_vec, correction_vec],
             [knowledge_state.aggregate_confidence, weight],
-            temperature=0.8
+            temperature=0.8,
         )
 
         # Update state
@@ -649,8 +704,7 @@ class RepairDiagnosisEngine:
         return torch.load(buffer, map_location=self.device)
 
     def serialize_hypothesis_state(
-        self,
-        bundle: HypothesisBundle
+        self, bundle: HypothesisBundle
     ) -> VSAHypothesisState:
         """Serialize HypothesisBundle for database storage."""
         return VSAHypothesisState(
@@ -663,8 +717,7 @@ class RepairDiagnosisEngine:
         )
 
     def deserialize_hypothesis_state(
-        self,
-        state: VSAHypothesisState
+        self, state: VSAHypothesisState
     ) -> HypothesisBundle:
         """Deserialize HypothesisBundle from database storage."""
         return HypothesisBundle(
@@ -679,10 +732,8 @@ class RepairDiagnosisEngine:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
-def create_engine(
-    dimensions: int = 4096,
-    device: str = "cpu"
-) -> RepairDiagnosisEngine:
+
+def create_engine(dimensions: int = 4096, device: str = "cpu") -> RepairDiagnosisEngine:
     """Create a repair diagnosis engine with specified config."""
     config = RepairEngineConfig(
         dimensions=dimensions,

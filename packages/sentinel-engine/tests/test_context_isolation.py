@@ -118,9 +118,7 @@ class TestContextIsolation:
             futures = []
             for i in range(10):
                 future = executor.submit(
-                    analyze_in_context,
-                    f"context_{i}",
-                    f"customer_{i}"
+                    analyze_in_context, f"context_{i}", f"customer_{i}"
                 )
                 futures.append(future)
 
@@ -136,7 +134,9 @@ class TestContextIsolation:
 
         # Verify each context has exactly 100 items
         for ctx_id, data in results.items():
-            assert data["codebook_size"] == 100, f"{ctx_id} has {data['codebook_size']} items, expected 100"
+            assert (
+                data["codebook_size"] == 100
+            ), f"{ctx_id} has {data['codebook_size']} items, expected 100"
 
     def test_primitives_isolated_but_consistent(self):
         """Primitive vectors should be isolated per context but produce same values."""
@@ -154,7 +154,9 @@ class TestContextIsolation:
 
         # Values should be identical
         for key in prims1.keys():
-            assert torch.allclose(prims1[key], prims2[key]), f"Primitive {key} differs between contexts"
+            assert torch.allclose(
+                prims1[key], prims2[key]
+            ), f"Primitive {key} differs between contexts"
 
         # But the dicts should be different objects (isolated)
         assert prims1 is not prims2, "Primitive dicts should be different objects"
@@ -227,8 +229,20 @@ class TestAnalysisFunctionIsolation:
 
         # Sample data with clear low_stock signal
         rows = [
-            {"sku": "LOW_STOCK_ITEM", "quantity": 1, "cost": 100.0, "revenue": 200.0, "sold": 50},
-            {"sku": "NORMAL_ITEM", "quantity": 100, "cost": 10.0, "revenue": 20.0, "sold": 5},
+            {
+                "sku": "LOW_STOCK_ITEM",
+                "quantity": 1,
+                "cost": 100.0,
+                "revenue": 200.0,
+                "sold": 50,
+            },
+            {
+                "sku": "NORMAL_ITEM",
+                "quantity": 100,
+                "cost": 10.0,
+                "revenue": 20.0,
+                "sold": 5,
+            },
         ]
 
         # Bundle and query in ctx1
@@ -237,7 +251,13 @@ class TestAnalysisFunctionIsolation:
 
         # Bundle and query in ctx2 with different data
         rows2 = [
-            {"sku": "OTHER_ITEM", "quantity": 500, "cost": 1.0, "revenue": 2.0, "sold": 1},
+            {
+                "sku": "OTHER_ITEM",
+                "quantity": 500,
+                "cost": 1.0,
+                "revenue": 2.0,
+                "sold": 1,
+            },
         ]
         bundle2 = bundle_pos_facts(ctx2, rows2)
         items2, scores2 = query_bundle(ctx2, bundle2, "low_stock")
@@ -262,7 +282,13 @@ class TestAnalysisFunctionIsolation:
                 ctx = create_analysis_context()
 
                 rows = [
-                    {"sku": sku, "quantity": 1, "cost": 10.0, "revenue": 20.0, "sold": 100}
+                    {
+                        "sku": sku,
+                        "quantity": 1,
+                        "cost": 10.0,
+                        "revenue": 20.0,
+                        "sold": 100,
+                    }
                     for sku in unique_skus
                 ]
 
@@ -298,10 +324,14 @@ class TestAnalysisFunctionIsolation:
             expected_prefix = f"customer_{analysis_id}_"
             for key in data["codebook_keys"]:
                 # Allow primitive vectors and vendor/category entries
-                if key.startswith("primitive_") or key in ("unknown_vendor", "unknown_category"):
+                if key.startswith("primitive_") or key in (
+                    "unknown_vendor",
+                    "unknown_category",
+                ):
                     continue
-                assert key.startswith(expected_prefix), \
-                    f"Analysis {analysis_id} has foreign key: {key}"
+                assert key.startswith(
+                    expected_prefix
+                ), f"Analysis {analysis_id} has foreign key: {key}"
 
 
 class TestBackwardCompatibility:
@@ -326,10 +356,13 @@ class TestBackwardCompatibility:
 
             # Should have emitted deprecation warning
             deprecation_warnings = [
-                warning for warning in w
+                warning
+                for warning in w
                 if issubclass(warning.category, DeprecationWarning)
             ]
-            assert len(deprecation_warnings) > 0, "Expected deprecation warning for legacy API"
+            assert (
+                len(deprecation_warnings) > 0
+            ), "Expected deprecation warning for legacy API"
 
     def test_reset_codebook_is_noop(self):
         """reset_codebook should be a no-op in v2.1."""

@@ -14,12 +14,14 @@ import pytest
 # S3 SERVICE TESTS
 # =============================================================================
 
+
 class TestS3Service:
     """Tests for S3Service class."""
 
     def test_init(self, mock_s3_client: MagicMock):
         """Test S3Service initialization."""
         from apps.api.src.services.s3 import S3Service
+
         service = S3Service(mock_s3_client, "test-bucket")
         assert service.client == mock_s3_client
         assert service.bucket_name == "test-bucket"
@@ -27,29 +29,32 @@ class TestS3Service:
     def test_generate_presigned_url(self, mock_s3_client: MagicMock):
         """Test presigned URL generation."""
         from apps.api.src.services.s3 import S3Service
+
         service = S3Service(mock_s3_client, "test-bucket")
 
         service.generate_presigned_url("test/key.csv")
 
         mock_s3_client.generate_presigned_url.assert_called_once()
         call_args = mock_s3_client.generate_presigned_url.call_args
-        assert call_args[0][0] == 'put_object'
-        assert call_args[1]['Params']['Bucket'] == "test-bucket"
-        assert call_args[1]['Params']['Key'] == "test/key.csv"
+        assert call_args[0][0] == "put_object"
+        assert call_args[1]["Params"]["Bucket"] == "test-bucket"
+        assert call_args[1]["Params"]["Key"] == "test/key.csv"
 
     def test_generate_presigned_url_custom_expiry(self, mock_s3_client: MagicMock):
         """Test presigned URL with custom expiry."""
         from apps.api.src.services.s3 import S3Service
+
         service = S3Service(mock_s3_client, "test-bucket")
 
         service.generate_presigned_url("key.csv", expires_in=7200)
 
         call_args = mock_s3_client.generate_presigned_url.call_args
-        assert call_args[1]['ExpiresIn'] == 7200
+        assert call_args[1]["ExpiresIn"] == 7200
 
     def test_load_dataframe_csv(self, mock_s3_client_with_data: MagicMock):
         """Test loading CSV file as DataFrame."""
         from apps.api.src.services.s3 import S3Service
+
         service = S3Service(mock_s3_client_with_data, "test-bucket")
 
         df = service.load_dataframe("test/data.csv")
@@ -61,6 +66,7 @@ class TestS3Service:
     def test_load_dataframe_with_sample_rows(self, mock_s3_client_with_data: MagicMock):
         """Test loading limited sample rows."""
         from apps.api.src.services.s3 import S3Service
+
         service = S3Service(mock_s3_client_with_data, "test-bucket")
 
         df = service.load_dataframe("test/data.csv", sample_rows=2)
@@ -73,25 +79,28 @@ class TestS3Service:
 
         # Create mock Excel data
         excel_buffer = io.BytesIO()
-        pd.DataFrame({'col1': [1, 2], 'col2': ['a', 'b']}).to_excel(excel_buffer, index=False)
+        pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]}).to_excel(
+            excel_buffer, index=False
+        )
         excel_buffer.seek(0)
         excel_data = excel_buffer.getvalue()
 
         mock_body = MagicMock()
         mock_body.read.return_value = excel_data
-        mock_s3_client.get_object.return_value = {'Body': mock_body}
+        mock_s3_client.get_object.return_value = {"Body": mock_body}
         # Mock head_object for get_object_size
-        mock_s3_client.head_object.return_value = {'ContentLength': len(excel_data)}
+        mock_s3_client.head_object.return_value = {"ContentLength": len(excel_data)}
 
         service = S3Service(mock_s3_client, "test-bucket")
         df = service.load_dataframe("test/data.xlsx")
 
         assert isinstance(df, pd.DataFrame)
-        assert list(df.columns) == ['col1', 'col2']
+        assert list(df.columns) == ["col1", "col2"]
 
     def test_upload_file(self, mock_s3_client: MagicMock):
         """Test file upload."""
         from apps.api.src.services.s3 import S3Service
+
         service = S3Service(mock_s3_client, "test-bucket")
 
         service.upload_file("test/key.csv", b"csv,data", "text/csv")
@@ -100,19 +109,19 @@ class TestS3Service:
             Bucket="test-bucket",
             Key="test/key.csv",
             Body=b"csv,data",
-            ContentType="text/csv"
+            ContentType="text/csv",
         )
 
     def test_delete_file(self, mock_s3_client: MagicMock):
         """Test file deletion."""
         from apps.api.src.services.s3 import S3Service
+
         service = S3Service(mock_s3_client, "test-bucket")
 
         service.delete_file("test/key.csv")
 
         mock_s3_client.delete_object.assert_called_once_with(
-            Bucket="test-bucket",
-            Key="test/key.csv"
+            Bucket="test-bucket", Key="test/key.csv"
         )
 
 
@@ -120,18 +129,20 @@ class TestS3Service:
 # MAPPING SERVICE TESTS
 # =============================================================================
 
+
 class TestMappingService:
     """Tests for MappingService class."""
 
     def test_suggest_mapping_with_ai(
-        self,
-        sample_pos_dataframe: pd.DataFrame,
-        mock_grok_client: MagicMock
+        self, sample_pos_dataframe: pd.DataFrame, mock_grok_client: MagicMock
     ):
         """Test AI-powered column mapping."""
         from apps.api.src.services.mapping import MappingService
 
-        with patch('apps.api.src.services.mapping.get_grok_client', return_value=mock_grok_client):
+        with patch(
+            "apps.api.src.services.mapping.get_grok_client",
+            return_value=mock_grok_client,
+        ):
             service = MappingService()
             result = service.suggest_mapping(sample_pos_dataframe, "test.csv")
 
@@ -141,13 +152,12 @@ class TestMappingService:
         assert "sample_data" in result
 
     def test_suggest_mapping_heuristic_fallback(
-        self,
-        sample_pos_dataframe: pd.DataFrame
+        self, sample_pos_dataframe: pd.DataFrame
     ):
         """Test heuristic fallback when AI unavailable."""
         from apps.api.src.services.mapping import MappingService
 
-        with patch('apps.api.src.services.mapping.get_grok_client', return_value=None):
+        with patch("apps.api.src.services.mapping.get_grok_client", return_value=None):
             service = MappingService()
             result = service.suggest_mapping(sample_pos_dataframe, "test.csv")
 
@@ -165,7 +175,7 @@ class TestMappingService:
         columns = ["sku", "qty", "sale_price", "cost", "vendor_name"]
         df = pd.DataFrame({col: ["test"] for col in columns})
 
-        with patch('apps.api.src.services.mapping.get_grok_client', return_value=None):
+        with patch("apps.api.src.services.mapping.get_grok_client", return_value=None):
             service = MappingService()
             result = service.suggest_mapping(df, "test.csv")
 
@@ -183,7 +193,7 @@ class TestMappingService:
         columns = ["unknown_col", "random_field", "xyz123"]
         df = pd.DataFrame({col: ["test"] for col in columns})
 
-        with patch('apps.api.src.services.mapping.get_grok_client', return_value=None):
+        with patch("apps.api.src.services.mapping.get_grok_client", return_value=None):
             service = MappingService()
             result = service.suggest_mapping(df, "test.csv")
 
@@ -209,7 +219,9 @@ class TestMappingService:
 
         df = pd.DataFrame({"col1": ["test"]})
 
-        with patch('apps.api.src.services.mapping.get_grok_client', return_value=mock_client):
+        with patch(
+            "apps.api.src.services.mapping.get_grok_client", return_value=mock_client
+        ):
             service = MappingService()
             result = service.suggest_mapping(df, "test.csv")
 
@@ -224,7 +236,9 @@ class TestMappingService:
 
         df = pd.DataFrame({"sku": ["test"], "quantity": [1]})
 
-        with patch('apps.api.src.services.mapping.get_grok_client', return_value=mock_client):
+        with patch(
+            "apps.api.src.services.mapping.get_grok_client", return_value=mock_client
+        ):
             service = MappingService()
             result = service.suggest_mapping(df, "test.csv")
 
@@ -238,6 +252,7 @@ class TestMappingService:
 # ANALYSIS SERVICE TESTS
 # =============================================================================
 
+
 class TestAnalysisService:
     """Tests for AnalysisService class."""
 
@@ -246,7 +261,7 @@ class TestAnalysisService:
         from apps.api.src.services.analysis import AnalysisService
 
         # Patch the import to simulate missing engine
-        with patch.dict('sys.modules', {'sentinel_engine': None}):
+        with patch.dict("sys.modules", {"sentinel_engine": None}):
             service = AnalysisService()
 
             if not service._engine_available:
@@ -258,9 +273,14 @@ class TestAnalysisService:
 
                 # All 8 primitives should be present
                 expected_primitives = [
-                    "high_margin_leak", "negative_inventory", "low_stock",
-                    "shrinkage_pattern", "margin_erosion", "dead_item",
-                    "overstock", "price_discrepancy"
+                    "high_margin_leak",
+                    "negative_inventory",
+                    "low_stock",
+                    "shrinkage_pattern",
+                    "margin_erosion",
+                    "dead_item",
+                    "overstock",
+                    "price_discrepancy",
                 ]
                 for primitive in expected_primitives:
                     assert primitive in leaks, f"Missing primitive: {primitive}"
@@ -273,9 +293,14 @@ class TestAnalysisService:
 
         # All 8 detection primitives
         expected = [
-            "high_margin_leak", "negative_inventory", "low_stock",
-            "shrinkage_pattern", "margin_erosion", "dead_item",
-            "overstock", "price_discrepancy"
+            "high_margin_leak",
+            "negative_inventory",
+            "low_stock",
+            "shrinkage_pattern",
+            "margin_erosion",
+            "dead_item",
+            "overstock",
+            "price_discrepancy",
         ]
         assert set(expected) == set(AnalysisService.PRIMITIVES)
 
@@ -304,6 +329,7 @@ class TestAnalysisService:
 # =============================================================================
 # CONFIG TESTS
 # =============================================================================
+
 
 class TestConfig:
     """Tests for configuration module."""
@@ -361,9 +387,18 @@ class TestConfig:
         from apps.api.src.config import STANDARD_FIELDS
 
         expected_keys = [
-            "date", "sku", "quantity", "revenue", "cost",
-            "vendor", "category", "transaction_id", "customer_id",
-            "discount", "tax", "return_flag"
+            "date",
+            "sku",
+            "quantity",
+            "revenue",
+            "cost",
+            "vendor",
+            "category",
+            "transaction_id",
+            "customer_id",
+            "discount",
+            "tax",
+            "return_flag",
         ]
         for key in expected_keys:
             assert key in STANDARD_FIELDS
@@ -375,6 +410,7 @@ class TestConfig:
 # DEPENDENCIES TESTS
 # =============================================================================
 
+
 class TestDependencies:
     """Tests for dependency injection functions."""
 
@@ -385,7 +421,7 @@ class TestDependencies:
 
         from apps.api.src.dependencies import get_s3_client
 
-        with patch('boto3.client') as mock_boto:
+        with patch("boto3.client") as mock_boto:
             get_s3_client()
             mock_boto.assert_called_once_with("s3")
 
@@ -398,7 +434,9 @@ class TestDependencies:
         mock_settings = Settings(supabase_url=None, supabase_service_key=None)
 
         # Patch get_settings to return our mock settings
-        with patch('apps.api.src.dependencies.get_settings', return_value=mock_settings):
+        with patch(
+            "apps.api.src.dependencies.get_settings", return_value=mock_settings
+        ):
             result = get_supabase_client()
         assert result is None
 
@@ -411,7 +449,9 @@ class TestDependencies:
         mock_settings = Settings(xai_api_key=None, grok_api_key=None)
 
         # Patch get_settings to return our mock settings
-        with patch('apps.api.src.dependencies.get_settings', return_value=mock_settings):
+        with patch(
+            "apps.api.src.dependencies.get_settings", return_value=mock_settings
+        ):
             result = get_grok_client()
         assert result is None
 

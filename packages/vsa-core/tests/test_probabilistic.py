@@ -10,6 +10,7 @@ Verifies:
     - Adding/removing hypotheses
     - Merging bundles from multiple sources
 """
+
 import math
 import os
 import sys
@@ -18,7 +19,9 @@ import pytest
 import torch
 
 # Add parent to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from vsa_core import configure, seed_hash, similarity
 from vsa_core.probabilistic import (
@@ -34,6 +37,7 @@ from vsa_core.probabilistic import (
 # =============================================================================
 # FIXTURES
 # =============================================================================
+
 
 @pytest.fixture(scope="module")
 def config():
@@ -75,6 +79,7 @@ def basic_hypotheses(shrinkage_vec, clerical_vec, vendor_vec):
 # HYPOTHESIS BUNDLE TESTS
 # =============================================================================
 
+
 class TestHypothesisBundle:
     """Tests for HypothesisBundle dataclass."""
 
@@ -111,9 +116,9 @@ class TestHypothesisBundle:
     def test_entropy_uniform(self, shrinkage_vec, clerical_vec, vendor_vec):
         """Uniform distribution should have maximum entropy."""
         uniform = [
-            ("a", shrinkage_vec, 1/3),
-            ("b", clerical_vec, 1/3),
-            ("c", vendor_vec, 1/3),
+            ("a", shrinkage_vec, 1 / 3),
+            ("b", clerical_vec, 1 / 3),
+            ("c", vendor_vec, 1 / 3),
         ]
         bundle = p_sup(uniform)
         entropy = bundle.entropy()
@@ -138,6 +143,7 @@ class TestHypothesisBundle:
 # =============================================================================
 # P_SUP CREATION TESTS
 # =============================================================================
+
 
 class TestPSupCreation:
     """Tests for p_sup creation function."""
@@ -192,17 +198,22 @@ class TestPSupCreation:
         sim_shrinkage = abs(float(similarity(bundle.vector, bundle.basis_vectors[0])))
 
         # Should have some similarity (due to weighted bundling)
-        assert sim_shrinkage > 0.2, f"Expected some similarity to top hypothesis: {sim_shrinkage}"
+        assert (
+            sim_shrinkage > 0.2
+        ), f"Expected some similarity to top hypothesis: {sim_shrinkage}"
 
 
 # =============================================================================
 # P_SUP_UPDATE TESTS (BAYESIAN UPDATES)
 # =============================================================================
 
+
 class TestPSupUpdate:
     """Tests for Bayesian update of hypothesis probabilities."""
 
-    def test_update_increases_matching_probability(self, basic_hypotheses, shrinkage_vec):
+    def test_update_increases_matching_probability(
+        self, basic_hypotheses, shrinkage_vec
+    ):
         """Evidence similar to a hypothesis should increase its probability."""
         bundle = p_sup(basic_hypotheses)
         initial_prob = float(bundle.probabilities[0])  # shrinkage
@@ -213,10 +224,13 @@ class TestPSupUpdate:
 
         final_prob = float(updated.probabilities[0])  # shrinkage
 
-        assert final_prob > initial_prob, \
-            f"Matching evidence should increase probability: {initial_prob} -> {final_prob}"
+        assert (
+            final_prob > initial_prob
+        ), f"Matching evidence should increase probability: {initial_prob} -> {final_prob}"
 
-    def test_update_decreases_non_matching_probability(self, basic_hypotheses, shrinkage_vec):
+    def test_update_decreases_non_matching_probability(
+        self, basic_hypotheses, shrinkage_vec
+    ):
         """Evidence should decrease probability of non-matching hypotheses."""
         bundle = p_sup(basic_hypotheses)
         initial_prob = float(bundle.probabilities[2])  # vendor_issue
@@ -227,8 +241,9 @@ class TestPSupUpdate:
 
         final_prob = float(updated.probabilities[2])  # vendor_issue
 
-        assert final_prob < initial_prob, \
-            f"Non-matching evidence should decrease probability: {initial_prob} -> {final_prob}"
+        assert (
+            final_prob < initial_prob
+        ), f"Non-matching evidence should decrease probability: {initial_prob} -> {final_prob}"
 
     def test_update_preserves_normalization(self, basic_hypotheses, shrinkage_vec):
         """Updated probabilities should still sum to 1."""
@@ -260,8 +275,9 @@ class TestPSupUpdate:
         sharp_max = float(sharp.probabilities.max())
         soft_max = float(soft.probabilities.max())
 
-        assert sharp_max > soft_max, \
-            f"Lower temperature should concentrate probability: {sharp_max} vs {soft_max}"
+        assert (
+            sharp_max > soft_max
+        ), f"Lower temperature should concentrate probability: {sharp_max} vs {soft_max}"
 
     def test_multiple_updates_converge(self, basic_hypotheses, shrinkage_vec):
         """Multiple consistent updates should converge toward hypothesis."""
@@ -282,6 +298,7 @@ class TestPSupUpdate:
 # P_SUP_COLLAPSE TESTS
 # =============================================================================
 
+
 class TestPSupCollapse:
     """Tests for hypothesis collapse."""
 
@@ -292,7 +309,9 @@ class TestPSupCollapse:
 
         assert result is None
 
-    def test_collapse_returns_winner_above_threshold(self, shrinkage_vec, clerical_vec, vendor_vec):
+    def test_collapse_returns_winner_above_threshold(
+        self, shrinkage_vec, clerical_vec, vendor_vec
+    ):
         """Collapse should return winner when threshold exceeded."""
         concentrated = [
             ("shrinkage", shrinkage_vec, 0.95),
@@ -334,22 +353,29 @@ class TestPSupCollapse:
 # P_SUP_ADD_HYPOTHESIS TESTS
 # =============================================================================
 
+
 class TestPSupAddHypothesis:
     """Tests for adding hypotheses to existing bundle."""
 
     def test_add_hypothesis_increases_count(self, basic_hypotheses, margin_leak_vec):
         """Adding hypothesis should increase count."""
         bundle = p_sup(basic_hypotheses)
-        updated = p_sup_add_hypothesis(bundle, "margin_leak", margin_leak_vec, prior=0.1)
+        updated = p_sup_add_hypothesis(
+            bundle, "margin_leak", margin_leak_vec, prior=0.1
+        )
 
         assert len(updated.hypotheses) == 4
         assert "margin_leak" in updated.hypotheses
 
-    def test_add_hypothesis_rescales_probabilities(self, basic_hypotheses, margin_leak_vec):
+    def test_add_hypothesis_rescales_probabilities(
+        self, basic_hypotheses, margin_leak_vec
+    ):
         """Existing probabilities should be scaled down to make room."""
         bundle = p_sup(basic_hypotheses)
         new_prior = 0.1
-        updated = p_sup_add_hypothesis(bundle, "margin_leak", margin_leak_vec, prior=new_prior)
+        updated = p_sup_add_hypothesis(
+            bundle, "margin_leak", margin_leak_vec, prior=new_prior
+        )
 
         # New hypothesis should have its prior
         margin_idx = updated.hypotheses.index("margin_leak")
@@ -378,6 +404,7 @@ class TestPSupAddHypothesis:
 # =============================================================================
 # P_SUP_REMOVE_HYPOTHESIS TESTS
 # =============================================================================
+
 
 class TestPSupRemoveHypothesis:
     """Tests for removing hypotheses from bundle."""
@@ -426,6 +453,7 @@ class TestPSupRemoveHypothesis:
 # P_SUP_MERGE TESTS
 # =============================================================================
 
+
 class TestPSupMerge:
     """Tests for merging multiple hypothesis bundles."""
 
@@ -446,18 +474,27 @@ class TestPSupMerge:
         for label in bundle.hypotheses:
             idx_orig = bundle.hypotheses.index(label)
             idx_merged = merged.hypotheses.index(label)
-            assert abs(bundle.probabilities[idx_orig] - merged.probabilities[idx_merged]) < 0.01
+            assert (
+                abs(bundle.probabilities[idx_orig] - merged.probabilities[idx_merged])
+                < 0.01
+            )
 
-    def test_merge_combines_hypotheses(self, shrinkage_vec, clerical_vec, vendor_vec, margin_leak_vec):
+    def test_merge_combines_hypotheses(
+        self, shrinkage_vec, clerical_vec, vendor_vec, margin_leak_vec
+    ):
         """Merging bundles with different hypotheses should combine them."""
-        bundle1 = p_sup([
-            ("shrinkage", shrinkage_vec, 0.5),
-            ("clerical", clerical_vec, 0.5),
-        ])
-        bundle2 = p_sup([
-            ("vendor", vendor_vec, 0.5),
-            ("margin", margin_leak_vec, 0.5),
-        ])
+        bundle1 = p_sup(
+            [
+                ("shrinkage", shrinkage_vec, 0.5),
+                ("clerical", clerical_vec, 0.5),
+            ]
+        )
+        bundle2 = p_sup(
+            [
+                ("vendor", vendor_vec, 0.5),
+                ("margin", margin_leak_vec, 0.5),
+            ]
+        )
 
         merged = p_sup_merge([bundle1, bundle2])
 
@@ -465,16 +502,22 @@ class TestPSupMerge:
         assert len(merged.hypotheses) == 4
         assert set(merged.hypotheses) == {"shrinkage", "clerical", "vendor", "margin"}
 
-    def test_merge_overlapping_hypotheses(self, shrinkage_vec, clerical_vec, vendor_vec):
+    def test_merge_overlapping_hypotheses(
+        self, shrinkage_vec, clerical_vec, vendor_vec
+    ):
         """Overlapping hypotheses should have combined probabilities."""
-        bundle1 = p_sup([
-            ("shrinkage", shrinkage_vec, 0.6),
-            ("clerical", clerical_vec, 0.4),
-        ])
-        bundle2 = p_sup([
-            ("shrinkage", shrinkage_vec, 0.8),
-            ("vendor", vendor_vec, 0.2),
-        ])
+        bundle1 = p_sup(
+            [
+                ("shrinkage", shrinkage_vec, 0.6),
+                ("clerical", clerical_vec, 0.4),
+            ]
+        )
+        bundle2 = p_sup(
+            [
+                ("shrinkage", shrinkage_vec, 0.8),
+                ("vendor", vendor_vec, 0.2),
+            ]
+        )
 
         # Equal weights
         merged = p_sup_merge([bundle1, bundle2])
@@ -484,18 +527,24 @@ class TestPSupMerge:
         shrinkage_prob = float(merged.probabilities[shrinkage_idx])
 
         # Should be weighted combination
-        assert shrinkage_prob > 0.3, f"Shrinkage should have high merged probability: {shrinkage_prob}"
+        assert (
+            shrinkage_prob > 0.3
+        ), f"Shrinkage should have high merged probability: {shrinkage_prob}"
 
     def test_merge_with_weights(self, shrinkage_vec, clerical_vec, vendor_vec):
         """Bundle weights should affect merged probabilities."""
-        bundle1 = p_sup([
-            ("shrinkage", shrinkage_vec, 0.9),
-            ("clerical", clerical_vec, 0.1),
-        ])
-        bundle2 = p_sup([
-            ("shrinkage", shrinkage_vec, 0.1),
-            ("clerical", clerical_vec, 0.9),
-        ])
+        bundle1 = p_sup(
+            [
+                ("shrinkage", shrinkage_vec, 0.9),
+                ("clerical", clerical_vec, 0.1),
+            ]
+        )
+        bundle2 = p_sup(
+            [
+                ("shrinkage", shrinkage_vec, 0.1),
+                ("clerical", clerical_vec, 0.9),
+            ]
+        )
 
         # Heavy weight on bundle1
         merged = p_sup_merge([bundle1, bundle2], weights=[0.9, 0.1])
@@ -520,10 +569,13 @@ class TestPSupMerge:
 # INTEGRATION TESTS
 # =============================================================================
 
+
 class TestPSupIntegration:
     """End-to-end integration tests."""
 
-    def test_full_hypothesis_lifecycle(self, shrinkage_vec, clerical_vec, vendor_vec, margin_leak_vec):
+    def test_full_hypothesis_lifecycle(
+        self, shrinkage_vec, clerical_vec, vendor_vec, margin_leak_vec
+    ):
         """Test complete hypothesis tracking workflow."""
         # Start with initial hypotheses
         hypotheses = [
@@ -565,16 +617,20 @@ class TestPSupIntegration:
     def test_multi_source_fusion(self, shrinkage_vec, clerical_vec, vendor_vec):
         """Test fusing hypotheses from multiple detection sources."""
         # Source 1: Visual analysis (sees physical evidence)
-        visual_bundle = p_sup([
-            ("shrinkage", shrinkage_vec, 0.7),
-            ("vendor_issue", vendor_vec, 0.3),
-        ])
+        visual_bundle = p_sup(
+            [
+                ("shrinkage", shrinkage_vec, 0.7),
+                ("vendor_issue", vendor_vec, 0.3),
+            ]
+        )
 
         # Source 2: Transaction analysis (sees data patterns)
-        transaction_bundle = p_sup([
-            ("shrinkage", shrinkage_vec, 0.5),
-            ("clerical_error", clerical_vec, 0.5),
-        ])
+        transaction_bundle = p_sup(
+            [
+                ("shrinkage", shrinkage_vec, 0.5),
+                ("clerical_error", clerical_vec, 0.5),
+            ]
+        )
 
         # Merge with equal confidence in sources
         fused = p_sup_merge([visual_bundle, transaction_bundle])

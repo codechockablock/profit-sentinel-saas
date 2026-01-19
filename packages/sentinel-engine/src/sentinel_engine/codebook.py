@@ -7,6 +7,7 @@ Provides efficient codebook storage and retrieval for large-scale VSA:
 - Session-based sharding for multi-tenant use
 - Incremental updates and versioning
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CodebookMetadata:
     """Metadata for a codebook."""
+
     name: str
     domain: str
     dimensions: int
@@ -56,12 +58,7 @@ class PersistentCodebook:
         vec = codebook.get("SKU123")
     """
 
-    def __init__(
-        self,
-        path: str,
-        dimensions: int = 16384,
-        max_size: int = 100000
-    ):
+    def __init__(self, path: str, dimensions: int = 16384, max_size: int = 100000):
         """Initialize codebook.
 
         Args:
@@ -116,10 +113,9 @@ class PersistentCodebook:
                 if self._vectors is None:
                     self._vectors = vector.unsqueeze(0)
                 else:
-                    self._vectors = torch.cat([
-                        self._vectors,
-                        vector.unsqueeze(0)
-                    ], dim=0)
+                    self._vectors = torch.cat(
+                        [self._vectors, vector.unsqueeze(0)], dim=0
+                    )
 
             self._dirty = True
             return idx
@@ -188,7 +184,7 @@ class PersistentCodebook:
 
             # Save labels
             labels_path = self.path / "labels.json"
-            with open(labels_path, 'w') as f:
+            with open(labels_path, "w") as f:
                 json.dump(self._labels, f)
 
             # Compute checksum
@@ -203,11 +199,11 @@ class PersistentCodebook:
                 created_at=self._metadata.created_at if self._metadata else time.time(),
                 updated_at=time.time(),
                 version="1.0.0",
-                checksum=checksum
+                checksum=checksum,
             )
 
             meta_path = self.path / "metadata.json"
-            with open(meta_path, 'w') as f:
+            with open(meta_path, "w") as f:
                 json.dump(self._metadata.__dict__, f, indent=2)
 
             self._dirty = False
@@ -236,7 +232,7 @@ class PersistentCodebook:
 
             # Load vectors
             if mmap:
-                self._mmap = np.load(vectors_path, mmap_mode='r')
+                self._mmap = np.load(vectors_path, mmap_mode="r")
                 vectors_np = self._mmap
             else:
                 vectors_np = np.load(vectors_path)
@@ -252,7 +248,9 @@ class PersistentCodebook:
                     self._metadata = CodebookMetadata(**json.load(f))
 
             self._dirty = False
-            logger.info(f"Loaded codebook: {len(self._labels)} vectors from {self.path}")
+            logger.info(
+                f"Loaded codebook: {len(self._labels)} vectors from {self.path}"
+            )
 
     def _compact(self) -> None:
         """Remove None entries from labels and vectors."""
@@ -378,9 +376,7 @@ class CodebookManager:
         self._lock = threading.RLock()
 
     def get_or_create_codebook(
-        self,
-        name: str,
-        dimensions: int = 16384
+        self, name: str, dimensions: int = 16384
     ) -> PersistentCodebook:
         """Get or create a named codebook."""
         with self._lock:
@@ -393,10 +389,7 @@ class CodebookManager:
             return self._codebooks[name]
 
     def create_session(
-        self,
-        session_id: str,
-        base_codebook: str,
-        max_size: int = 50000
+        self, session_id: str, base_codebook: str, max_size: int = 50000
     ) -> LRUCodebook:
         """Create session with base codebook.
 

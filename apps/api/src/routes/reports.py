@@ -23,19 +23,21 @@ from ..services.email import get_email_service
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
 # S3 client for file cleanup
 def get_s3_client():
     """Get S3 client for file cleanup."""
     return boto3.client(
-        's3',
-        aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
-        region_name=os.getenv('AWS_REGION', 'us-east-1')
+        "s3",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        region_name=os.getenv("AWS_REGION", "us-east-1"),
     )
 
 
 class LeakData(BaseModel):
     """Leak data from analysis."""
+
     top_items: list[str] = []
     scores: list[float] = []
     count: int | None = None
@@ -43,6 +45,7 @@ class LeakData(BaseModel):
 
 class AnalysisSummary(BaseModel):
     """Summary of analysis results."""
+
     total_rows_analyzed: int = 0
     total_items_flagged: int = 0
     critical_issues: int = 0
@@ -52,6 +55,7 @@ class AnalysisSummary(BaseModel):
 
 class AnalysisResult(BaseModel):
     """Single file analysis result."""
+
     filename: str
     leaks: dict[str, LeakData] = {}
     summary: AnalysisSummary | None = None
@@ -59,16 +63,22 @@ class AnalysisResult(BaseModel):
 
 class ReportRequest(BaseModel):
     """Request to send email report."""
+
     email: EmailStr
     results: list[AnalysisResult]
     consent_given: bool = Field(..., description="User consent for email delivery")
     consent_timestamp: str | None = Field(None, description="When consent was given")
-    s3_keys: list[str] | None = Field(None, description="S3 keys to delete after report sent")
-    delete_files_after: bool = Field(False, description="Whether to delete S3 files after sending")
+    s3_keys: list[str] | None = Field(
+        None, description="S3 keys to delete after report sent"
+    )
+    delete_files_after: bool = Field(
+        False, description="Whether to delete S3 files after sending"
+    )
 
 
 class ReportResponse(BaseModel):
     """Response from report send request."""
+
     success: bool
     message: str
     message_id: str | None = None
@@ -104,8 +114,7 @@ async def cleanup_s3_files(s3_keys: list[str], bucket_name: str):
 
 @router.post("/send", response_model=ReportResponse)
 async def send_report(
-    request: ReportRequest,
-    background_tasks: BackgroundTasks
+    request: ReportRequest, background_tasks: BackgroundTasks
 ) -> ReportResponse:
     """
     Send analysis report via email.
@@ -124,8 +133,7 @@ async def send_report(
     # Validate consent
     if not request.consent_given:
         raise HTTPException(
-            status_code=400,
-            detail="User consent is required to send email reports"
+            status_code=400, detail="User consent is required to send email reports"
         )
 
     # Log consent for audit trail
@@ -144,13 +152,15 @@ async def send_report(
         logger.warning("Email service not configured, returning mock success")
         # Still schedule S3 cleanup even in demo mode
         if request.delete_files_after and request.s3_keys:
-            bucket_name = os.getenv('S3_BUCKET_NAME')
+            bucket_name = os.getenv("S3_BUCKET_NAME")
             if bucket_name:
-                background_tasks.add_task(cleanup_s3_files, request.s3_keys, bucket_name)
+                background_tasks.add_task(
+                    cleanup_s3_files, request.s3_keys, bucket_name
+                )
         return ReportResponse(
             success=True,
             message="Report queued for delivery (email service not configured in demo mode)",
-            files_deleted=len(request.s3_keys) if request.s3_keys else 0
+            files_deleted=len(request.s3_keys) if request.s3_keys else 0,
         )
 
     # Convert results to dicts for email service
@@ -161,7 +171,7 @@ async def send_report(
         to_email=request.email,
         results=results_dicts,
         consent_given=request.consent_given,
-        consent_timestamp=consent_time
+        consent_timestamp=consent_time,
     )
 
     if result.get("success"):
@@ -169,8 +179,7 @@ async def send_report(
         try:
             anon_service = get_anonymization_service()
             await anon_service.store_anonymized_analytics(
-                results=results_dicts,
-                report_sent=True
+                results=results_dicts, report_sent=True
             )
         except Exception as e:
             logger.warning(f"Failed to store analytics: {e}")
@@ -178,22 +187,26 @@ async def send_report(
         # Schedule S3 file cleanup in background
         files_to_delete = 0
         if request.delete_files_after and request.s3_keys:
-            bucket_name = os.getenv('S3_BUCKET_NAME')
+            bucket_name = os.getenv("S3_BUCKET_NAME")
             if bucket_name:
-                background_tasks.add_task(cleanup_s3_files, request.s3_keys, bucket_name)
+                background_tasks.add_task(
+                    cleanup_s3_files, request.s3_keys, bucket_name
+                )
                 files_to_delete = len(request.s3_keys)
-                logger.info(f"Scheduled deletion of {files_to_delete} S3 files after report delivery")
+                logger.info(
+                    f"Scheduled deletion of {files_to_delete} S3 files after report delivery"
+                )
 
         return ReportResponse(
             success=True,
             message="Report sent successfully! Your detailed analysis is on the way.",
             message_id=result.get("message_id"),
-            files_deleted=files_to_delete
+            files_deleted=files_to_delete,
         )
     else:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to send report: {result.get('error', 'Unknown error')}"
+            detail=f"Failed to send report: {result.get('error', 'Unknown error')}",
         )
 
 

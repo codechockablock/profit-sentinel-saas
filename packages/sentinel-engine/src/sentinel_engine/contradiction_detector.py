@@ -18,6 +18,7 @@ from dataclasses import dataclass
 @dataclass
 class Contradiction:
     """A detected contradiction between two primitives."""
+
     sku: str
     primitive_a: str
     primitive_b: str
@@ -29,12 +30,16 @@ CONTRADICTORY_PAIRS = [
     ("low_stock", "overstock", "Cannot have both low stock and overstock"),
     ("dead_item", "high_velocity", "Cannot be dead and high velocity"),
     ("negative_inventory", "overstock", "Cannot have negative inventory and overstock"),
-    ("negative_inventory", "low_stock", "Negative inventory is more severe than low stock"),
+    (
+        "negative_inventory",
+        "low_stock",
+        "Negative inventory is more severe than low stock",
+    ),
 ]
 
 
 def detect_contradictions(
-    detections: dict[str, set[str]]
+    detections: dict[str, set[str]],
 ) -> tuple[list[Contradiction], dict[str, int]]:
     """
     Detect contradictory anomaly classifications.
@@ -60,19 +65,20 @@ def detect_contradictions(
             summary[key] = len(overlapping)
 
             for sku in overlapping:
-                contradictions.append(Contradiction(
-                    sku=sku,
-                    primitive_a=prim_a,
-                    primitive_b=prim_b,
-                    reason=reason,
-                ))
+                contradictions.append(
+                    Contradiction(
+                        sku=sku,
+                        primitive_a=prim_a,
+                        primitive_b=prim_b,
+                        reason=reason,
+                    )
+                )
 
     return contradictions, summary
 
 
 def resolve_contradictions(
-    detections: dict[str, set[str]],
-    priority_order: list[str] = None
+    detections: dict[str, set[str]], priority_order: list[str] = None
 ) -> dict[str, set[str]]:
     """
     Resolve contradictions by keeping higher-priority primitive.
@@ -132,8 +138,7 @@ def resolve_contradictions(
 
 
 def generate_contradiction_report(
-    contradictions: list[Contradiction],
-    summary: dict[str, int]
+    contradictions: list[Contradiction], summary: dict[str, int]
 ) -> str:
     """Generate Markdown report of contradictions."""
 

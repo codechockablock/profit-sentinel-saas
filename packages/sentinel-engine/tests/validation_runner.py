@@ -28,6 +28,7 @@ from pathlib import Path
 @dataclass
 class DetectionResult:
     """Results from a detector for a single primitive."""
+
     primitive: str
     detected_skus: set[str] = field(default_factory=set)
     true_positives: int = 0
@@ -47,11 +48,17 @@ class DetectionResult:
         self.false_negatives = len(truth_lower - detected_lower)
 
         if self.true_positives + self.false_positives > 0:
-            self.precision = self.true_positives / (self.true_positives + self.false_positives)
+            self.precision = self.true_positives / (
+                self.true_positives + self.false_positives
+            )
         if self.true_positives + self.false_negatives > 0:
-            self.recall = self.true_positives / (self.true_positives + self.false_negatives)
+            self.recall = self.true_positives / (
+                self.true_positives + self.false_negatives
+            )
         if self.precision + self.recall > 0:
-            self.f1 = 2 * (self.precision * self.recall) / (self.precision + self.recall)
+            self.f1 = (
+                2 * (self.precision * self.recall) / (self.precision + self.recall)
+            )
 
 
 class SyntheticDataGenerator:
@@ -78,9 +85,7 @@ class SyntheticDataGenerator:
         self.seed = seed
 
     def generate(
-        self,
-        n_total: int = 10000,
-        anomaly_rate: float = 0.05
+        self, n_total: int = 10000, anomaly_rate: float = 0.05
     ) -> tuple[list[dict], dict[str, set[str]]]:
         """
         Generate dataset with specified anomaly rate per primitive.
@@ -127,12 +132,16 @@ class SyntheticDataGenerator:
             "sku": sku,
             "description": f"Normal Item {sku}",
             "vendor": f"Vendor_{random.randint(1, 20)}",
-            "category": random.choice(["Electronics", "Hardware", "Furniture", "Apparel", "Food"]),
+            "category": random.choice(
+                ["Electronics", "Hardware", "Furniture", "Apparel", "Food"]
+            ),
             "quantity": quantity,
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": sold,
-            "last_sale": (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d"),
+            "last_sale": (datetime.now() - timedelta(days=days_ago)).strftime(
+                "%Y-%m-%d"
+            ),
             "sug. retail": round(revenue * random.uniform(1.0, 1.1), 2),
             "qty_difference": 0,
         }
@@ -173,7 +182,9 @@ class SyntheticDataGenerator:
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": random.randint(15, 80),
-            "last_sale": (datetime.now() - timedelta(days=random.randint(1, 10))).strftime("%Y-%m-%d"),
+            "last_sale": (
+                datetime.now() - timedelta(days=random.randint(1, 10))
+            ).strftime("%Y-%m-%d"),
             "sug. retail": round(cost * 1.5, 2),
             "qty_difference": 0,
         }
@@ -192,7 +203,9 @@ class SyntheticDataGenerator:
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": random.randint(0, 2),  # NO SALES
-            "last_sale": (datetime.now() - timedelta(days=random.randint(100, 300))).strftime("%Y-%m-%d"),
+            "last_sale": (
+                datetime.now() - timedelta(days=random.randint(100, 300))
+            ).strftime("%Y-%m-%d"),
             "sug. retail": round(revenue, 2),
             "qty_difference": 0,
         }
@@ -232,7 +245,9 @@ class SyntheticDataGenerator:
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": sold,
-            "last_sale": (datetime.now() - timedelta(days=random.randint(5, 30))).strftime("%Y-%m-%d"),
+            "last_sale": (
+                datetime.now() - timedelta(days=random.randint(5, 30))
+            ).strftime("%Y-%m-%d"),
             "sug. retail": round(revenue, 2),
             "qty_difference": 0,
         }
@@ -289,7 +304,9 @@ class SyntheticDataGenerator:
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": random.randint(25, 100),
-            "last_sale": (datetime.now() - timedelta(days=random.randint(1, 10))).strftime("%Y-%m-%d"),
+            "last_sale": (
+                datetime.now() - timedelta(days=random.randint(1, 10))
+            ).strftime("%Y-%m-%d"),
             "sug. retail": round(cost * 1.5, 2),
             "qty_difference": 0,
         }
@@ -442,6 +459,7 @@ class VSADetector:
         try:
             from sentinel_engine import bundle_pos_facts, query_bundle
             from sentinel_engine.context import create_analysis_context
+
             self._bundle = bundle_pos_facts
             self._query = query_bundle
             self._create_ctx = create_analysis_context
@@ -449,7 +467,9 @@ class VSADetector:
         except ImportError as e:
             print(f"WARNING: sentinel_engine not available: {e}")
 
-    def detect(self, rows: list[dict], score_threshold: float = 0.01) -> dict[str, set[str]]:
+    def detect(
+        self, rows: list[dict], score_threshold: float = 0.01
+    ) -> dict[str, set[str]]:
         """
         Run VSA detection on dataset.
 
@@ -461,10 +481,19 @@ class VSADetector:
             Dict mapping primitive name to set of detected SKUs
         """
         if not self.available:
-            return {p: set() for p in [
-                "low_stock", "high_margin_leak", "dead_item", "negative_inventory",
-                "overstock", "price_discrepancy", "shrinkage_pattern", "margin_erosion"
-            ]}
+            return {
+                p: set()
+                for p in [
+                    "low_stock",
+                    "high_margin_leak",
+                    "dead_item",
+                    "negative_inventory",
+                    "overstock",
+                    "price_discrepancy",
+                    "shrinkage_pattern",
+                    "margin_erosion",
+                ]
+            }
 
         ctx = self._create_ctx(dimensions=self.dimensions)
         results = {}
@@ -473,13 +502,20 @@ class VSADetector:
             bundle = self._bundle(ctx, rows)
 
             for primitive in [
-                "low_stock", "high_margin_leak", "dead_item", "negative_inventory",
-                "overstock", "price_discrepancy", "shrinkage_pattern", "margin_erosion"
+                "low_stock",
+                "high_margin_leak",
+                "dead_item",
+                "negative_inventory",
+                "overstock",
+                "price_discrepancy",
+                "shrinkage_pattern",
+                "margin_erosion",
             ]:
                 items, scores = self._query(ctx, bundle, primitive)
                 # Filter by score threshold
                 detected = {
-                    item.lower() for item, score in zip(items, scores)
+                    item.lower()
+                    for item, score in zip(items, scores)
                     if score > score_threshold
                 }
                 results[primitive] = detected
@@ -545,7 +581,9 @@ def run_validation(dimensions: int = 8192):
     primitives = list(ground_truth.keys())
 
     # Header
-    print(f"{'Primitive':<25} {'Method':<10} {'Prec':>8} {'Recall':>8} {'F1':>8} {'TP':>6} {'FP':>6} {'FN':>6}")
+    print(
+        f"{'Primitive':<25} {'Method':<10} {'Prec':>8} {'Recall':>8} {'F1':>8} {'TP':>6} {'FP':>6} {'FN':>6}"
+    )
     print("-" * 85)
 
     baseline_metrics = {}
@@ -558,14 +596,18 @@ def run_validation(dimensions: int = 8192):
         br = DetectionResult(primitive, baseline_results[primitive])
         br.calculate(truth)
         baseline_metrics[primitive] = br
-        print(f"{primitive:<25} {'BASELINE':<10} {br.precision:>7.1%} {br.recall:>7.1%} {br.f1:>7.1%} {br.true_positives:>6} {br.false_positives:>6} {br.false_negatives:>6}")
+        print(
+            f"{primitive:<25} {'BASELINE':<10} {br.precision:>7.1%} {br.recall:>7.1%} {br.f1:>7.1%} {br.true_positives:>6} {br.false_positives:>6} {br.false_negatives:>6}"
+        )
 
         # VSA
         if vsa_results:
             vr = DetectionResult(primitive, vsa_results[primitive])
             vr.calculate(truth)
             vsa_metrics[primitive] = vr
-            print(f"{'':<25} {'VSA':<10} {vr.precision:>7.1%} {vr.recall:>7.1%} {vr.f1:>7.1%} {vr.true_positives:>6} {vr.false_positives:>6} {vr.false_negatives:>6}")
+            print(
+                f"{'':<25} {'VSA':<10} {vr.precision:>7.1%} {vr.recall:>7.1%} {vr.f1:>7.1%} {vr.true_positives:>6} {vr.false_positives:>6} {vr.false_negatives:>6}"
+            )
 
         print()
 
@@ -574,9 +616,15 @@ def run_validation(dimensions: int = 8192):
     print("SUMMARY")
     print("=" * 70)
 
-    baseline_avg_f1 = sum(m.f1 for m in baseline_metrics.values()) / len(baseline_metrics)
-    baseline_avg_prec = sum(m.precision for m in baseline_metrics.values()) / len(baseline_metrics)
-    baseline_avg_recall = sum(m.recall for m in baseline_metrics.values()) / len(baseline_metrics)
+    baseline_avg_f1 = sum(m.f1 for m in baseline_metrics.values()) / len(
+        baseline_metrics
+    )
+    baseline_avg_prec = sum(m.precision for m in baseline_metrics.values()) / len(
+        baseline_metrics
+    )
+    baseline_avg_recall = sum(m.recall for m in baseline_metrics.values()) / len(
+        baseline_metrics
+    )
 
     print("\nBASELINE Averages:")
     print(f"  Precision: {baseline_avg_prec:.1%}")
@@ -598,7 +646,9 @@ def run_validation(dimensions: int = 8192):
         # Comparison
         print("\nVSA vs BASELINE:")
         f1_diff = vsa_avg_f1 - baseline_avg_f1
-        print(f"  F1 Difference: {f1_diff:+.1%} ({'VSA better' if f1_diff > 0 else 'Baseline better'})")
+        print(
+            f"  F1 Difference: {f1_diff:+.1%} ({'VSA better' if f1_diff > 0 else 'Baseline better'})"
+        )
 
         # Critical primitives check
         critical = ["negative_inventory", "high_margin_leak"]
@@ -617,7 +667,9 @@ def run_validation(dimensions: int = 8192):
         elif vsa_avg_f1 < baseline_avg_f1 - 0.05:
             print("\n  KILL - VSA significantly underperforms baseline")
         elif vsa_avg_f1 < baseline_avg_f1:
-            print("\n  CALIBRATE - VSA slightly underperforms baseline, tune thresholds")
+            print(
+                "\n  CALIBRATE - VSA slightly underperforms baseline, tune thresholds"
+            )
         elif vsa_avg_prec < 0.50:
             print("\n  CALIBRATE - VSA has too many false positives")
         else:
@@ -626,31 +678,43 @@ def run_validation(dimensions: int = 8192):
         # Save results
         results_file = Path(__file__).parent / "validation_results.json"
         with open(results_file, "w") as f:
-            json.dump({
-                "timestamp": datetime.now().isoformat(),
-                "dimensions": dimensions,
-                "dataset_size": len(rows),
-                "baseline": {
-                    "avg_precision": baseline_avg_prec,
-                    "avg_recall": baseline_avg_recall,
-                    "avg_f1": baseline_avg_f1,
-                    "time_seconds": baseline_time,
-                    "per_primitive": {
-                        p: {"precision": m.precision, "recall": m.recall, "f1": m.f1}
-                        for p, m in baseline_metrics.items()
-                    }
+            json.dump(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "dimensions": dimensions,
+                    "dataset_size": len(rows),
+                    "baseline": {
+                        "avg_precision": baseline_avg_prec,
+                        "avg_recall": baseline_avg_recall,
+                        "avg_f1": baseline_avg_f1,
+                        "time_seconds": baseline_time,
+                        "per_primitive": {
+                            p: {
+                                "precision": m.precision,
+                                "recall": m.recall,
+                                "f1": m.f1,
+                            }
+                            for p, m in baseline_metrics.items()
+                        },
+                    },
+                    "vsa": {
+                        "avg_precision": vsa_avg_prec,
+                        "avg_recall": vsa_avg_recall,
+                        "avg_f1": vsa_avg_f1,
+                        "time_seconds": vsa_time,
+                        "per_primitive": {
+                            p: {
+                                "precision": m.precision,
+                                "recall": m.recall,
+                                "f1": m.f1,
+                            }
+                            for p, m in vsa_metrics.items()
+                        },
+                    },
                 },
-                "vsa": {
-                    "avg_precision": vsa_avg_prec,
-                    "avg_recall": vsa_avg_recall,
-                    "avg_f1": vsa_avg_f1,
-                    "time_seconds": vsa_time,
-                    "per_primitive": {
-                        p: {"precision": m.precision, "recall": m.recall, "f1": m.f1}
-                        for p, m in vsa_metrics.items()
-                    }
-                }
-            }, f, indent=2)
+                f,
+                indent=2,
+            )
         print(f"\n  Results saved to: {results_file}")
 
     else:
@@ -660,8 +724,14 @@ def run_validation(dimensions: int = 8192):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="VSA vs Baseline Validation")
-    parser.add_argument("--dimensions", "-d", type=int, default=8192,
-                        help="VSA dimensions (default: 8192)")
+    parser.add_argument(
+        "--dimensions",
+        "-d",
+        type=int,
+        default=8192,
+        help="VSA dimensions (default: 8192)",
+    )
     args = parser.parse_args()
     run_validation(dimensions=args.dimensions)

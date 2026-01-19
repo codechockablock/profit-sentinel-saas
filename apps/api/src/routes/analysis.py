@@ -34,50 +34,162 @@ logger = logging.getLogger(__name__)
 
 NUMERIC_COLUMN_ALIASES = [
     # Quantity / Stock
-    'quantity', 'qty', 'qty.', 'qoh', 'on_hand', 'onhand', 'in_stock', 'instock',
-    'in stock qty.', 'stock', 'inventory', 'stockonhand', 'qty_on_hnd',
-    'qty_avail', 'net_qty', 'available', 'current_stock', 'variant_inventory_qty',
-    'new_quantity', 'qty_oh', 'physical_qty', 'book_qty', 'bal', 'balance',
+    "quantity",
+    "qty",
+    "qty.",
+    "qoh",
+    "on_hand",
+    "onhand",
+    "in_stock",
+    "instock",
+    "in stock qty.",
+    "stock",
+    "inventory",
+    "stockonhand",
+    "qty_on_hnd",
+    "qty_avail",
+    "net_qty",
+    "available",
+    "current_stock",
+    "variant_inventory_qty",
+    "new_quantity",
+    "qty_oh",
+    "physical_qty",
+    "book_qty",
+    "bal",
+    "balance",
     # Quantity Difference / Variance
-    'qty_difference', 'qty. difference', 'difference', 'variance', 'qty_variance',
-    'shrinkage', 'adjustment', 'discrepancy', 'over_short',
+    "qty_difference",
+    "qty. difference",
+    "difference",
+    "variance",
+    "qty_variance",
+    "shrinkage",
+    "adjustment",
+    "discrepancy",
+    "over_short",
     # Inventoried
-    'inventoried_qty', 'inventoried', 'inventoried qty.', 'counted_qty', 'count',
+    "inventoried_qty",
+    "inventoried",
+    "inventoried qty.",
+    "counted_qty",
+    "count",
     # Cost
-    'cost', 'cogs', 'cost_price', 'unit_cost', 'unitcost', 'avg_cost', 'avgcost',
-    'average_cost', 'standard_cost', 'lst_cost', 'last_cost', 'default_cost',
-    'vendor_cost', 'supply_price', 'cost_per_item', 'posting_cost', 'mktcost',
-    'landed_cost', 'purchase_cost', 'buy_price', 'wholesale_cost',
+    "cost",
+    "cogs",
+    "cost_price",
+    "unit_cost",
+    "unitcost",
+    "avg_cost",
+    "avgcost",
+    "average_cost",
+    "standard_cost",
+    "lst_cost",
+    "last_cost",
+    "default_cost",
+    "vendor_cost",
+    "supply_price",
+    "cost_per_item",
+    "posting_cost",
+    "mktcost",
+    "landed_cost",
+    "purchase_cost",
+    "buy_price",
+    "wholesale_cost",
     # Revenue / Retail Price
-    'revenue', 'retail', 'retail_price', 'price', 'sell_price', 'selling_price',
-    'sale_price', 'unit_price', 'msrp', 'list_price', 'sug. retail', 'sug retail',
-    'suggested_retail', 'netprice', 'net_price', 'prc_1', 'reg_prc', 'regular_price',
-    'pricea', 'default_price', 'variant_price', 'compare_at_price', 'pos_price',
-    'ext_price', 'line_total', 'amount', 'gross_sales', 'total_sale',
+    "revenue",
+    "retail",
+    "retail_price",
+    "price",
+    "sell_price",
+    "selling_price",
+    "sale_price",
+    "unit_price",
+    "msrp",
+    "list_price",
+    "sug. retail",
+    "sug retail",
+    "suggested_retail",
+    "netprice",
+    "net_price",
+    "prc_1",
+    "reg_prc",
+    "regular_price",
+    "pricea",
+    "default_price",
+    "variant_price",
+    "compare_at_price",
+    "pos_price",
+    "ext_price",
+    "line_total",
+    "amount",
+    "gross_sales",
+    "total_sale",
     # Sold
-    'sold', 'units_sold', 'qty_sold', 'quantity_sold', 'sales_qty', 'total_sold',
-    'sold_qty', 'sold_last_week', 'sold_last_month', 'sold_30_days', 'sold_7_days',
-    'sales_units', 'unit_sales', 'movement',
+    "sold",
+    "units_sold",
+    "qty_sold",
+    "quantity_sold",
+    "sales_qty",
+    "total_sold",
+    "sold_qty",
+    "sold_last_week",
+    "sold_last_month",
+    "sold_30_days",
+    "sold_7_days",
+    "sales_units",
+    "unit_sales",
+    "movement",
     # Margin
-    'margin', 'profit_margin', 'margin_pct', 'margin_percent', 'gp', 'gross_profit',
-    'gp_pct', 'gp_percent', 'profit_pct', 'markup', 'markup_pct',
+    "margin",
+    "profit_margin",
+    "margin_pct",
+    "margin_percent",
+    "gp",
+    "gross_profit",
+    "gp_pct",
+    "gp_percent",
+    "profit_pct",
+    "markup",
+    "markup_pct",
     # Sub Total / Value
-    'sub_total', 'subtotal', 'total', 'ext_total', 'inventory_value', 'stock_value',
-    'on_hand_value', 'gl_val',
+    "sub_total",
+    "subtotal",
+    "total",
+    "ext_total",
+    "inventory_value",
+    "stock_value",
+    "on_hand_value",
+    "gl_val",
     # Discount / Tax
-    'discount', 'discount_amt', 'discount_amount', 'discount_pct',
-    'tax', 'sales_tax', 'vat', 'tax_amount',
+    "discount",
+    "discount_amt",
+    "discount_amount",
+    "discount_pct",
+    "tax",
+    "sales_tax",
+    "vat",
+    "tax_amount",
     # Reorder
-    'reorder_point', 'reorder_level', 'min_qty', 'minimum_qty', 'safety_stock',
-    'par_level', 'minorderqty', 'stock_min', 'stock_alert',
+    "reorder_point",
+    "reorder_level",
+    "min_qty",
+    "minimum_qty",
+    "safety_stock",
+    "par_level",
+    "minorderqty",
+    "stock_min",
+    "stock_alert",
     # Package
-    'pkg_qty', 'package_qty', 'pack_size', 'case_qty',
+    "pkg_qty",
+    "package_qty",
+    "pack_size",
+    "case_qty",
 ]
 
 
 def _validate_and_apply_mapping(
-    df: pd.DataFrame,
-    mapping_dict: dict[str, str]
+    df: pd.DataFrame, mapping_dict: dict[str, str]
 ) -> tuple[pd.DataFrame, list[str]]:
     """
     Safely validate and apply column mapping to DataFrame.
@@ -153,11 +265,13 @@ def _clean_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     - Non-numeric values -> 0
     """
     # Find existing numeric columns (case-insensitive match)
-    df_cols_lower = {col.lower().replace(' ', '').replace('.', ''): col for col in df.columns}
+    df_cols_lower = {
+        col.lower().replace(" ", "").replace(".", ""): col for col in df.columns
+    }
     existing_numeric = []
 
     for alias in NUMERIC_COLUMN_ALIASES:
-        normalized = alias.lower().replace(' ', '').replace('.', '')
+        normalized = alias.lower().replace(" ", "").replace(".", "")
         if normalized in df_cols_lower:
             existing_numeric.append(df_cols_lower[normalized])
 
@@ -170,7 +284,9 @@ def _clean_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     existing_numeric = list(dict.fromkeys(existing_numeric))
 
     if existing_numeric:
-        logger.info(f"Cleaning {len(existing_numeric)} numeric columns: {existing_numeric[:10]}...")
+        logger.info(
+            f"Cleaning {len(existing_numeric)} numeric columns: {existing_numeric[:10]}..."
+        )
 
         # Strip $ and , and %, convert to numeric
         for col in existing_numeric:
@@ -178,10 +294,10 @@ def _clean_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
                 df[col] = (
                     df[col]
                     .astype(str)
-                    .str.replace(r'[$,\%]', '', regex=True)
+                    .str.replace(r"[$,\%]", "", regex=True)
                     .str.strip()
                 )
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+                df[col] = pd.to_numeric(df[col], errors="coerce")
                 df[col] = df[col].fillna(0.0)
             except Exception as e:
                 logger.warning(f"Failed to clean column {col}: {e}")
@@ -226,16 +342,13 @@ async def analyze_upload(
     try:
         mapping_dict = json.loads(mapping)
     except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid mapping JSON: {str(e)}"
-        )
+        raise HTTPException(status_code=422, detail=f"Invalid mapping JSON: {str(e)}")
 
     # Validate mapping is a dict
     if not isinstance(mapping_dict, dict):
         raise HTTPException(
             status_code=400,
-            detail="Mapping must be a JSON object with column name pairs"
+            detail="Mapping must be a JSON object with column name pairs",
         )
 
     try:
@@ -271,11 +384,11 @@ async def analyze_upload(
         if df.columns.duplicated().any():
             dup_cols = df.columns[df.columns.duplicated()].tolist()
             logger.warning(f"Dropping duplicate columns: {dup_cols}")
-            df = df.loc[:, ~df.columns.duplicated(keep='first')]
+            df = df.loc[:, ~df.columns.duplicated(keep="first")]
 
         # Convert to records
         records_start = time.time()
-        rows = df.to_dict(orient='records')
+        rows = df.to_dict(orient="records")
         logger.info(
             f"Converted to records ({len(rows)} rows) "
             f"in {time.time() - records_start:.2f}s"
@@ -302,7 +415,7 @@ async def analyze_upload(
                 s3_client,
                 settings.s3_bucket_name,
                 key,
-                delay_seconds=60  # 1 minute delay before deletion
+                delay_seconds=60,  # 1 minute delay before deletion
             )
             logger.info(f"Scheduled S3 file cleanup for key: {key}")
 
@@ -310,7 +423,7 @@ async def analyze_upload(
             background_tasks.add_task(
                 anon_service.store_anonymized_analytics,
                 [result],
-                False  # report_sent=False (not sent via email yet)
+                False,  # report_sent=False (not sent via email yet)
             )
 
         return result
@@ -320,8 +433,7 @@ async def analyze_upload(
         raise
     except pd.errors.EmptyDataError:
         raise HTTPException(
-            status_code=400,
-            detail="Uploaded file is empty or has no valid data"
+            status_code=400, detail="Uploaded file is empty or has no valid data"
         )
     except ValueError as e:
         # File size or validation errors
@@ -337,7 +449,7 @@ async def analyze_upload(
             raise HTTPException(
                 status_code=400,
                 detail="Column mapping error: duplicate target column names detected. "
-                       "Each source column must map to a unique target name."
+                "Each source column must map to a unique target name.",
             )
         raise HTTPException(status_code=500, detail=f"Analysis failed: {error_msg}")
 

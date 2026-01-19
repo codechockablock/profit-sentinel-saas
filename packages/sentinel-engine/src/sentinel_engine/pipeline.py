@@ -20,6 +20,7 @@ This tiered approach reduces the effective workload:
 - 1M entities → ~10k candidates (Stage 1) → ~100 deep analyses (Stage 2+3)
 - 100x reduction in resonator calls
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 class PipelineStage(Enum):
     """Pipeline stage identifiers."""
+
     PREFILTER = "prefilter"
     SCREENING = "screening"
     DEEP_ANALYSIS = "deep_analysis"
@@ -44,6 +46,7 @@ class PipelineStage(Enum):
 @dataclass
 class StageResult:
     """Result from a pipeline stage."""
+
     stage: PipelineStage
     candidates: list[str]  # Entity IDs that passed
     scores: dict[str, float]  # Entity → score
@@ -54,6 +57,7 @@ class StageResult:
 @dataclass
 class PipelineResult:
     """Complete pipeline result."""
+
     entity_id: str
     detected_anomalies: list[str]
     confidence: float
@@ -66,6 +70,7 @@ class PipelineResult:
 @dataclass
 class PrefilterRule:
     """Statistical prefilter rule."""
+
     name: str
     field: str
     operator: str  # <, >, <=, >=, ==, between, zscore
@@ -85,7 +90,7 @@ class PrefilterRule:
         elif self.operator == "==":
             return abs(value - self.threshold) < 1e-6
         elif self.operator == "between":
-            return self.threshold <= value <= (self.secondary_threshold or float('inf'))
+            return self.threshold <= value <= (self.secondary_threshold or float("inf"))
         elif self.operator == "zscore" and stats:
             mean = stats.get("mean", 0)
             std = stats.get("std", 1)
@@ -111,16 +116,18 @@ class StatisticalPrefilter:
         field: str,
         operator: str,
         threshold: float,
-        secondary: float | None = None
+        secondary: float | None = None,
     ) -> None:
         """Add a prefilter rule."""
-        self.rules.append(PrefilterRule(
-            name=name,
-            field=field,
-            operator=operator,
-            threshold=threshold,
-            secondary_threshold=secondary
-        ))
+        self.rules.append(
+            PrefilterRule(
+                name=name,
+                field=field,
+                operator=operator,
+                threshold=threshold,
+                secondary_threshold=secondary,
+            )
+        )
 
     def compute_statistics(self, data: list[dict[str, Any]]) -> None:
         """Compute field statistics for z-score rules."""
@@ -189,7 +196,7 @@ class StatisticalPrefilter:
             metadata={
                 "total_records": len(data),
                 "rules_applied": len(self.rules),
-            }
+            },
         )
 
 
@@ -218,7 +225,7 @@ class TieredPipeline:
         self,
         max_prefilter_candidates: int = 10000,
         max_deep_analysis: int = 100,
-        parallel_workers: int = 4
+        parallel_workers: int = 4,
     ):
         """Initialize pipeline.
 
@@ -267,7 +274,9 @@ class TieredPipeline:
 
             # Build index
             d = real_vectors.shape[1]
-            self._faiss_index = faiss.IndexFlatIP(d)  # Inner product after normalization = cosine
+            self._faiss_index = faiss.IndexFlatIP(
+                d
+            )  # Inner product after normalization = cosine
             self._faiss_index.add(real_vectors)
 
             self._index_ids = ids
@@ -278,9 +287,7 @@ class TieredPipeline:
             self._faiss_index = None
 
     def _screening_stage(
-        self,
-        candidates: list[str],
-        query_vectors: dict[str, torch.Tensor]
+        self, candidates: list[str], query_vectors: dict[str, torch.Tensor]
     ) -> StageResult:
         """Stage 2: VSA screening with FAISS.
 
@@ -328,7 +335,7 @@ class TieredPipeline:
 
         # Sort and take top
         sorted_candidates = sorted(scores.keys(), key=lambda x: -scores[x])
-        top_candidates = sorted_candidates[:self.max_deep]
+        top_candidates = sorted_candidates[: self.max_deep]
 
         elapsed = (time.time() - start) * 1000
 
@@ -337,13 +344,11 @@ class TieredPipeline:
             candidates=top_candidates,
             scores={k: scores[k] for k in top_candidates},
             elapsed_ms=elapsed,
-            metadata={"used_faiss": self._faiss_index is not None}
+            metadata={"used_faiss": self._faiss_index is not None},
         )
 
     def _deep_analysis_stage(
-        self,
-        candidates: list[str],
-        data_lookup: dict[str, dict]
+        self, candidates: list[str], data_lookup: dict[str, dict]
     ) -> tuple[StageResult, list[PipelineResult]]:
         """Stage 3: Full VSA resonator analysis.
 
@@ -370,21 +375,26 @@ class TieredPipeline:
 
                 # Extract anomalies from top matches
                 anomalies = [
-                    match[0] for match in res_result.top_matches
+                    match[0]
+                    for match in res_result.top_matches
                     if match[1] > 0.4  # Threshold
                 ]
 
-                scores[entity_id] = res_result.top_matches[0][1] if res_result.top_matches else 0
+                scores[entity_id] = (
+                    res_result.top_matches[0][1] if res_result.top_matches else 0
+                )
 
-                results.append(PipelineResult(
-                    entity_id=entity_id,
-                    detected_anomalies=anomalies,
-                    confidence=scores[entity_id],
-                    root_causes=[],  # Filled by symbolic reasoning
-                    stage_results=[],
-                    total_elapsed_ms=res_result.elapsed_ms,
-                    metadata={"resonator_iterations": res_result.iterations}
-                ))
+                results.append(
+                    PipelineResult(
+                        entity_id=entity_id,
+                        detected_anomalies=anomalies,
+                        confidence=scores[entity_id],
+                        root_causes=[],  # Filled by symbolic reasoning
+                        stage_results=[],
+                        total_elapsed_ms=res_result.elapsed_ms,
+                        metadata={"resonator_iterations": res_result.iterations},
+                    )
+                )
 
         elapsed = (time.time() - start) * 1000
 
@@ -393,15 +403,13 @@ class TieredPipeline:
             candidates=list(scores.keys()),
             scores=scores,
             elapsed_ms=elapsed,
-            metadata={"analyzed_count": len(results)}
+            metadata={"analyzed_count": len(results)},
         )
 
         return stage_result, results
 
     def run(
-        self,
-        data: list[dict[str, Any]],
-        primitives: list[str] | None = None
+        self, data: list[dict[str, Any]], primitives: list[str] | None = None
     ) -> list[PipelineResult]:
         """Run full pipeline on data.
 
@@ -442,8 +450,7 @@ class TieredPipeline:
 
         # Stage 2: Screening
         screening_result = self._screening_stage(
-            prefilter_result.candidates,
-            query_vectors
+            prefilter_result.candidates, query_vectors
         )
         logger.info(
             f"Screening: {len(screening_result.candidates)} candidates "
@@ -452,8 +459,7 @@ class TieredPipeline:
 
         # Stage 3: Deep analysis
         deep_result, pipeline_results = self._deep_analysis_stage(
-            screening_result.candidates,
-            data_lookup
+            screening_result.candidates, data_lookup
         )
         logger.info(
             f"Deep analysis: {len(pipeline_results)} results "

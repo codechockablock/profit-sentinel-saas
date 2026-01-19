@@ -29,6 +29,7 @@ import pytest
 @dataclass
 class ValidationResult:
     """Results from validating a single primitive."""
+
     primitive: str
     true_positives: int = 0
     false_positives: int = 0
@@ -43,11 +44,17 @@ class ValidationResult:
     def calculate_metrics(self):
         """Calculate precision, recall, F1 from counts."""
         if self.true_positives + self.false_positives > 0:
-            self.precision = self.true_positives / (self.true_positives + self.false_positives)
+            self.precision = self.true_positives / (
+                self.true_positives + self.false_positives
+            )
         if self.true_positives + self.false_negatives > 0:
-            self.recall = self.true_positives / (self.true_positives + self.false_negatives)
+            self.recall = self.true_positives / (
+                self.true_positives + self.false_negatives
+            )
         if self.precision + self.recall > 0:
-            self.f1_score = 2 * (self.precision * self.recall) / (self.precision + self.recall)
+            self.f1_score = (
+                2 * (self.precision * self.recall) / (self.precision + self.recall)
+            )
 
 
 class SyntheticDataGenerator:
@@ -129,12 +136,16 @@ class SyntheticDataGenerator:
             "sku": sku,
             "description": f"Normal Item {sku}",
             "vendor": f"Vendor_{random.randint(1, 10)}",
-            "category": random.choice(["Electronics", "Hardware", "Furniture", "Apparel"]),
+            "category": random.choice(
+                ["Electronics", "Hardware", "Furniture", "Apparel"]
+            ),
             "quantity": quantity,
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": sold,
-            "last_sale": (datetime.now() - timedelta(days=random.randint(1, 14))).strftime("%Y-%m-%d"),
+            "last_sale": (
+                datetime.now() - timedelta(days=random.randint(1, 14))
+            ).strftime("%Y-%m-%d"),
         }
 
     def _generate_low_stock_item(self, sku: str) -> dict:
@@ -173,7 +184,9 @@ class SyntheticDataGenerator:
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": random.randint(20, 100),
-            "last_sale": (datetime.now() - timedelta(days=random.randint(1, 7))).strftime("%Y-%m-%d"),
+            "last_sale": (
+                datetime.now() - timedelta(days=random.randint(1, 7))
+            ).strftime("%Y-%m-%d"),
         }
 
     def _generate_dead_item(self, sku: str) -> dict:
@@ -191,7 +204,9 @@ class SyntheticDataGenerator:
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": random.randint(0, 2),  # NO/FEW SALES
-            "last_sale": (datetime.now() - timedelta(days=random.randint(120, 365))).strftime("%Y-%m-%d"),
+            "last_sale": (
+                datetime.now() - timedelta(days=random.randint(120, 365))
+            ).strftime("%Y-%m-%d"),
         }
 
     def _generate_negative_inventory_item(self, sku: str) -> dict:
@@ -229,7 +244,9 @@ class SyntheticDataGenerator:
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": sold,
-            "last_sale": (datetime.now() - timedelta(days=random.randint(7, 30))).strftime("%Y-%m-%d"),
+            "last_sale": (
+                datetime.now() - timedelta(days=random.randint(7, 30))
+            ).strftime("%Y-%m-%d"),
         }
 
     def _generate_price_discrepancy_item(self, sku: str) -> dict:
@@ -289,7 +306,9 @@ class SyntheticDataGenerator:
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
             "sold": random.randint(30, 100),
-            "last_sale": (datetime.now() - timedelta(days=random.randint(1, 7))).strftime("%Y-%m-%d"),
+            "last_sale": (
+                datetime.now() - timedelta(days=random.randint(1, 7))
+            ).strftime("%Y-%m-%d"),
         }
 
 
@@ -354,7 +373,9 @@ class VSAValidator:
             print(f"  Precision: {result.precision:.2%}")
             print(f"  Recall:    {result.recall:.2%}")
             print(f"  F1 Score:  {result.f1_score:.2%}")
-            print(f"  TP/FP/FN:  {result.true_positives}/{result.false_positives}/{result.false_negatives}")
+            print(
+                f"  TP/FP/FN:  {result.true_positives}/{result.false_positives}/{result.false_negatives}"
+            )
 
             if result.missed_skus and len(result.missed_skus) <= 5:
                 print(f"  Missed:    {', '.join(list(result.missed_skus)[:5])}")
@@ -363,15 +384,25 @@ class VSAValidator:
         print("DECISION SUMMARY")
         print("=" * 70)
 
-        keep_count = sum(1 for r in self.results.values() if self._get_status(r) == "KEEP")
-        calibrate_count = sum(1 for r in self.results.values() if self._get_status(r) == "CALIBRATE")
-        kill_count = sum(1 for r in self.results.values() if self._get_status(r) == "KILL")
+        keep_count = sum(
+            1 for r in self.results.values() if self._get_status(r) == "KEEP"
+        )
+        calibrate_count = sum(
+            1 for r in self.results.values() if self._get_status(r) == "CALIBRATE"
+        )
+        kill_count = sum(
+            1 for r in self.results.values() if self._get_status(r) == "KILL"
+        )
 
         print(f"  KEEP:      {keep_count} primitives")
         print(f"  CALIBRATE: {calibrate_count} primitives")
         print(f"  KILL:      {kill_count} primitives")
 
-        overall = "KEEP" if kill_count == 0 and keep_count >= 4 else "CALIBRATE" if kill_count < 3 else "KILL"
+        overall = (
+            "KEEP"
+            if kill_count == 0 and keep_count >= 4
+            else "CALIBRATE" if kill_count < 3 else "KILL"
+        )
         print(f"\n  OVERALL RECOMMENDATION: {overall}")
 
     def _get_status(self, result: ValidationResult) -> str:
@@ -387,6 +418,7 @@ class VSAValidator:
 # =============================================================================
 # PYTEST TEST CASES
 # =============================================================================
+
 
 class TestSyntheticDataGenerator:
     """Tests for the synthetic data generator."""
@@ -422,7 +454,9 @@ class TestSyntheticDataGenerator:
         low_stock_skus = ground_truth["low_stock"]
         for row in rows:
             if row["sku"].lower() in low_stock_skus:
-                assert row["quantity"] < 5, f"Low stock item {row['sku']} has qty {row['quantity']}"
+                assert (
+                    row["quantity"] < 5
+                ), f"Low stock item {row['sku']} has qty {row['quantity']}"
 
     def test_negative_inventory_items_are_negative(self):
         """Test that negative inventory items have negative quantity."""
@@ -432,7 +466,9 @@ class TestSyntheticDataGenerator:
         neg_inv_skus = ground_truth["negative_inventory"]
         for row in rows:
             if row["sku"].lower() in neg_inv_skus:
-                assert row["quantity"] < 0, f"Negative inv item {row['sku']} has qty {row['quantity']}"
+                assert (
+                    row["quantity"] < 0
+                ), f"Negative inv item {row['sku']} has qty {row['quantity']}"
 
 
 class TestVSAValidator:
@@ -491,8 +527,8 @@ class TestVSAValidator:
         assert results["low_stock"].true_positives == 2
         assert results["low_stock"].false_positives == 1
         assert results["low_stock"].false_negatives == 2
-        assert results["low_stock"].precision == pytest.approx(2/3)
-        assert results["low_stock"].recall == pytest.approx(2/4)
+        assert results["low_stock"].precision == pytest.approx(2 / 3)
+        assert results["low_stock"].recall == pytest.approx(2 / 4)
 
 
 class TestVSAIntegration:
@@ -509,6 +545,7 @@ class TestVSAIntegration:
         try:
             from sentinel_engine import bundle_pos_facts, query_bundle  # noqa: F401
             from sentinel_engine.context import create_analysis_context  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -564,5 +601,6 @@ class TestVSAIntegration:
         validator.print_report()
 
         # At minimum, negative_inventory should work well (clearest signal)
-        assert results["negative_inventory"].recall >= 0.3, \
-            "Critical: negative_inventory detection failing"
+        assert (
+            results["negative_inventory"].recall >= 0.3
+        ), "Critical: negative_inventory detection failing"

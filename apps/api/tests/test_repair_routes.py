@@ -6,6 +6,7 @@ Creates a minimal FastAPI app with just the repair routes for testing.
 
 Run: pytest apps/api/tests/test_repair_routes.py -v
 """
+
 import base64
 import os
 import sys
@@ -17,15 +18,22 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
 # Add repo root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+sys.path.insert(
+    0,
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    ),
+)
 
 
 # =============================================================================
 # MINIMAL PYDANTIC MODELS (copied from repair.py for isolation)
 # =============================================================================
 
+
 class DiagnoseRequestAPI(BaseModel):
     """API request model for diagnosis."""
+
     text_description: str | None = Field(None, max_length=2000)
     voice_transcript: str | None = Field(None, max_length=2000)
     image_base64: str | None = Field(None, description="Base64-encoded image")
@@ -36,12 +44,14 @@ class DiagnoseRequestAPI(BaseModel):
 
 class RefineRequestAPI(BaseModel):
     """API request for refining diagnosis."""
+
     problem_id: str
     additional_text: str | None = Field(None, max_length=1000)
 
 
 class CorrectionRequestAPI(BaseModel):
     """API request for employee correction."""
+
     problem_id: str
     employee_id: str
     correct_category_slug: str
@@ -50,6 +60,7 @@ class CorrectionRequestAPI(BaseModel):
 
 class HypothesisAPI(BaseModel):
     """Hypothesis in API response."""
+
     category_slug: str
     category_name: str
     probability: float
@@ -59,6 +70,7 @@ class HypothesisAPI(BaseModel):
 
 class DiagnoseResponseAPI(BaseModel):
     """API response for diagnosis."""
+
     problem_id: str
     status: str
     hypotheses: list[HypothesisAPI]
@@ -76,6 +88,7 @@ class DiagnoseResponseAPI(BaseModel):
 
 class CorrectionResultAPI(BaseModel):
     """API response for correction submission."""
+
     correction_id: str
     problem_id: str
     employee_id: str
@@ -90,6 +103,7 @@ class CorrectionResultAPI(BaseModel):
 
 class CategoryAPI(BaseModel):
     """Problem category in API response."""
+
     category_id: str
     name: str
     slug: str
@@ -107,21 +121,165 @@ CategoryAPI.model_rebuild()
 # =============================================================================
 
 # Minimal valid JPEG bytes
-VALID_JPEG_BYTES = bytes([
-    0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
-    0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
-    0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09,
-    0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D, 0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12,
-    0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C, 0x1C, 0x20,
-    0x24, 0x2E, 0x27, 0x20, 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29,
-    0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27, 0x39, 0x3D, 0x38, 0x32,
-    0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01,
-    0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00,
-    0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-    0x09, 0x0A, 0x0B, 0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F,
-    0x00, 0xFB, 0xD5, 0xDB, 0x20, 0xA8, 0xF1, 0x45, 0x00, 0xFF, 0xD9
-])
+VALID_JPEG_BYTES = bytes(
+    [
+        0xFF,
+        0xD8,
+        0xFF,
+        0xE0,
+        0x00,
+        0x10,
+        0x4A,
+        0x46,
+        0x49,
+        0x46,
+        0x00,
+        0x01,
+        0x01,
+        0x00,
+        0x00,
+        0x01,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0xFF,
+        0xDB,
+        0x00,
+        0x43,
+        0x00,
+        0x08,
+        0x06,
+        0x06,
+        0x07,
+        0x06,
+        0x05,
+        0x08,
+        0x07,
+        0x07,
+        0x07,
+        0x09,
+        0x09,
+        0x08,
+        0x0A,
+        0x0C,
+        0x14,
+        0x0D,
+        0x0C,
+        0x0B,
+        0x0B,
+        0x0C,
+        0x19,
+        0x12,
+        0x13,
+        0x0F,
+        0x14,
+        0x1D,
+        0x1A,
+        0x1F,
+        0x1E,
+        0x1D,
+        0x1A,
+        0x1C,
+        0x1C,
+        0x20,
+        0x24,
+        0x2E,
+        0x27,
+        0x20,
+        0x22,
+        0x2C,
+        0x23,
+        0x1C,
+        0x1C,
+        0x28,
+        0x37,
+        0x29,
+        0x2C,
+        0x30,
+        0x31,
+        0x34,
+        0x34,
+        0x34,
+        0x1F,
+        0x27,
+        0x39,
+        0x3D,
+        0x38,
+        0x32,
+        0x3C,
+        0x2E,
+        0x33,
+        0x34,
+        0x32,
+        0xFF,
+        0xC0,
+        0x00,
+        0x0B,
+        0x08,
+        0x00,
+        0x01,
+        0x00,
+        0x01,
+        0x01,
+        0x01,
+        0x11,
+        0x00,
+        0xFF,
+        0xC4,
+        0x00,
+        0x1F,
+        0x00,
+        0x00,
+        0x01,
+        0x05,
+        0x01,
+        0x01,
+        0x01,
+        0x01,
+        0x01,
+        0x01,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+        0x09,
+        0x0A,
+        0x0B,
+        0xFF,
+        0xDA,
+        0x00,
+        0x08,
+        0x01,
+        0x01,
+        0x00,
+        0x00,
+        0x3F,
+        0x00,
+        0xFB,
+        0xD5,
+        0xDB,
+        0x20,
+        0xA8,
+        0xF1,
+        0x45,
+        0x00,
+        0xFF,
+        0xD9,
+    ]
+)
 
 VALID_JPEG_BASE64 = base64.b64encode(VALID_JPEG_BYTES).decode()
 
@@ -129,6 +287,7 @@ VALID_JPEG_BASE64 = base64.b64encode(VALID_JPEG_BYTES).decode()
 # =============================================================================
 # MOCK ENGINE AND SERVICES
 # =============================================================================
+
 
 class MockEngineConfig:
     dimensions = 4096
@@ -157,6 +316,7 @@ class MockBundle:
 
     def __init__(self):
         import torch
+
         self.probabilities = torch.tensor([0.65, 0.25, 0.10])
         self.vector = torch.randn(4096, dtype=torch.complex64)
 
@@ -166,12 +326,27 @@ class MockDiagnoseResponse:
         self.status = MagicMock()
         self.status.value = "diagnosed"
         self.hypotheses = [
-            MagicMock(category_slug="plumbing-faucet", category_name="Faucet Issues",
-                      probability=0.65, explanation="Likely faucet problem", icon="droplet"),
-            MagicMock(category_slug="plumbing-toilet", category_name="Toilet Problems",
-                      probability=0.25, explanation="Could be toilet", icon="toilet"),
-            MagicMock(category_slug="hvac", category_name="HVAC",
-                      probability=0.10, explanation="Less likely", icon="thermometer"),
+            MagicMock(
+                category_slug="plumbing-faucet",
+                category_name="Faucet Issues",
+                probability=0.65,
+                explanation="Likely faucet problem",
+                icon="droplet",
+            ),
+            MagicMock(
+                category_slug="plumbing-toilet",
+                category_name="Toilet Problems",
+                probability=0.25,
+                explanation="Could be toilet",
+                icon="toilet",
+            ),
+            MagicMock(
+                category_slug="hvac",
+                category_name="HVAC",
+                probability=0.10,
+                explanation="Less likely",
+                icon="thermometer",
+            ),
         ]
         self.top_hypothesis = self.hypotheses[0]
         self.confidence = 0.65
@@ -186,8 +361,14 @@ class MockRepairEngine:
         self.codebook = MockCodebook()
         self.text_encoder = MagicMock()
 
-    def diagnose(self, text=None, voice_transcript=None, image_features=None,
-                 store_id=None, employee_id=None):
+    def diagnose(
+        self,
+        text=None,
+        voice_transcript=None,
+        image_features=None,
+        store_id=None,
+        employee_id=None,
+    ):
         return MockBundle(), {"store_context_similarity": 0.3}
 
     def bundle_to_response(self, bundle, problem_id, metadata):
@@ -219,6 +400,7 @@ class MockVisionService:
 
     def encode_to_vsa_vector(self, features, encoder):
         import torch
+
         return torch.randn(4096, dtype=torch.complex64)
 
 
@@ -245,6 +427,7 @@ def get_mock_vision():
 # CREATE TEST APP
 # =============================================================================
 
+
 def create_test_app():
     """Create minimal FastAPI app with repair routes for testing."""
     import uuid
@@ -253,8 +436,13 @@ def create_test_app():
 
     @app.post("/repair/diagnose", response_model=DiagnoseResponseAPI)
     async def diagnose_problem(request: DiagnoseRequestAPI):
-        if not any([request.text_description, request.voice_transcript, request.image_base64]):
-            raise HTTPException(status_code=400, detail="At least one input (text, voice, or image) required")
+        if not any(
+            [request.text_description, request.voice_transcript, request.image_base64]
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="At least one input (text, voice, or image) required",
+            )
 
         engine = get_mock_engine()
         vision_result = None
@@ -263,7 +451,9 @@ def create_test_app():
         if request.image_base64:
             try:
                 vision = get_mock_vision()
-                vision_result = vision.analyze_image(request.image_base64, request.text_description)
+                vision_result = vision.analyze_image(
+                    request.image_base64, request.text_description
+                )
             except Exception:
                 pass  # Continue without image
 
@@ -344,21 +534,25 @@ def create_test_app():
             for sub_slug in engine.codebook.get_all_slugs():
                 sub_info = engine.codebook.get_info(sub_slug)
                 if sub_info.get("parent_slug") == slug:
-                    subcategories.append(CategoryAPI(
-                        category_id=sub_slug,
-                        name=sub_info.get("name", sub_slug),
-                        slug=sub_slug,
-                        parent_slug=slug,
-                        subcategories=[],
-                    ))
+                    subcategories.append(
+                        CategoryAPI(
+                            category_id=sub_slug,
+                            name=sub_info.get("name", sub_slug),
+                            slug=sub_slug,
+                            parent_slug=slug,
+                            subcategories=[],
+                        )
+                    )
 
-            categories.append(CategoryAPI(
-                category_id=slug,
-                name=info.get("name", slug),
-                slug=slug,
-                icon=info.get("icon"),
-                subcategories=subcategories,
-            ))
+            categories.append(
+                CategoryAPI(
+                    category_id=slug,
+                    name=info.get("name", slug),
+                    slug=slug,
+                    icon=info.get("icon"),
+                    subcategories=subcategories,
+                )
+            )
 
         return categories
 
@@ -379,6 +573,7 @@ def create_test_app():
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def client():
     """Test client with mocked repair routes."""
@@ -390,15 +585,19 @@ def client():
 # DIAGNOSE ENDPOINT TESTS
 # =============================================================================
 
+
 class TestDiagnoseEndpoint:
     """Tests for POST /repair/diagnose."""
 
     def test_diagnose_text_only(self, client):
         """Text-only diagnosis should work."""
-        response = client.post("/repair/diagnose", json={
-            "text_description": "My kitchen faucet is dripping",
-            "store_id": "store-123",
-        })
+        response = client.post(
+            "/repair/diagnose",
+            json={
+                "text_description": "My kitchen faucet is dripping",
+                "store_id": "store-123",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -411,10 +610,13 @@ class TestDiagnoseEndpoint:
 
     def test_diagnose_voice_only(self, client):
         """Voice transcript diagnosis should work."""
-        response = client.post("/repair/diagnose", json={
-            "voice_transcript": "The toilet keeps running",
-            "store_id": "store-123",
-        })
+        response = client.post(
+            "/repair/diagnose",
+            json={
+                "voice_transcript": "The toilet keeps running",
+                "store_id": "store-123",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -422,11 +624,14 @@ class TestDiagnoseEndpoint:
 
     def test_diagnose_with_image(self, client):
         """Diagnosis with image should include vision extras."""
-        response = client.post("/repair/diagnose", json={
-            "text_description": "What's wrong with my faucet?",
-            "image_base64": VALID_JPEG_BASE64,
-            "store_id": "store-123",
-        })
+        response = client.post(
+            "/repair/diagnose",
+            json={
+                "text_description": "What's wrong with my faucet?",
+                "image_base64": VALID_JPEG_BASE64,
+                "store_id": "store-123",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -436,13 +641,16 @@ class TestDiagnoseEndpoint:
 
     def test_diagnose_combined_inputs(self, client):
         """Diagnosis with all inputs should work."""
-        response = client.post("/repair/diagnose", json={
-            "text_description": "Faucet dripping",
-            "voice_transcript": "It's been like this for a week",
-            "image_base64": VALID_JPEG_BASE64,
-            "store_id": "store-123",
-            "employee_id": "emp-456",
-        })
+        response = client.post(
+            "/repair/diagnose",
+            json={
+                "text_description": "Faucet dripping",
+                "voice_transcript": "It's been like this for a week",
+                "image_base64": VALID_JPEG_BASE64,
+                "store_id": "store-123",
+                "employee_id": "emp-456",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -450,27 +658,36 @@ class TestDiagnoseEndpoint:
 
     def test_diagnose_no_input_fails(self, client):
         """Diagnosis with no input should fail."""
-        response = client.post("/repair/diagnose", json={
-            "store_id": "store-123",
-        })
+        response = client.post(
+            "/repair/diagnose",
+            json={
+                "store_id": "store-123",
+            },
+        )
 
         assert response.status_code == 400
         assert "at least one input" in response.json()["detail"].lower()
 
     def test_diagnose_missing_store_id_fails(self, client):
         """Diagnosis without store_id should fail validation."""
-        response = client.post("/repair/diagnose", json={
-            "text_description": "Faucet dripping",
-        })
+        response = client.post(
+            "/repair/diagnose",
+            json={
+                "text_description": "Faucet dripping",
+            },
+        )
 
         assert response.status_code == 422  # Validation error
 
     def test_diagnose_response_structure(self, client):
         """Response should have correct structure."""
-        response = client.post("/repair/diagnose", json={
-            "text_description": "Water leak",
-            "store_id": "store-123",
-        })
+        response = client.post(
+            "/repair/diagnose",
+            json={
+                "text_description": "Water leak",
+                "store_id": "store-123",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -493,11 +710,14 @@ class TestDiagnoseEndpoint:
 
     def test_diagnose_with_session_id(self, client):
         """Customer session ID should be accepted."""
-        response = client.post("/repair/diagnose", json={
-            "text_description": "My AC isn't cooling",
-            "store_id": "store-123",
-            "session_id": "anon-session-789",
-        })
+        response = client.post(
+            "/repair/diagnose",
+            json={
+                "text_description": "My AC isn't cooling",
+                "store_id": "store-123",
+                "session_id": "anon-session-789",
+            },
+        )
 
         assert response.status_code == 200
 
@@ -506,15 +726,19 @@ class TestDiagnoseEndpoint:
 # REFINE ENDPOINT TESTS
 # =============================================================================
 
+
 class TestRefineEndpoint:
     """Tests for POST /repair/diagnose/refine."""
 
     def test_refine_not_implemented(self, client):
         """Refine endpoint should return 501 (not implemented yet)."""
-        response = client.post("/repair/diagnose/refine", json={
-            "problem_id": "prob-123",
-            "additional_text": "It's getting worse",
-        })
+        response = client.post(
+            "/repair/diagnose/refine",
+            json={
+                "problem_id": "prob-123",
+                "additional_text": "It's getting worse",
+            },
+        )
 
         assert response.status_code == 501
         assert "coming soon" in response.json()["detail"].lower()
@@ -523,6 +747,7 @@ class TestRefineEndpoint:
 # =============================================================================
 # SOLUTION ENDPOINT TESTS
 # =============================================================================
+
 
 class TestSolutionEndpoint:
     """Tests for GET /repair/solution/{problem_id}."""
@@ -539,17 +764,21 @@ class TestSolutionEndpoint:
 # CORRECTION ENDPOINT TESTS
 # =============================================================================
 
+
 class TestCorrectionEndpoint:
     """Tests for POST /repair/correction."""
 
     def test_correction_success(self, client):
         """Employee correction should return XP reward."""
-        response = client.post("/repair/correction", json={
-            "problem_id": "prob-123",
-            "employee_id": "emp-456",
-            "correct_category_slug": "plumbing-toilet",
-            "correction_notes": "It's actually a toilet issue",
-        })
+        response = client.post(
+            "/repair/correction",
+            json={
+                "problem_id": "prob-123",
+                "employee_id": "emp-456",
+                "correct_category_slug": "plumbing-toilet",
+                "correction_notes": "It's actually a toilet issue",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -564,20 +793,26 @@ class TestCorrectionEndpoint:
 
     def test_correction_without_employee_fails(self, client):
         """Correction without employee ID should fail."""
-        response = client.post("/repair/correction", json={
-            "problem_id": "prob-123",
-            "employee_id": "",
-            "correct_category_slug": "plumbing",
-        })
+        response = client.post(
+            "/repair/correction",
+            json={
+                "problem_id": "prob-123",
+                "employee_id": "",
+                "correct_category_slug": "plumbing",
+            },
+        )
 
         assert response.status_code == 400
         assert "employee" in response.json()["detail"].lower()
 
     def test_correction_missing_fields_fails(self, client):
         """Correction with missing required fields should fail."""
-        response = client.post("/repair/correction", json={
-            "problem_id": "prob-123",
-        })
+        response = client.post(
+            "/repair/correction",
+            json={
+                "problem_id": "prob-123",
+            },
+        )
 
         assert response.status_code == 422  # Validation error
 
@@ -585,6 +820,7 @@ class TestCorrectionEndpoint:
 # =============================================================================
 # CATEGORIES ENDPOINT TESTS
 # =============================================================================
+
 
 class TestCategoriesEndpoint:
     """Tests for GET /repair/categories."""
@@ -623,6 +859,7 @@ class TestCategoriesEndpoint:
 # HEALTH ENDPOINT TESTS
 # =============================================================================
 
+
 class TestHealthEndpoint:
     """Tests for GET /repair/health."""
 
@@ -644,18 +881,22 @@ class TestHealthEndpoint:
 # INTEGRATION TEST
 # =============================================================================
 
+
 class TestRepairIntegration:
     """End-to-end integration tests."""
 
     def test_full_diagnosis_flow(self, client):
         """Test complete diagnosis flow."""
         # Step 1: Diagnose
-        diagnose_response = client.post("/repair/diagnose", json={
-            "text_description": "Water dripping from kitchen faucet",
-            "image_base64": VALID_JPEG_BASE64,
-            "store_id": "store-123",
-            "employee_id": "emp-456",
-        })
+        diagnose_response = client.post(
+            "/repair/diagnose",
+            json={
+                "text_description": "Water dripping from kitchen faucet",
+                "image_base64": VALID_JPEG_BASE64,
+                "store_id": "store-123",
+                "employee_id": "emp-456",
+            },
+        )
 
         assert diagnose_response.status_code == 200
         diagnosis = diagnose_response.json()
@@ -668,12 +909,15 @@ class TestRepairIntegration:
         assert len(categories) > 0
 
         # Step 3: Employee makes correction
-        correction_response = client.post("/repair/correction", json={
-            "problem_id": problem_id,
-            "employee_id": "emp-456",
-            "correct_category_slug": "plumbing-faucet",
-            "correction_notes": "Confirmed faucet cartridge issue",
-        })
+        correction_response = client.post(
+            "/repair/correction",
+            json={
+                "problem_id": problem_id,
+                "employee_id": "emp-456",
+                "correct_category_slug": "plumbing-faucet",
+                "correction_notes": "Confirmed faucet cartridge issue",
+            },
+        )
 
         assert correction_response.status_code == 200
         correction = correction_response.json()

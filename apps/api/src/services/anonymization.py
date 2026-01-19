@@ -22,14 +22,36 @@ logger = logging.getLogger(__name__)
 
 # Regex patterns for PII detection
 PII_PATTERNS = {
-    "email": re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
-    "phone": re.compile(r'\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b'),
-    "ssn": re.compile(r'\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b'),
-    "credit_card": re.compile(r'\b(?:\d{4}[-\s]?){3}\d{4}\b'),
-    "name_columns": ["customer_name", "customer", "name", "first_name", "last_name",
-                     "full_name", "buyer", "purchaser", "client", "contact"],
-    "address_columns": ["address", "street", "city", "state", "zip", "postal",
-                       "address_1", "address_2", "billing_address", "shipping_address"],
+    "email": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
+    "phone": re.compile(
+        r"\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b"
+    ),
+    "ssn": re.compile(r"\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b"),
+    "credit_card": re.compile(r"\b(?:\d{4}[-\s]?){3}\d{4}\b"),
+    "name_columns": [
+        "customer_name",
+        "customer",
+        "name",
+        "first_name",
+        "last_name",
+        "full_name",
+        "buyer",
+        "purchaser",
+        "client",
+        "contact",
+    ],
+    "address_columns": [
+        "address",
+        "street",
+        "city",
+        "state",
+        "zip",
+        "postal",
+        "address_1",
+        "address_2",
+        "billing_address",
+        "shipping_address",
+    ],
 }
 
 
@@ -49,14 +71,19 @@ class AnonymizationService:
         if self._supabase_client is None and self.supabase_url and self.supabase_key:
             try:
                 from supabase import create_client
-                self._supabase_client = create_client(self.supabase_url, self.supabase_key)
+
+                self._supabase_client = create_client(
+                    self.supabase_url, self.supabase_key
+                )
             except ImportError:
                 logger.warning("Supabase package not installed")
             except Exception as e:
                 logger.warning(f"Failed to create Supabase client: {e}")
         return self._supabase_client
 
-    def anonymize_dataframe(self, df: pd.DataFrame, hash_skus: bool = False) -> pd.DataFrame:
+    def anonymize_dataframe(
+        self, df: pd.DataFrame, hash_skus: bool = False
+    ) -> pd.DataFrame:
         """
         Anonymize a DataFrame by removing/masking PII.
 
@@ -195,9 +222,7 @@ class AnonymizationService:
         return stats
 
     async def store_anonymized_analytics(
-        self,
-        results: list[dict],
-        report_sent: bool = False
+        self, results: list[dict], report_sent: bool = False
     ) -> bool:
         """
         Store anonymized analytics in Supabase.
@@ -229,11 +254,7 @@ class AnonymizationService:
             return False
 
     async def cleanup_s3_file(
-        self,
-        s3_client,
-        bucket_name: str,
-        key: str,
-        delay_seconds: int = 0
+        self, s3_client, bucket_name: str, key: str, delay_seconds: int = 0
     ) -> bool:
         """
         Delete a file from S3 after processing.
@@ -250,6 +271,7 @@ class AnonymizationService:
         try:
             if delay_seconds > 0:
                 import asyncio
+
                 await asyncio.sleep(delay_seconds)
 
             s3_client.delete_object(Bucket=bucket_name, Key=key)

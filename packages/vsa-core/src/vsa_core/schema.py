@@ -44,6 +44,7 @@ from .vectors import normalize, random_vector, similarity
 @dataclass
 class FieldSpec:
     """Specification for a schema field."""
+
     canonical_name: str
     aliases: list[str] = field(default_factory=list)
     vector: torch.Tensor | None = None
@@ -69,12 +70,7 @@ class SchemaRegistry:
         canonical = registry.resolve("qty")  # Returns "quantity"
     """
 
-    def __init__(
-        self,
-        version: str,
-        dimensions: int = 8192,
-        seed: int | None = None
-    ):
+    def __init__(self, version: str, dimensions: int = 8192, seed: int | None = None):
         """Initialize schema registry.
 
         Args:
@@ -95,7 +91,7 @@ class SchemaRegistry:
         canonical_name: str,
         aliases: list[str] | None = None,
         transform: Callable[[torch.Tensor], torch.Tensor] | None = None,
-        metadata: dict[str, Any] | None = None
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Add a field to the schema.
 
@@ -117,7 +113,7 @@ class SchemaRegistry:
             aliases=aliases,
             vector=vector,
             transform=transform,
-            metadata=metadata
+            metadata=metadata,
         )
 
         self.fields[canonical_name] = spec
@@ -167,8 +163,7 @@ class SchemaRegistry:
         return self._vectors[canonical]
 
     def get_transform(
-        self,
-        field_name: str
+        self, field_name: str
     ) -> Callable[[torch.Tensor], torch.Tensor] | None:
         """Get transformation function for field.
 
@@ -221,17 +216,15 @@ class SchemaRegistry:
                 name: {
                     "aliases": spec.aliases,
                     "has_transform": spec.transform is not None,
-                    "metadata": spec.metadata
+                    "metadata": spec.metadata,
                 }
                 for name, spec in self.fields.items()
-            }
+            },
         }
 
     @classmethod
     def from_dict(
-        cls,
-        data: dict[str, Any],
-        transforms: dict[str, Callable] | None = None
+        cls, data: dict[str, Any], transforms: dict[str, Callable] | None = None
     ) -> SchemaRegistry:
         """Create registry from dictionary.
 
@@ -247,7 +240,7 @@ class SchemaRegistry:
                 canonical_name=name,
                 aliases=spec_data.get("aliases", []),
                 transform=transforms.get(name),
-                metadata=spec_data.get("metadata", {})
+                metadata=spec_data.get("metadata", {}),
             )
 
         return registry
@@ -257,7 +250,7 @@ def se_bind(
     value_vector: torch.Tensor,
     field_name: str,
     schema: SchemaRegistry,
-    auto_add: bool = False
+    auto_add: bool = False,
 ) -> torch.Tensor:
     """Schema-evolution-aware binding.
 
@@ -299,9 +292,7 @@ def se_bind(
 
 
 def se_unbind(
-    bound_vector: torch.Tensor,
-    field_name: str,
-    schema: SchemaRegistry
+    bound_vector: torch.Tensor, field_name: str, schema: SchemaRegistry
 ) -> torch.Tensor:
     """Schema-aware unbinding.
 
@@ -320,7 +311,7 @@ def se_unbind(
 def create_schema_record(
     field_values: dict[str, torch.Tensor],
     schema: SchemaRegistry,
-    auto_add: bool = False
+    auto_add: bool = False,
 ) -> torch.Tensor:
     """Create bundled record from field-value pairs with schema awareness.
 
@@ -358,7 +349,7 @@ def migrate_bundle(
     old_bundle: torch.Tensor,
     old_schema: SchemaRegistry,
     new_schema: SchemaRegistry,
-    field_mapping: dict[str, str] | None = None
+    field_mapping: dict[str, str] | None = None,
 ) -> torch.Tensor:
     """Migrate a bundle from old schema to new schema.
 
@@ -413,7 +404,7 @@ def migrate_bundle(
 
             # Only migrate if vectors differ
             sim_val = similarity(old_vec, new_vec)
-            sim_val = sim_val.abs() if hasattr(sim_val, 'abs') else abs(sim_val)
+            sim_val = sim_val.abs() if hasattr(sim_val, "abs") else abs(sim_val)
             if float(sim_val) < 0.99:
                 value = unbind(result, old_vec)
                 rebound = bind(new_vec, value)
@@ -423,8 +414,7 @@ def migrate_bundle(
 
 
 def schema_compatibility_check(
-    schema_a: SchemaRegistry,
-    schema_b: SchemaRegistry
+    schema_a: SchemaRegistry, schema_b: SchemaRegistry
 ) -> dict[str, Any]:
     """Check compatibility between two schemas.
 
@@ -452,7 +442,7 @@ def schema_compatibility_check(
         vec_a = schema_a.get_vector(field)
         vec_b = schema_b.get_vector(field)
         sim_val = similarity(vec_a, vec_b)
-        sim_val = sim_val.abs() if hasattr(sim_val, 'abs') else abs(sim_val)
+        sim_val = sim_val.abs() if hasattr(sim_val, "abs") else abs(sim_val)
         vector_sims[field] = float(sim_val)
 
     return {
@@ -461,7 +451,7 @@ def schema_compatibility_check(
         "only_b": list(only_b),
         "vector_similarity": vector_sims,
         "compatible": len(only_a) == 0 and len(only_b) == 0,
-        "migration_required": any(s < 0.99 for s in vector_sims.values())
+        "migration_required": any(s < 0.99 for s in vector_sims.values()),
     }
 
 
@@ -469,9 +459,9 @@ def schema_compatibility_check(
 # Standard Retail Schema Templates
 # =============================================================================
 
+
 def create_retail_schema(
-    version: str = "retail-v1",
-    dimensions: int | None = None
+    version: str = "retail-v1", dimensions: int | None = None
 ) -> SchemaRegistry:
     """Create standard retail inventory schema.
 
@@ -494,62 +484,124 @@ def create_retail_schema(
     schema = SchemaRegistry(version, dimensions)
 
     # SKU/Item identification
-    schema.add_field("sku", aliases=[
-        "item", "product_id", "productid", "item_id", "itemid",
-        "upc", "barcode", "item_number", "item_no"
-    ])
+    schema.add_field(
+        "sku",
+        aliases=[
+            "item",
+            "product_id",
+            "productid",
+            "item_id",
+            "itemid",
+            "upc",
+            "barcode",
+            "item_number",
+            "item_no",
+        ],
+    )
 
     # Quantity fields
-    schema.add_field("quantity", aliases=[
-        "qty", "on_hand", "qoh", "quantity_on_hand", "stock",
-        "inventory", "inv_qty", "count"
-    ])
+    schema.add_field(
+        "quantity",
+        aliases=[
+            "qty",
+            "on_hand",
+            "qoh",
+            "quantity_on_hand",
+            "stock",
+            "inventory",
+            "inv_qty",
+            "count",
+        ],
+    )
 
     # Financial fields
-    schema.add_field("cost", aliases=[
-        "unit_cost", "cost_price", "wholesale", "purchase_price",
-        "cogs", "cost_of_goods"
-    ])
+    schema.add_field(
+        "cost",
+        aliases=[
+            "unit_cost",
+            "cost_price",
+            "wholesale",
+            "purchase_price",
+            "cogs",
+            "cost_of_goods",
+        ],
+    )
 
-    schema.add_field("price", aliases=[
-        "retail_price", "sell_price", "selling_price", "unit_price",
-        "retail", "srp", "msrp"
-    ])
+    schema.add_field(
+        "price",
+        aliases=[
+            "retail_price",
+            "sell_price",
+            "selling_price",
+            "unit_price",
+            "retail",
+            "srp",
+            "msrp",
+        ],
+    )
 
-    schema.add_field("margin", aliases=[
-        "profit_margin", "gross_margin", "markup", "margin_pct",
-        "gm", "gp_margin"
-    ])
+    schema.add_field(
+        "margin",
+        aliases=[
+            "profit_margin",
+            "gross_margin",
+            "markup",
+            "margin_pct",
+            "gm",
+            "gp_margin",
+        ],
+    )
 
-    schema.add_field("revenue", aliases=[
-        "sales", "total_sales", "sales_revenue", "gross_sales"
-    ])
+    schema.add_field(
+        "revenue", aliases=["sales", "total_sales", "sales_revenue", "gross_sales"]
+    )
 
     # Sales activity
-    schema.add_field("sold", aliases=[
-        "quantity_sold", "qty_sold", "units_sold", "sold_qty",
-        "sales_qty", "sold_count"
-    ])
+    schema.add_field(
+        "sold",
+        aliases=[
+            "quantity_sold",
+            "qty_sold",
+            "units_sold",
+            "sold_qty",
+            "sales_qty",
+            "sold_count",
+        ],
+    )
 
     # Categorization
-    schema.add_field("category", aliases=[
-        "cat", "product_category", "item_category", "class",
-        "product_class"
-    ])
+    schema.add_field(
+        "category",
+        aliases=["cat", "product_category", "item_category", "class", "product_class"],
+    )
 
-    schema.add_field("department", aliases=[
-        "dept", "division", "dept_name", "department_name"
-    ])
+    schema.add_field(
+        "department", aliases=["dept", "division", "dept_name", "department_name"]
+    )
 
-    schema.add_field("vendor", aliases=[
-        "supplier", "manufacturer", "brand", "vendor_name",
-        "supplier_name", "mfr"
-    ])
+    schema.add_field(
+        "vendor",
+        aliases=[
+            "supplier",
+            "manufacturer",
+            "brand",
+            "vendor_name",
+            "supplier_name",
+            "mfr",
+        ],
+    )
 
     # Descriptions
-    schema.add_field("description", aliases=[
-        "desc", "item_desc", "item_description", "product_name",
-        "name", "item_name"
-    ])
+    schema.add_field(
+        "description",
+        aliases=[
+            "desc",
+            "item_desc",
+            "item_description",
+            "product_name",
+            "name",
+            "item_name",
+        ],
+    )
 
     return schema

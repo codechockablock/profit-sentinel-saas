@@ -26,11 +26,11 @@ class DetectionResult:
 
 
 def safe_float(val: Any, default: float = 0.0) -> float:
-    if val is None or str(val).strip() == '':
+    if val is None or str(val).strip() == "":
         return default
     try:
-        cleaned = str(val).replace('$', '').replace(',', '').replace('%', '').strip()
-        if cleaned == '' or cleaned.lower() in ('nan', 'null', 'none', '-'):
+        cleaned = str(val).replace("$", "").replace(",", "").replace("%", "").strip()
+        if cleaned == "" or cleaned.lower() in ("nan", "null", "none", "-"):
             return default
         return float(cleaned)
     except (ValueError, TypeError):
@@ -38,15 +38,27 @@ def safe_float(val: Any, default: float = 0.0) -> float:
 
 
 def parse_date(val: Any) -> datetime | None:
-    if val is None or str(val).strip() == '':
+    if val is None or str(val).strip() == "":
         return None
     date_str = str(val).strip()
-    match = re.match(r'([A-Za-z]+)\s+(\d+),(\d+)', date_str)
+    match = re.match(r"([A-Za-z]+)\s+(\d+),(\d+)", date_str)
     if match:
         month_str, day, year = match.groups()
         try:
-            month_map = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-                        'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12}
+            month_map = {
+                "jan": 1,
+                "feb": 2,
+                "mar": 3,
+                "apr": 4,
+                "may": 5,
+                "jun": 6,
+                "jul": 7,
+                "aug": 8,
+                "sep": 9,
+                "oct": 10,
+                "nov": 11,
+                "dec": 12,
+            }
             month = month_map.get(month_str.lower()[:3], 1)
             year_full = 2000 + int(year) if int(year) < 100 else int(year)
             return datetime(year_full, month, int(day))
@@ -54,7 +66,7 @@ def parse_date(val: Any) -> datetime | None:
             pass
     if len(date_str) == 8 and date_str.isdigit():
         try:
-            return datetime.strptime(date_str, '%Y%m%d')
+            return datetime.strptime(date_str, "%Y%m%d")
         except:
             pass
     return None
@@ -62,19 +74,27 @@ def parse_date(val: Any) -> datetime | None:
 
 def load_inventory_csv(filepath: str) -> list[dict]:
     rows = []
-    with open(filepath, encoding='utf-8', errors='ignore') as f:
+    with open(filepath, encoding="utf-8", errors="ignore") as f:
         reader = csv.DictReader(f)
         for row in reader:
             rows.append(row)
     return rows
 
 
-def run_baseline_detection(rows: list[dict]) -> tuple[dict[str, DetectionResult], dict[str, Any]]:
+def run_baseline_detection(
+    rows: list[dict],
+) -> tuple[dict[str, DetectionResult], dict[str, Any]]:
     """Fast baseline detection."""
 
     PRIMITIVES = [
-        "negative_inventory", "low_stock", "high_margin_leak", "dead_item",
-        "overstock", "price_discrepancy", "shrinkage_pattern", "margin_erosion",
+        "negative_inventory",
+        "low_stock",
+        "high_margin_leak",
+        "dead_item",
+        "overstock",
+        "price_discrepancy",
+        "shrinkage_pattern",
+        "margin_erosion",
     ]
 
     results = {p: DetectionResult(primitive=p) for p in PRIMITIVES}
@@ -86,10 +106,10 @@ def run_baseline_detection(rows: list[dict]) -> tuple[dict[str, DetectionResult]
     vendor_margins: dict[str, list[float]] = {}
 
     for row in rows:
-        stock = safe_float(row.get('Stock', 0))
-        sold = safe_float(row.get('Year Total', 0))
-        margin_pct = safe_float(row.get('Profit Margin%', 0))
-        vendor = str(row.get('Vendor', 'unknown')).strip()
+        stock = safe_float(row.get("Stock", 0))
+        sold = safe_float(row.get("Year Total", 0))
+        margin_pct = safe_float(row.get("Profit Margin%", 0))
+        vendor = str(row.get("Vendor", "unknown")).strip()
 
         if stock > 0:
             all_stocks.append(stock)
@@ -105,7 +125,9 @@ def run_baseline_detection(rows: list[dict]) -> tuple[dict[str, DetectionResult]
     avg_sold = sum(all_sold) / len(all_sold) if all_sold else 10
     avg_margin = sum(all_margins) / len(all_margins) if all_margins else 30
 
-    vendor_avg_margin = {v: sum(m)/len(m) for v, m in vendor_margins.items() if len(m) >= 3}
+    vendor_avg_margin = {
+        v: sum(m) / len(m) for v, m in vendor_margins.items() if len(m) >= 3
+    }
 
     stats = {
         "total_rows": len(rows),
@@ -117,20 +139,26 @@ def run_baseline_detection(rows: list[dict]) -> tuple[dict[str, DetectionResult]
 
     # Detection pass
     for row in rows:
-        sku = str(row.get('SKU', '')).strip()
+        sku = str(row.get("SKU", "")).strip()
         if not sku:
             continue
 
-        stock = safe_float(row.get('Stock', 0))
-        sold = safe_float(row.get('Year Total', 0))
-        margin_pct = safe_float(row.get('Profit Margin%', 0))
-        gross_sales = safe_float(row.get('Gross Sales', 0))
-        vendor = str(row.get('Vendor', 'unknown')).strip()
-        description = str(row.get('Description', '')).strip()
-        last_sale = parse_date(row.get('Last Sale', ''))
+        stock = safe_float(row.get("Stock", 0))
+        sold = safe_float(row.get("Year Total", 0))
+        margin_pct = safe_float(row.get("Profit Margin%", 0))
+        gross_sales = safe_float(row.get("Gross Sales", 0))
+        vendor = str(row.get("Vendor", "unknown")).strip()
+        description = str(row.get("Description", "")).strip()
+        last_sale = parse_date(row.get("Last Sale", ""))
 
-        item_info = {"sku": sku, "description": description[:50], "stock": stock,
-                     "sold": sold, "margin": margin_pct, "vendor": vendor[:20]}
+        item_info = {
+            "sku": sku,
+            "description": description[:50],
+            "stock": stock,
+            "sold": sold,
+            "margin": margin_pct,
+            "vendor": vendor[:20],
+        }
 
         # NEGATIVE INVENTORY
         if stock < 0:
@@ -191,7 +219,11 @@ def run_baseline_detection(rows: list[dict]) -> tuple[dict[str, DetectionResult]
     return results, stats
 
 
-def run_resonator_sample(rows: list[dict], baseline_results: dict[str, DetectionResult], sample_size: int = 5000):
+def run_resonator_sample(
+    rows: list[dict],
+    baseline_results: dict[str, DetectionResult],
+    sample_size: int = 5000,
+):
     """Run resonator on sample of data."""
 
     resonator_results = {}
@@ -206,15 +238,17 @@ def run_resonator_sample(rows: list[dict], baseline_results: dict[str, Detection
         # Convert sample
         sample_rows = []
         for row in rows[:sample_size]:
-            sample_rows.append({
-                "sku": row.get("SKU", ""),
-                "description": row.get("Description", ""),
-                "vendor": row.get("Vendor", ""),
-                "quantity": safe_float(row.get("Stock", 0)),
-                "sold": safe_float(row.get("Year Total", 0)),
-                "cost": safe_float(row.get("Avg. Cost", 0)),
-                "revenue": safe_float(row.get("Gross Sales", 0)),
-            })
+            sample_rows.append(
+                {
+                    "sku": row.get("SKU", ""),
+                    "description": row.get("Description", ""),
+                    "vendor": row.get("Vendor", ""),
+                    "quantity": safe_float(row.get("Stock", 0)),
+                    "sold": safe_float(row.get("Year Total", 0)),
+                    "cost": safe_float(row.get("Avg. Cost", 0)),
+                    "revenue": safe_float(row.get("Gross Sales", 0)),
+                }
+            )
 
         print(f"  Building codebook ({len(sample_rows)} rows)...")
         ctx = create_analysis_context(use_gpu=False)
@@ -223,7 +257,9 @@ def run_resonator_sample(rows: list[dict], baseline_results: dict[str, Detection
 
         t0 = time.time()
         bundle = core.bundle_pos_facts(ctx, sample_rows)
-        print(f"  Codebook built in {time.time()-t0:.1f}s ({len(ctx.codebook)} entries)")
+        print(
+            f"  Codebook built in {time.time()-t0:.1f}s ({len(ctx.codebook)} entries)"
+        )
 
         for primitive, br in baseline_results.items():
             convergence_passed = 0
@@ -262,7 +298,11 @@ def run_resonator_sample(rows: list[dict], baseline_results: dict[str, Detection
                 avg_conf = sum(confidences) / len(confidences) if confidences else 0
                 conv_rate = convergence_passed / checked if checked > 0 else 0
 
-                status = "PASS" if conv_rate >= 0.3 else ("WARN" if conv_rate >= 0.1 else "INFRASTRUCTURE")
+                status = (
+                    "PASS"
+                    if conv_rate >= 0.3
+                    else ("WARN" if conv_rate >= 0.1 else "INFRASTRUCTURE")
+                )
 
                 resonator_results[primitive] = {
                     "status": status,
@@ -272,7 +312,9 @@ def run_resonator_sample(rows: list[dict], baseline_results: dict[str, Detection
                     "confidence": avg_conf,
                 }
 
-                print(f"    {primitive}: {convergence_passed}/{checked} converged ({status})")
+                print(
+                    f"    {primitive}: {convergence_passed}/{checked} converged ({status})"
+                )
 
             except Exception as e:
                 resonator_results[primitive] = {
@@ -299,7 +341,15 @@ def run_resonator_sample(rows: list[dict], baseline_results: dict[str, Detection
         return resonator_results, False
 
 
-def generate_report(filepath, baseline_results, resonator_results, stats, baseline_time, resonator_time, resonator_available):
+def generate_report(
+    filepath,
+    baseline_results,
+    resonator_results,
+    stats,
+    baseline_time,
+    resonator_time,
+    resonator_available,
+):
     """Generate Markdown report."""
 
     total = sum(r.count for r in baseline_results.values())
@@ -370,7 +420,7 @@ def generate_report(filepath, baseline_results, resonator_results, stats, baseli
 """
 
     for p, r in baseline_results.items():
-        pct = (r.count / stats['total_rows'] * 100) if stats['total_rows'] > 0 else 0
+        pct = (r.count / stats["total_rows"] * 100) if stats["total_rows"] > 0 else 0
         status = "✅" if r.count > 0 else "⚪ N/A"
         report += f"| `{p}` | {r.count:,} | {pct:.2f}% | {status} |\n"
 
@@ -403,7 +453,11 @@ Anomalies Detected by Primitive
             report += "| SKU | Description | Stock | Sold | Margin |\n"
             report += "|-----|-------------|-------|------|--------|\n"
             for item in r.sample_items[:5]:
-                desc = item['description'][:25] + "..." if len(item['description']) > 25 else item['description']
+                desc = (
+                    item["description"][:25] + "..."
+                    if len(item["description"]) > 25
+                    else item["description"]
+                )
                 report += f"| `{item['sku']}` | {desc} | {item['stock']:.0f} | {item['sold']:.0f} | {item['margin']:.1f}% |\n"
             report += "\n"
 
@@ -418,7 +472,9 @@ Anomalies Detected by Primitive
 """
 
     for p, v in resonator_results.items():
-        status_icon = "✅" if "PASS" in v['status'] else ("⚠️" if "WARN" in v['status'] else "🔧")
+        status_icon = (
+            "✅" if "PASS" in v["status"] else ("⚠️" if "WARN" in v["status"] else "🔧")
+        )
         report += f"| `{p}` | {v['candidates']:,} | {v['converged']:,} | {v['flagged']:,} | {v['confidence']:.4f} | {status_icon} {v['status']} |\n"
 
     report += """
@@ -537,7 +593,9 @@ def main():
     baseline_results, stats = run_baseline_detection(rows)
     baseline_time = time.time() - t0
     print(f"  Completed in {baseline_time:.2f}s")
-    print(f"  Stats: {stats['total_rows']:,} rows, {stats['avg_margin']:.1f}% avg margin")
+    print(
+        f"  Stats: {stats['total_rows']:,} rows, {stats['avg_margin']:.1f}% avg margin"
+    )
     total_detections = sum(r.count for r in baseline_results.values())
     print(f"  Total detections: {total_detections:,}")
     for p, r in baseline_results.items():
@@ -549,7 +607,9 @@ def main():
     print("STEP 3: VSA RESONATOR (Sample)")
     print("-" * 40)
     t0 = time.time()
-    resonator_results, resonator_available = run_resonator_sample(rows, baseline_results, sample_size=5000)
+    resonator_results, resonator_available = run_resonator_sample(
+        rows, baseline_results, sample_size=5000
+    )
     resonator_time = time.time() - t0
     print(f"  Completed in {resonator_time:.1f}s")
     print()
@@ -557,10 +617,22 @@ def main():
     # Generate report
     print("STEP 4: GENERATING REPORT")
     print("-" * 40)
-    report = generate_report(filepath, baseline_results, resonator_results, stats, baseline_time, resonator_time, resonator_available)
+    report = generate_report(
+        filepath,
+        baseline_results,
+        resonator_results,
+        stats,
+        baseline_time,
+        resonator_time,
+        resonator_available,
+    )
 
-    report_path = Path(__file__).parent.parent.parent.parent / "docs" / "PROFIT_SENTINEL_VALIDATION.md"
-    with open(report_path, 'w') as f:
+    report_path = (
+        Path(__file__).parent.parent.parent.parent
+        / "docs"
+        / "PROFIT_SENTINEL_VALIDATION.md"
+    )
+    with open(report_path, "w") as f:
         f.write(report)
     print(f"  Report saved: {report_path}")
 
@@ -571,17 +643,20 @@ def main():
         "stats": stats,
         "baseline": {
             "time": baseline_time,
-            "detections": {p: {"count": r.count, "samples": [s["sku"] for s in r.sample_items]} for p, r in baseline_results.items()}
+            "detections": {
+                p: {"count": r.count, "samples": [s["sku"] for s in r.sample_items]}
+                for p, r in baseline_results.items()
+            },
         },
         "resonator": {
             "time": resonator_time,
             "available": resonator_available,
-            "results": resonator_results
-        }
+            "results": resonator_results,
+        },
     }
 
     metrics_path = Path(__file__).parent / "real_validation_metrics.json"
-    with open(metrics_path, 'w') as f:
+    with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=2)
     print(f"  Metrics saved: {metrics_path}")
 

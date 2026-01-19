@@ -15,6 +15,7 @@ Key Properties:
     - Bundling (sum + normalize) computes circular mean of phases
     - Similarity measured via normalized real inner product
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -87,6 +88,7 @@ def get_dtype() -> torch.dtype:
 # NORMALIZATION
 # =============================================================================
 
+
 def normalize(v: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
     """Project vector onto complex unit hypersphere.
 
@@ -113,11 +115,7 @@ def normalize(v: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
     mask = magnitudes < eps
     if mask.any():
         random_phases = torch.rand_like(v.real) * 2 * math.pi
-        v = torch.where(
-            mask,
-            torch.exp(1j * random_phases.to(v.dtype)),
-            v
-        )
+        v = torch.where(mask, torch.exp(1j * random_phases.to(v.dtype)), v)
         magnitudes = torch.abs(v)
 
     return v / magnitudes
@@ -143,11 +141,12 @@ def normalize_global(v: torch.Tensor) -> torch.Tensor:
 # VECTOR GENERATION
 # =============================================================================
 
+
 def seed_hash(
     seed: str,
     dimensions: int | None = None,
     device: torch.device | None = None,
-    dtype: torch.dtype | None = None
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     """Generate deterministic phasor vector from seed string.
 
@@ -184,6 +183,7 @@ def seed_hash(
 
     # Convert to phases in [0, 2π)
     import numpy as np
+
     phase_ints = np.frombuffer(hash_bytes[:bytes_needed], dtype=np.uint32)
     phases = (phase_ints / np.iinfo(np.uint32).max) * 2 * np.pi
 
@@ -200,7 +200,7 @@ def seed_hash(
 def random_vector(
     dimensions: int | None = None,
     device: torch.device | None = None,
-    dtype: torch.dtype | None = None
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     """Generate random phasor vector.
 
@@ -230,7 +230,7 @@ def random_vector(
 def identity_vector(
     dimensions: int | None = None,
     device: torch.device | None = None,
-    dtype: torch.dtype | None = None
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     """Generate multiplicative identity vector (all ones).
 
@@ -254,7 +254,7 @@ def identity_vector(
 def zero_vector(
     dimensions: int | None = None,
     device: torch.device | None = None,
-    dtype: torch.dtype | None = None
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     """Generate additive identity vector (all zeros).
 
@@ -279,6 +279,7 @@ def zero_vector(
 # =============================================================================
 # SIMILARITY
 # =============================================================================
+
 
 def similarity(a: torch.Tensor, b: torch.Tensor) -> float:
     """Compute normalized cosine similarity between two vectors.
@@ -308,10 +309,7 @@ def similarity(a: torch.Tensor, b: torch.Tensor) -> float:
     return float(sim)
 
 
-def batch_similarity(
-    query: torch.Tensor,
-    codebook: torch.Tensor
-) -> torch.Tensor:
+def batch_similarity(query: torch.Tensor, codebook: torch.Tensor) -> torch.Tensor:
     """Compute similarity between query and all codebook vectors.
 
     Efficiently computes sim(query, codebook[i]) for all i using
@@ -342,9 +340,7 @@ def batch_similarity(
 
 
 def top_k_similar(
-    query: torch.Tensor,
-    codebook: torch.Tensor,
-    k: int = 10
+    query: torch.Tensor, codebook: torch.Tensor, k: int = 10
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Find top-k most similar vectors in codebook.
 
@@ -365,6 +361,7 @@ def top_k_similar(
 # =============================================================================
 # VECTOR INFO & DEBUGGING
 # =============================================================================
+
 
 def vector_info(v: torch.Tensor) -> dict[str, Any]:
     """Get diagnostic information about a vector.
@@ -420,11 +417,12 @@ def angular_distance(a: torch.Tensor, b: torch.Tensor) -> float:
 # BATCH OPERATIONS
 # =============================================================================
 
+
 def batch_seed_hash(
     seeds: list[str],
     dimensions: int | None = None,
     device: torch.device | None = None,
-    dtype: torch.dtype | None = None
+    dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     """Generate multiple vectors from seed strings.
 
