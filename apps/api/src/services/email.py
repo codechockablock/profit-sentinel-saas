@@ -270,12 +270,14 @@ class EmailService:
                         """
                 else:
                     # Fallback to simple list if no details
-                    leak_sections += '<ul style="margin: 0; padding-left: 20px; color: #cbd5e1;">'
+                    leak_sections += (
+                        '<ul style="margin: 0; padding-left: 20px; color: #cbd5e1;">'
+                    )
                     for i, item in enumerate(items):
                         score = scores[i] if i < len(scores) else 0
                         pct = int(score * 100)
                         leak_sections += f'<li style="margin-bottom: 5px;">{item} - <span style="color: {color};">{pct}% risk</span></li>'
-                    leak_sections += '</ul>'
+                    leak_sections += "</ul>"
 
                 leak_sections += """
                 </div>
@@ -404,7 +406,9 @@ class EmailService:
                         sold = detail.get("sold", 0)
                         context = detail.get("context", "")
                         lines.append(f"  - {sku}")
-                        lines.append(f"    QOH: {qty:.0f} | Cost: ${cost:.2f} | Sold: {sold:.0f}")
+                        lines.append(
+                            f"    QOH: {qty:.0f} | Cost: ${cost:.2f} | Sold: {sold:.0f}"
+                        )
                         if context:
                             lines.append(f"    -> {context}")
                 else:
