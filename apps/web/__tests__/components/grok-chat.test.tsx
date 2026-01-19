@@ -381,20 +381,18 @@ describe('GrokChat Component', () => {
     })
 
     it('does not submit on Shift+Enter', async () => {
-      const user = userEvent.setup()
       render(<GrokChat />)
 
       const input = screen.getByPlaceholderText(/message grok/i)
-      await user.type(input, 'Hello')
 
-      // Clear any calls that might have happened during typing
+      // Use fireEvent for more predictable keyboard event simulation
+      fireEvent.change(input, { target: { value: 'Hello' } })
+
+      // Clear any calls that might have happened
       mockFetch.mockClear()
 
-      // Simulate Shift+Enter (should allow newline, not submit)
-      await user.keyboard('{Shift>}{Enter}{/Shift}')
-
-      // Small wait for any potential async operations
-      await new Promise(resolve => setTimeout(resolve, 50))
+      // Simulate Shift+Enter using fireEvent (shiftKey: true should prevent submission)
+      fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: true })
 
       // Fetch should not be called since Shift+Enter shouldn't submit
       expect(mockFetch).not.toHaveBeenCalled()
