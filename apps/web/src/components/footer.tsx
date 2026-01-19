@@ -121,7 +121,7 @@ function PrivacyBadge() {
           clipRule="evenodd"
         />
       </svg>
-      <span>Your data never leaves your browser</span>
+      <span>Files encrypted & auto-deleted</span>
     </div>
   )
 }

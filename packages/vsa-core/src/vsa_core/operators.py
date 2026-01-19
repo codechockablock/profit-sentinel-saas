@@ -508,3 +508,238 @@ def orthogonality_check(
             if abs(similarity(a, b)) >= threshold:
                 return False
     return True
+
+
+# =============================================================================
+# NOVEL PRIMITIVES FOR ALWAYS-ON AGENT
+# =============================================================================
+
+def n_bind(v: torch.Tensor) -> torch.Tensor:
+    """Negation binding: Create anti-vector that is maximally dissimilar.
+
+    For FHRR (complex phasors): π phase shift
+        n_bind(v)[i] = e^(i(θ_v[i] + π)) = -v[i]
+
+    Properties:
+        - sim(v, n_bind(v)) = -1 (maximally dissimilar)
+        - n_bind(n_bind(v)) = v (involutory)
+        - bundle(v, n_bind(v)) ≈ 0 (cancellation)
+
+    Use for:
+        - Exclusion queries: "Find X but NOT Y"
+        - Contradiction detection
+        - Negated facts in reasoning
+
+    Args:
+        v: Input vector
+
+    Returns:
+        Negated vector (π phase shift for phasors)
+
+    Example:
+        not_dead_item = n_bind(dead_item_vec)
+        active_items = query_bundle(bundle, bind(in_stock, not_dead_item))
+    """
+    return -v  # For complex phasors, negation = π phase shift
+
+
+def query_excluding(
+    bundle_vec: torch.Tensor,
+    include: torch.Tensor,
+    exclude: torch.Tensor
+) -> torch.Tensor:
+    """Query bundle for items matching 'include' but not 'exclude'.
+
+    Combines binding with negation for exclusion queries.
+
+    Args:
+        bundle_vec: The bundle to query
+        include: Pattern to include
+        exclude: Pattern to exclude
+
+    Returns:
+        Query result excluding unwanted pattern
+
+    Example:
+        # Find high-margin items that aren't dead stock
+        result = query_excluding(inventory_bundle, high_margin, dead_item)
+    """
+    query = bind(include, n_bind(exclude))
+    return unbind(bundle_vec, query)
+
+
+def cw_bundle(
+    vectors: List[torch.Tensor],
+    confidences: List[float],
+    temperature: float = 1.0
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Confidence-weighted bundling with learned magnitude encoding.
+
+    Instead of just weighting the sum, encode confidence in magnitude:
+        result[i] = Σ (c_j^τ · v_j[i])
+
+    Where τ (temperature) controls confidence sharpness:
+        - τ < 1: Amplify high-confidence items (sharper)
+        - τ = 1: Linear weighting
+        - τ > 1: Smooth out confidence differences (softer)
+
+    Args:
+        vectors: List of vectors to bundle
+        confidences: Confidence score [0, 1] for each vector
+        temperature: Sharpness of confidence weighting
+
+    Returns:
+        (bundle_vector, confidence_vector) tuple
+        - bundle_vector: Normalized weighted superposition
+        - confidence_vector: Per-dimension average confidence
+
+    Use for:
+        - Evidence accumulation with varying certainty
+        - Ensemble voting with confidence
+        - Soft attention over memory
+
+    Example:
+        detections = [low_stock_vec, dead_item_vec]
+        confidences = [0.95, 0.3]  # Very sure about low_stock, uncertain about dead_item
+        bundle, conf = cw_bundle(detections, confidences, temperature=0.5)
+    """
+    if len(vectors) != len(confidences):
+        raise ValueError("vectors and confidences must have same length")
+    if len(vectors) == 0:
+        raise ValueError("At least one vector required")
+
+    # Normalize confidences to [0, 1]
+    c = torch.tensor(confidences, dtype=torch.float32)
+    c = torch.clamp(c, 0.01, 1.0)  # Avoid zero weights
+
+    # Apply temperature (inverse for sharpening behavior)
+    c_scaled = torch.pow(c, 1.0 / temperature)
+
+    # Weight each vector
+    result = torch.zeros_like(vectors[0])
+    conf_accumulator = torch.zeros(vectors[0].shape[0], dtype=torch.float32, device=vectors[0].device)
+
+    for v, conf in zip(vectors, c_scaled):
+        if v.device != result.device:
+            v = v.to(result.device)
+
+        # Convert confidence to match vector dtype if complex
+        if result.is_complex():
+            conf_weight = conf.to(result.dtype)
+        else:
+            conf_weight = conf
+
+        result = result + conf_weight * v
+        conf_accumulator = conf_accumulator + float(conf)
+
+    # Normalize bundle
+    bundle_vec = normalize(result)
+
+    # Average confidence per dimension
+    conf_vec = conf_accumulator / len(vectors)
+
+    return bundle_vec, conf_vec
+
+
+def t_bind(
+    v: torch.Tensor,
+    timestamp: float,
+    reference_time: float,
+    decay_rate: float = 0.1,
+    max_shift: int = 1000
+) -> torch.Tensor:
+    """Temporal binding with exponential decay and position encoding.
+
+    Combines:
+    1. Temporal decay: Recent events have higher magnitude
+    2. Position encoding: Events at different times are distinguishable
+
+    Formula:
+        t_bind(v, t) = decay(t) · permute(v, pos(t))
+
+    Where:
+        - decay(t) = exp(-λ · (t_ref - t))
+        - pos(t) = hash(t) mod max_shift
+
+    Args:
+        v: Input vector
+        timestamp: Event timestamp (seconds since epoch)
+        reference_time: Current/reference time
+        decay_rate: Decay constant λ (higher = faster decay)
+        max_shift: Maximum permutation shift
+
+    Returns:
+        Temporally encoded vector
+
+    Use for:
+        - Temporal context in working memory
+        - "What happened recently?" queries
+        - Causal inference (did X precede Y?)
+
+    Example:
+        # Encode sales event from yesterday
+        event_vec = t_bind(sale_vec, yesterday_ts, now_ts, decay_rate=0.01)
+    """
+    import hashlib
+
+    # Compute decay factor (days-based for readability)
+    time_delta_days = (reference_time - timestamp) / 86400.0  # Convert to days
+    decay_factor = math.exp(-decay_rate * max(time_delta_days, 0))
+
+    # Compute temporal position shift (deterministic hash)
+    t_hash = int(hashlib.sha256(str(timestamp).encode()).hexdigest()[:8], 16)
+    shift = t_hash % max_shift
+
+    # Apply decay
+    if v.is_complex():
+        decayed = decay_factor * v
+    else:
+        decayed = decay_factor * v
+
+    # Apply temporal shift
+    shifted = permute(decayed, shift)
+
+    return shifted
+
+
+def t_unbind(
+    bundle_vec: torch.Tensor,
+    timestamp: float,
+    reference_time: float,
+    decay_rate: float = 0.1,
+    max_shift: int = 1000
+) -> torch.Tensor:
+    """Inverse of t_bind for temporal queries.
+
+    Reverses the temporal encoding to query for events at a specific time.
+
+    Args:
+        bundle_vec: Temporally encoded bundle
+        timestamp: Time to query
+        reference_time: Reference time used in encoding
+        decay_rate: Same decay rate used in encoding
+        max_shift: Same max shift used in encoding
+
+    Returns:
+        Unbound vector for querying events at timestamp
+
+    Example:
+        # Query what happened yesterday
+        yesterday_context = t_unbind(memory_bundle, yesterday_ts, now_ts)
+        matches = resonator.resonate(yesterday_context)
+    """
+    import hashlib
+
+    time_delta_days = (reference_time - timestamp) / 86400.0
+    decay_factor = math.exp(-decay_rate * max(time_delta_days, 0))
+
+    t_hash = int(hashlib.sha256(str(timestamp).encode()).hexdigest()[:8], 16)
+    shift = t_hash % max_shift
+
+    # Reverse operations
+    unshifted = inverse_permute(bundle_vec, shift)
+
+    # Undo decay (with epsilon to avoid division by zero)
+    undecayed = unshifted / (decay_factor + 1e-10)
+
+    return normalize(undecayed)

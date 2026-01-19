@@ -3,13 +3,14 @@ S3 Service for file storage operations.
 
 SECURITY:
 - Presigned URLs support size limits
+- Magic byte validation prevents spoofed extensions
 - File size validation before loading
 - Row count limits for DataFrames
 """
 
 import io
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 import pandas as pd
 
@@ -18,6 +19,79 @@ logger = logging.getLogger(__name__)
 # Safety limits
 DEFAULT_MAX_FILE_SIZE_MB = 50
 DEFAULT_MAX_ROWS = 500_000  # 500K rows max
+
+# Magic bytes for file type validation
+# Prevents malicious files disguised with safe extensions
+MAGIC_BYTES = {
+    'csv': [
+        # CSV files typically start with printable ASCII or UTF-8 BOM
+        # We check for common patterns
+    ],
+    'xlsx': [
+        b'PK\x03\x04',  # XLSX is a ZIP archive (PKZIP magic)
+    ],
+    'xls': [
+        b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1',  # Microsoft Compound Document (OLE)
+    ],
+}
+
+
+def _validate_magic_bytes(content: bytes, extension: str) -> Tuple[bool, str]:
+    """
+    Validate file content matches expected magic bytes for extension.
+
+    Args:
+        content: File content (at least first 8 bytes)
+        extension: Expected file extension (lowercase, without dot)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if len(content) < 8:
+        return False, "File too small to validate"
+
+    ext = extension.lower().lstrip('.')
+
+    if ext == 'xlsx':
+        # XLSX must start with ZIP magic
+        if not content.startswith(b'PK\x03\x04'):
+            return False, "Invalid XLSX file: not a valid Office Open XML format"
+        return True, ""
+
+    elif ext == 'xls':
+        # XLS must start with OLE magic
+        if not content.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'):
+            return False, "Invalid XLS file: not a valid legacy Excel format"
+        return True, ""
+
+    elif ext == 'csv':
+        # CSV is tricky - check for printable ASCII or UTF-8 BOM
+        # Reject binary content that's clearly not text
+        utf8_bom = b'\xef\xbb\xbf'
+        utf16_le_bom = b'\xff\xfe'
+        utf16_be_bom = b'\xfe\xff'
+
+        # Allow UTF BOMs
+        if content.startswith(utf8_bom) or content.startswith(utf16_le_bom) or content.startswith(utf16_be_bom):
+            return True, ""
+
+        # Check first 1000 bytes for non-printable characters (excluding common ones)
+        sample = content[:1000]
+        non_printable = 0
+        for byte in sample:
+            # Allow: printable ASCII, tab, newline, carriage return
+            if byte < 32 and byte not in (9, 10, 13):
+                non_printable += 1
+
+        # If more than 10% non-printable, likely binary
+        if non_printable > len(sample) * 0.1:
+            return False, "Invalid CSV file: contains binary content"
+
+        return True, ""
+
+    # Unknown extension - allow but log
+    logger.warning(f"No magic byte validation for extension: {ext}")
+    return True, ""
 
 
 class S3Service:
@@ -132,6 +206,13 @@ class S3Service:
 
         obj = self.client.get_object(Bucket=self.bucket_name, Key=key)
         contents = obj['Body'].read()
+
+        # Validate magic bytes to prevent spoofed extensions
+        extension = key.rsplit('.', 1)[-1] if '.' in key else ''
+        is_valid, error_msg = _validate_magic_bytes(contents, extension)
+        if not is_valid:
+            logger.warning(f"Magic byte validation failed for {key}: {error_msg}")
+            raise ValueError(error_msg)
 
         read_kwargs = {"dtype": str}
 

@@ -438,8 +438,9 @@ class VSADetector:
     Uses the sentinel_engine with context isolation.
     """
 
-    def __init__(self):
+    def __init__(self, dimensions: int = 8192):
         self.available = False
+        self.dimensions = dimensions
         try:
             from sentinel_engine import bundle_pos_facts, query_bundle
             from sentinel_engine.context import create_analysis_context
@@ -450,7 +451,7 @@ class VSADetector:
         except ImportError as e:
             print(f"WARNING: sentinel_engine not available: {e}")
 
-    def detect(self, rows: List[Dict], score_threshold: float = 0.1) -> Dict[str, Set[str]]:
+    def detect(self, rows: List[Dict], score_threshold: float = 0.01) -> Dict[str, Set[str]]:
         """
         Run VSA detection on dataset.
 
@@ -467,7 +468,7 @@ class VSADetector:
                 "overstock", "price_discrepancy", "shrinkage_pattern", "margin_erosion"
             ]}
 
-        ctx = self._create_ctx()
+        ctx = self._create_ctx(dimensions=self.dimensions)
         results = {}
 
         try:
@@ -491,12 +492,17 @@ class VSADetector:
         return results
 
 
-def run_validation():
-    """Main validation runner."""
+def run_validation(dimensions: int = 8192):
+    """Main validation runner.
+
+    Args:
+        dimensions: VSA dimensionality (default 8192, use 2048 for faster testing)
+    """
     print("=" * 70)
     print("VSA vs BASELINE VALIDATION")
     print("=" * 70)
     print(f"Run time: {datetime.now().isoformat()}")
+    print(f"Dimensions: {dimensions}")
     print()
 
     # Generate synthetic dataset
@@ -519,8 +525,8 @@ def run_validation():
     print()
 
     # Run VSA detector
-    print("Running VSA detector...")
-    vsa = VSADetector()
+    print(f"Running VSA detector ({dimensions}-D)...")
+    vsa = VSADetector(dimensions=dimensions)
     if vsa.available:
         t0 = time.time()
         vsa_results = vsa.detect(rows)
@@ -624,6 +630,7 @@ def run_validation():
         with open(results_file, "w") as f:
             json.dump({
                 "timestamp": datetime.now().isoformat(),
+                "dimensions": dimensions,
                 "dataset_size": len(rows),
                 "baseline": {
                     "avg_precision": baseline_avg_prec,
@@ -654,4 +661,9 @@ def run_validation():
 
 
 if __name__ == "__main__":
-    run_validation()
+    import argparse
+    parser = argparse.ArgumentParser(description="VSA vs Baseline Validation")
+    parser.add_argument("--dimensions", "-d", type=int, default=8192,
+                        help="VSA dimensions (default: 8192)")
+    args = parser.parse_args()
+    run_validation(dimensions=args.dimensions)

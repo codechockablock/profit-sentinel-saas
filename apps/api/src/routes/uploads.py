@@ -181,8 +181,16 @@ async def suggest_mapping(
         result = mapping_service.suggest_mapping(df, filename)
         return result
 
+    except ValueError as e:
+        # Known validation errors - safe to expose message
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
     except Exception as e:
+        # Unknown errors - log but don't expose internal details
+        logger.error(f"Column mapping failed for {key}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Column mapping failed: {str(e)}"
+            detail="Column mapping failed. Please check your file format and try again."
         )
