@@ -115,6 +115,14 @@ export function PhotoUpload({ onCapture, imageBase64, onClear }: PhotoUploadProp
     }
   }, [])
 
+  const stopCamera = useCallback(() => {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop())
+      setStream(null)
+    }
+    setIsCapturing(false)
+  }, [stream])
+
   const capturePhoto = useCallback(() => {
     if (!videoRef.current) return
 
@@ -147,15 +155,7 @@ export function PhotoUpload({ onCapture, imageBase64, onClear }: PhotoUploadProp
     // Stop camera
     stopCamera()
     onCapture(base64)
-  }, [onCapture])
-
-  const stopCamera = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop())
-      setStream(null)
-    }
-    setIsCapturing(false)
-  }, [stream])
+  }, [onCapture, stopCamera])
 
   // Show preview if image captured
   if (imageBase64) {

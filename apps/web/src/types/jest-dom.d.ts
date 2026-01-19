@@ -1,5 +1,3 @@
-/// <reference types="@testing-library/jest-dom" />
-
 /**
  * Type declarations for @testing-library/jest-dom
  *
