@@ -79,7 +79,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t profit-sentinel-api:${{ github.sha }} apps/api/
+          docker build -f apps/api/Dockerfile -t profit-sentinel-api:${{ github.sha }} .
 
       - name: Test Docker image
         run: |
