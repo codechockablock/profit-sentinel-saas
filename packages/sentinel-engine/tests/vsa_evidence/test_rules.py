@@ -225,7 +225,7 @@ class TestExtractEvidenceFacts:
         """Test shrinkage rate calculation."""
         row = {
             "quantity": 100,
-            "qty. difference": -10,
+            "qty_difference": -10,
             "cost": 5.0,
             "Retail": 10.0,
         }
@@ -263,8 +263,8 @@ class TestExtractEvidenceFacts:
         context = {"avg_margin": 0.8}  # 80% average
         facts = extract_evidence_facts(row, context)
 
-        # 50% is below 50% of 80% (40%), so should be True
-        assert facts["margin_below_category_avg"] is True
+        # 50% is NOT below 50% of 80% (40%), 0.5 > 0.4, so should be False
+        assert facts["margin_below_category_avg"] is False
 
 
 class TestRetailRulesCoverage:
