@@ -186,8 +186,9 @@ class AnalysisService:
         try:
             # Bundle facts with aggressive detection
             # This populates ctx.leak_counts with actual detection counts
+            # Note: bundle return value unused - we use heuristics for specific items
             bundle_start = time.time()
-            bundle = self._bundle_pos_facts(ctx, rows)
+            _ = self._bundle_pos_facts(ctx, rows)  # noqa: F841 - populates ctx.leak_counts
             bundle_time = time.time() - bundle_start
 
             # Get leak counts from context (populated during bundling)
