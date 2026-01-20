@@ -403,9 +403,7 @@ class AnalysisService:
             # Default to enabled if can't read settings
             return True
 
-    def _perform_cause_diagnosis(
-        self, ctx: Any, rows: list[dict], leaks: dict
-    ) -> dict:
+    def _perform_cause_diagnosis(self, ctx: Any, rows: list[dict], leaks: dict) -> dict:
         """
         Perform VSA-grounded cause diagnosis.
 
