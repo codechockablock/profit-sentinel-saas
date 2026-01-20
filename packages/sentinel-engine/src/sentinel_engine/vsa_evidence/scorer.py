@@ -47,9 +47,11 @@ logger = logging.getLogger(__name__)
 # SCORING RESULT TYPES
 # =============================================================================
 
+
 @dataclass
 class CauseScore:
     """Score for a single cause with metadata."""
+
     cause: str
     score: float
     confidence: float  # 0.0-1.0, derived from score magnitude
@@ -73,6 +75,7 @@ class CauseScore:
 @dataclass
 class ScoringResult:
     """Complete scoring result with all causes and diagnostics."""
+
     scores: list[CauseScore]
     top_cause: str | None
     ambiguity_score: float  # 0.0 = clear winner, 1.0 = highly ambiguous
@@ -103,6 +106,7 @@ class ScoringResult:
 # CAUSE SCORER
 # =============================================================================
 
+
 @dataclass
 class CauseScorer:
     """
@@ -118,7 +122,7 @@ class CauseScorer:
     Thread-safe: Uses context-isolated state.
     """
 
-    ctx: "AnalysisContext"
+    ctx: AnalysisContext
     encoder: EvidenceEncoder = field(default=None, repr=False)
     cause_vectors: CauseVectors = field(default=None, repr=False)
 
@@ -160,8 +164,9 @@ class CauseScorer:
         evidence_vecs = self.encoder.encode_facts(facts, include_sku_binding=False)
 
         # Filter out zero vectors (no matching rules)
-        non_zero = [(f, v) for f, v in zip(facts, evidence_vecs)
-                    if torch.norm(v).item() > 1e-6]
+        non_zero = [
+            (f, v) for f, v in zip(facts, evidence_vecs) if torch.norm(v).item() > 1e-6
+        ]
 
         if not non_zero:
             return self._empty_result("No rules matched any facts")
@@ -216,13 +221,15 @@ class CauseScorer:
             metadata = get_cause_metadata(cause_key)
             cause_confidence = score / max_score if max_score > 0 else 0.0
 
-            result_scores.append(CauseScore(
-                cause=cause_key,
-                score=score,
-                confidence=cause_confidence,
-                evidence_count=cause_evidence_counts[cause_key],
-                metadata=metadata,
-            ))
+            result_scores.append(
+                CauseScore(
+                    cause=cause_key,
+                    score=score,
+                    confidence=cause_confidence,
+                    evidence_count=cause_evidence_counts[cause_key],
+                    metadata=metadata,
+                )
+            )
 
         # Determine top cause
         top_cause = scores_sorted[0][0] if scores_sorted and max_score > 0 else None
@@ -320,13 +327,22 @@ class CauseScorer:
             return True, "no_matching_rules"
 
         if confidence < self.confidence_threshold:
-            return True, f"low_confidence ({confidence:.2f} < {self.confidence_threshold})"
+            return (
+                True,
+                f"low_confidence ({confidence:.2f} < {self.confidence_threshold})",
+            )
 
         if ambiguity > self.ambiguity_threshold:
-            return True, f"ambiguous_evidence ({ambiguity:.2f} > {self.ambiguity_threshold})"
+            return (
+                True,
+                f"ambiguous_evidence ({ambiguity:.2f} > {self.ambiguity_threshold})",
+            )
 
         if evidence_count < self.min_evidence_count:
-            return True, f"insufficient_evidence ({evidence_count} < {self.min_evidence_count})"
+            return (
+                True,
+                f"insufficient_evidence ({evidence_count} < {self.min_evidence_count})",
+            )
 
         # High severity causes should be verified
         if self.severity_cold_path and top_cause:
@@ -353,6 +369,7 @@ class CauseScorer:
 # BATCH SCORER (for analyzing multiple items at once)
 # =============================================================================
 
+
 @dataclass
 class BatchScorer:
     """
@@ -361,7 +378,7 @@ class BatchScorer:
     Use for analyzing entire datasets or categories.
     """
 
-    ctx: "AnalysisContext"
+    ctx: AnalysisContext
     scorer: CauseScorer = field(default=None, repr=False)
 
     def __post_init__(self):
@@ -474,8 +491,9 @@ class BatchScorer:
 # FACTORY FUNCTIONS
 # =============================================================================
 
+
 def create_cause_scorer(
-    ctx: "AnalysisContext",
+    ctx: AnalysisContext,
     confidence_threshold: float = 0.6,
     ambiguity_threshold: float = 0.5,
     min_evidence_count: int = 2,
@@ -500,7 +518,7 @@ def create_cause_scorer(
     )
 
 
-def create_batch_scorer(ctx: "AnalysisContext") -> BatchScorer:
+def create_batch_scorer(ctx: AnalysisContext) -> BatchScorer:
     """
     Factory function to create a BatchScorer.
 

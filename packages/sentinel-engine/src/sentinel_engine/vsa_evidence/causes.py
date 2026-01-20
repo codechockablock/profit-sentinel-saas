@@ -34,14 +34,14 @@ logger = logging.getLogger(__name__)
 # The 8 root causes for retail profit leaks
 # These map to multi-hop causal chains: SKU -> Vendor -> Factory
 CAUSE_KEYS = [
-    "theft",              # Shrinkage due to theft (internal/external)
-    "vendor_increase",    # Vendor raised costs without notice
-    "rebate_timing",      # Rebate timing mismatch (requires vendor hop)
-    "margin_leak",        # Margin erosion from pricing issues
-    "demand_shift",       # Market demand changed (seasonal, trends)
-    "quality_issue",      # Product quality problems (requires factory hop)
-    "pricing_error",      # Incorrect pricing configuration
-    "inventory_drift",    # Gradual inventory discrepancy
+    "theft",  # Shrinkage due to theft (internal/external)
+    "vendor_increase",  # Vendor raised costs without notice
+    "rebate_timing",  # Rebate timing mismatch (requires vendor hop)
+    "margin_leak",  # Margin erosion from pricing issues
+    "demand_shift",  # Market demand changed (seasonal, trends)
+    "quality_issue",  # Product quality problems (requires factory hop)
+    "pricing_error",  # Incorrect pricing configuration
+    "inventory_drift",  # Gradual inventory discrepancy
 ]
 
 
@@ -61,7 +61,7 @@ class CauseVectors:
     Thread-safe: Each context gets its own CauseVectors instance.
     """
 
-    ctx: "AnalysisContext"
+    ctx: AnalysisContext
     _vectors: dict[str, torch.Tensor] = field(default_factory=dict, repr=False)
     _initialized: bool = field(default=False, repr=False)
 
@@ -262,16 +262,19 @@ CAUSE_METADATA = {
 
 def get_cause_metadata(cause_key: str) -> dict:
     """Get metadata for a specific cause."""
-    return CAUSE_METADATA.get(cause_key, {
-        "severity": "info",
-        "category": "Unknown",
-        "description": "Unknown cause type",
-        "multi_hop_depth": 1,
-        "recommendations": ["Manual investigation required"],
-    })
+    return CAUSE_METADATA.get(
+        cause_key,
+        {
+            "severity": "info",
+            "category": "Unknown",
+            "description": "Unknown cause type",
+            "multi_hop_depth": 1,
+            "recommendations": ["Manual investigation required"],
+        },
+    )
 
 
-def create_cause_vectors(ctx: "AnalysisContext") -> CauseVectors:
+def create_cause_vectors(ctx: AnalysisContext) -> CauseVectors:
     """
     Factory function to create CauseVectors for a context.
 

@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # RULE DEFINITIONS
 # =============================================================================
+
 
 @dataclass
 class EvidenceRule:
@@ -45,6 +46,7 @@ class EvidenceRule:
         weight: How strongly this supports the cause (+1.0 = strong, -0.5 = weak counter)
         description: Human-readable explanation for debugging
     """
+
     attribute: str
     pattern: str
     cause: str
@@ -162,44 +164,43 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
         pattern=">0.05",
         cause="theft",
         weight=1.0,
-        description="High shrinkage rate (>5%) strongly indicates theft"
+        description="High shrinkage rate (>5%) strongly indicates theft",
     ),
     EvidenceRule(
         attribute="qty_difference",
         pattern="<-10",
         cause="theft",
         weight=0.9,
-        description="Large negative variance indicates potential theft"
+        description="Large negative variance indicates potential theft",
     ),
     EvidenceRule(
         attribute="security_incidents",
         pattern=">0",
         cause="theft",
         weight=0.8,
-        description="Security incidents correlate with theft"
+        description="Security incidents correlate with theft",
     ),
     EvidenceRule(
         attribute="high_value",
         pattern="true",
         cause="theft",
         weight=0.6,
-        description="High-value items are theft targets"
+        description="High-value items are theft targets",
     ),
     EvidenceRule(
         attribute="small_portable",
         pattern="true",
         cause="theft",
         weight=0.5,
-        description="Small portable items are easier to steal"
+        description="Small portable items are easier to steal",
     ),
     EvidenceRule(
         attribute="negative_inventory",
         pattern="true",
         cause="theft",
         weight=0.7,
-        description="Negative inventory suggests unrecorded removal"
+        description="Negative inventory suggests unrecorded removal",
     ),
-
     # -------------------------------------------------------------------------
     # VENDOR COST INCREASE RULES
     # -------------------------------------------------------------------------
@@ -208,30 +209,29 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
         pattern=">0.1",
         cause="vendor_increase",
         weight=1.0,
-        description="Cost increased >10% indicates vendor price hike"
+        description="Cost increased >10% indicates vendor price hike",
     ),
     EvidenceRule(
         attribute="margin_compression",
         pattern="true",
         cause="vendor_increase",
         weight=0.8,
-        description="Margin compression with stable retail = cost increase"
+        description="Margin compression with stable retail = cost increase",
     ),
     EvidenceRule(
         attribute="vendor_notice",
         pattern="price_increase",
         cause="vendor_increase",
         weight=0.9,
-        description="Vendor communicated price increase"
+        description="Vendor communicated price increase",
     ),
     EvidenceRule(
         attribute="category_wide_margin_drop",
         pattern="true",
         cause="vendor_increase",
         weight=0.7,
-        description="Category-wide margin drop suggests vendor issue"
+        description="Category-wide margin drop suggests vendor issue",
     ),
-
     # -------------------------------------------------------------------------
     # REBATE TIMING RULES (Multi-hop: SKU -> Vendor)
     # -------------------------------------------------------------------------
@@ -240,37 +240,36 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
         pattern=">0",
         cause="rebate_timing",
         weight=0.8,
-        description="Pending rebate creates temporary margin squeeze"
+        description="Pending rebate creates temporary margin squeeze",
     ),
     EvidenceRule(
         attribute="payment_terms",
         pattern="net-60",
         cause="rebate_timing",
         weight=0.9,
-        description="Extended payment terms affect margin timing"
+        description="Extended payment terms affect margin timing",
     ),
     EvidenceRule(
         attribute="payment_terms",
         pattern="net-90",
         cause="rebate_timing",
         weight=1.0,
-        description="Very extended terms strongly affect margin timing"
+        description="Very extended terms strongly affect margin timing",
     ),
     EvidenceRule(
         attribute="dating_active",
         pattern="true",
         cause="rebate_timing",
         weight=0.7,
-        description="Active dating program affects margin recognition"
+        description="Active dating program affects margin recognition",
     ),
     EvidenceRule(
         attribute="quarter_end",
         pattern="true",
         cause="rebate_timing",
         weight=0.6,
-        description="Quarter-end rebates pending recognition"
+        description="Quarter-end rebates pending recognition",
     ),
-
     # -------------------------------------------------------------------------
     # MARGIN LEAK RULES
     # -------------------------------------------------------------------------
@@ -279,37 +278,36 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
         pattern="<-0.1",
         cause="margin_leak",
         weight=0.9,
-        description="Margin dropped >10% indicates leak"
+        description="Margin dropped >10% indicates leak",
     ),
     EvidenceRule(
         attribute="promo_stuck",
         pattern="true",
         cause="margin_leak",
         weight=1.0,
-        description="Promotional price didn't expire"
+        description="Promotional price didn't expire",
     ),
     EvidenceRule(
         attribute="discount_rate",
         pattern=">0.3",
         cause="margin_leak",
         weight=0.8,
-        description="High discount rate (>30%) indicates margin leak"
+        description="High discount rate (>30%) indicates margin leak",
     ),
     EvidenceRule(
         attribute="price_below_cost",
         pattern="true",
         cause="margin_leak",
         weight=1.0,
-        description="Selling below cost is critical margin leak"
+        description="Selling below cost is critical margin leak",
     ),
     EvidenceRule(
         attribute="margin_below_category_avg",
         pattern="true",
         cause="margin_leak",
         weight=0.7,
-        description="Margin below category average suggests issue"
+        description="Margin below category average suggests issue",
     ),
-
     # -------------------------------------------------------------------------
     # DEMAND SHIFT RULES
     # -------------------------------------------------------------------------
@@ -318,30 +316,29 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
         pattern="<-0.5",
         cause="demand_shift",
         weight=0.9,
-        description="Velocity dropped >50% indicates demand shift"
+        description="Velocity dropped >50% indicates demand shift",
     ),
     EvidenceRule(
         attribute="seasonal_item",
         pattern="true",
         cause="demand_shift",
         weight=0.6,
-        description="Seasonal items have predictable demand shifts"
+        description="Seasonal items have predictable demand shifts",
     ),
     EvidenceRule(
         attribute="trend_declining",
         pattern="true",
         cause="demand_shift",
         weight=0.8,
-        description="Category trend declining affects demand"
+        description="Category trend declining affects demand",
     ),
     EvidenceRule(
         attribute="days_since_sale",
         pattern=">60",
         cause="demand_shift",
         weight=0.7,
-        description="No sales in 60+ days suggests demand gone"
+        description="No sales in 60+ days suggests demand gone",
     ),
-
     # -------------------------------------------------------------------------
     # QUALITY ISSUE RULES (Multi-hop: SKU -> Vendor -> Factory)
     # -------------------------------------------------------------------------
@@ -350,30 +347,29 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
         pattern=">0.1",
         cause="quality_issue",
         weight=0.9,
-        description="High return rate (>10%) indicates quality issue"
+        description="High return rate (>10%) indicates quality issue",
     ),
     EvidenceRule(
         attribute="customer_complaints",
         pattern=">0",
         cause="quality_issue",
         weight=0.8,
-        description="Customer complaints indicate quality problems"
+        description="Customer complaints indicate quality problems",
     ),
     EvidenceRule(
         attribute="vendor_defect_rate",
         pattern=">0.05",
         cause="quality_issue",
         weight=1.0,
-        description="Vendor defect rate (>5%) is factory issue"
+        description="Vendor defect rate (>5%) is factory issue",
     ),
     EvidenceRule(
         attribute="batch_recall",
         pattern="true",
         cause="quality_issue",
         weight=1.0,
-        description="Product recall is quality failure"
+        description="Product recall is quality failure",
     ),
-
     # -------------------------------------------------------------------------
     # PRICING ERROR RULES
     # -------------------------------------------------------------------------
@@ -382,30 +378,29 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
         pattern=">0.3",
         cause="pricing_error",
         weight=0.9,
-        description="Price >30% off MSRP suggests error"
+        description="Price >30% off MSRP suggests error",
     ),
     EvidenceRule(
         attribute="cost_zero",
         pattern="true",
         cause="pricing_error",
         weight=0.8,
-        description="Zero cost is data entry error"
+        description="Zero cost is data entry error",
     ),
     EvidenceRule(
         attribute="margin_100_percent",
         pattern="true",
         cause="pricing_error",
         weight=0.8,
-        description="100% margin usually means cost not entered"
+        description="100% margin usually means cost not entered",
     ),
     EvidenceRule(
         attribute="price_mismatch",
         pattern="true",
         cause="pricing_error",
         weight=0.7,
-        description="Price doesn't match price level/matrix"
+        description="Price doesn't match price level/matrix",
     ),
-
     # -------------------------------------------------------------------------
     # INVENTORY DRIFT RULES
     # -------------------------------------------------------------------------
@@ -414,30 +409,29 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
         pattern="true",
         cause="inventory_drift",
         weight=0.8,
-        description="Persistent variance indicates systemic drift"
+        description="Persistent variance indicates systemic drift",
     ),
     EvidenceRule(
         attribute="cycle_count_variance",
         pattern=">0.02",
         cause="inventory_drift",
         weight=0.9,
-        description="Cycle count variance >2% indicates drift"
+        description="Cycle count variance >2% indicates drift",
     ),
     EvidenceRule(
         attribute="receiving_errors",
         pattern=">0",
         cause="inventory_drift",
         weight=0.7,
-        description="Receiving errors contribute to drift"
+        description="Receiving errors contribute to drift",
     ),
     EvidenceRule(
         attribute="days_since_count",
         pattern=">180",
         cause="inventory_drift",
         weight=0.6,
-        description="No count in 180+ days allows drift to accumulate"
+        description="No count in 180+ days allows drift to accumulate",
     ),
-
     # -------------------------------------------------------------------------
     # COUNTER-EVIDENCE RULES (negative weights)
     # -------------------------------------------------------------------------
@@ -446,28 +440,28 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
         pattern="true",
         cause="theft",
         weight=-0.3,
-        description="Security tagged items less likely stolen"
+        description="Security tagged items less likely stolen",
     ),
     EvidenceRule(
         attribute="locked_case",
         pattern="true",
         cause="theft",
         weight=-0.4,
-        description="Items in locked cases are protected"
+        description="Items in locked cases are protected",
     ),
     EvidenceRule(
         attribute="contract_price",
         pattern="true",
         cause="vendor_increase",
         weight=-0.5,
-        description="Contract pricing protects against increases"
+        description="Contract pricing protects against increases",
     ),
     EvidenceRule(
         attribute="evergreen_demand",
         pattern="true",
         cause="demand_shift",
         weight=-0.4,
-        description="Evergreen items have stable demand"
+        description="Evergreen items have stable demand",
     ),
 ]
 
@@ -475,6 +469,7 @@ RETAIL_EVIDENCE_RULES: list[EvidenceRule] = [
 # =============================================================================
 # RULE ENGINE
 # =============================================================================
+
 
 @dataclass
 class RuleEngine:
@@ -529,14 +524,16 @@ class RuleEngine:
         matches = []
         for rule in self.rules:
             if rule.matches(fact):
-                matches.append({
-                    "attribute": rule.attribute,
-                    "pattern": rule.pattern,
-                    "cause": rule.cause,
-                    "weight": rule.weight,
-                    "description": rule.description,
-                    "fact_value": fact.get(rule.attribute),
-                })
+                matches.append(
+                    {
+                        "attribute": rule.attribute,
+                        "pattern": rule.pattern,
+                        "cause": rule.cause,
+                        "weight": rule.weight,
+                        "description": rule.description,
+                        "fact_value": fact.get(rule.attribute),
+                    }
+                )
         return matches
 
     def get_rules_for_cause(self, cause: str) -> list[EvidenceRule]:
@@ -559,9 +556,11 @@ class RuleEngine:
         Returns True if rule was found and removed.
         """
         for i, rule in enumerate(self.rules):
-            if (rule.attribute == attribute and
-                rule.pattern == pattern and
-                rule.cause == cause):
+            if (
+                rule.attribute == attribute
+                and rule.pattern == pattern
+                and rule.cause == cause
+            ):
                 self.rules.pop(i)
                 logger.info(f"Removed rule: {attribute} {pattern} -> {cause}")
                 return True
@@ -572,7 +571,10 @@ class RuleEngine:
 # FACT EXTRACTION HELPERS
 # =============================================================================
 
-def extract_evidence_facts(row: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
+
+def extract_evidence_facts(
+    row: dict[str, Any], context: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
     Extract evidence-relevant facts from a POS row.
 
@@ -625,7 +627,6 @@ def extract_evidence_facts(row: dict[str, Any], context: dict[str, Any] | None =
         "qty_difference": qty_diff,
         "negative_inventory": quantity < 0,
         "shrinkage_rate": shrinkage_rate,
-
         # Financial facts
         "cost": cost,
         "revenue": revenue,
@@ -634,21 +635,27 @@ def extract_evidence_facts(row: dict[str, Any], context: dict[str, Any] | None =
         "margin_100_percent": margin >= 0.99 and cost == 0,
         "price_below_cost": revenue < cost and cost > 0,
         "margin_below_category_avg": margin < avg_margin * 0.5,
-
         # Velocity facts
         "sold": sold,
         "velocity": sold / 30 if sold > 0 else 0,  # Daily velocity
-
         # Item characteristics (from row if available)
         "high_value": cost > 100 or revenue > 200,
     }
 
     # Add optional fields if present
     optional_fields = [
-        "return_rate", "customer_complaints", "vendor_defect_rate",
-        "payment_terms", "rebate_pending", "dating_active",
-        "promo_stuck", "discount_rate", "security_tagged",
-        "locked_case", "contract_price", "seasonal_item",
+        "return_rate",
+        "customer_complaints",
+        "vendor_defect_rate",
+        "payment_terms",
+        "rebate_pending",
+        "dating_active",
+        "promo_stuck",
+        "discount_rate",
+        "security_tagged",
+        "locked_case",
+        "contract_price",
+        "seasonal_item",
     ]
     for field in optional_fields:
         if field in row:

@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 # EVIDENCE ENCODER
 # =============================================================================
 
+
 @dataclass
 class EvidenceEncoder:
     """
@@ -58,7 +59,7 @@ class EvidenceEncoder:
     Thread-safe: Uses context-isolated state.
     """
 
-    ctx: "AnalysisContext"
+    ctx: AnalysisContext
     cause_vectors: CauseVectors = field(default=None, repr=False)
     rule_engine: RuleEngine = field(default=None, repr=False)
 
@@ -129,10 +130,7 @@ class EvidenceEncoder:
         Returns:
             List of encoded hypervectors
         """
-        return [
-            self.encode_fact(fact, include_sku_binding)
-            for fact in facts
-        ]
+        return [self.encode_fact(fact, include_sku_binding) for fact in facts]
 
     def encode_row(
         self,
@@ -198,10 +196,7 @@ class EvidenceEncoder:
         evidence_vecs = self.encode_rows(rows, context)
 
         # Filter out zero vectors (no matching rules)
-        non_zero_vecs = [
-            v for v in evidence_vecs
-            if torch.norm(v).item() > 1e-6
-        ]
+        non_zero_vecs = [v for v in evidence_vecs if torch.norm(v).item() > 1e-6]
 
         if not non_zero_vecs:
             return self.ctx.zeros()
@@ -260,6 +255,7 @@ class EvidenceEncoder:
 # HIERARCHICAL ENCODER (for large datasets)
 # =============================================================================
 
+
 @dataclass
 class HierarchicalEvidenceEncoder:
     """
@@ -275,7 +271,7 @@ class HierarchicalEvidenceEncoder:
     Validated: H9 showed >500 items with hierarchical encoding.
     """
 
-    ctx: "AnalysisContext"
+    ctx: AnalysisContext
     encoder: EvidenceEncoder = field(default=None, repr=False)
     group_size: int = 150  # Stay below capacity cliff
 
@@ -317,12 +313,11 @@ class HierarchicalEvidenceEncoder:
             # Chunk large groups
             if len(group_rows) > self.group_size:
                 chunks = [
-                    group_rows[i:i + self.group_size]
+                    group_rows[i : i + self.group_size]
                     for i in range(0, len(group_rows), self.group_size)
                 ]
                 chunk_bundles = [
-                    self.encoder.bundle_evidence(chunk, context)
-                    for chunk in chunks
+                    self.encoder.bundle_evidence(chunk, context) for chunk in chunks
                 ]
                 group_bundle = self.ctx.normalize(sum(chunk_bundles))
             else:
@@ -346,7 +341,8 @@ class HierarchicalEvidenceEncoder:
 # FACTORY FUNCTIONS
 # =============================================================================
 
-def create_evidence_encoder(ctx: "AnalysisContext") -> EvidenceEncoder:
+
+def create_evidence_encoder(ctx: AnalysisContext) -> EvidenceEncoder:
     """
     Factory function to create an EvidenceEncoder.
 
@@ -360,7 +356,7 @@ def create_evidence_encoder(ctx: "AnalysisContext") -> EvidenceEncoder:
 
 
 def create_hierarchical_encoder(
-    ctx: "AnalysisContext",
+    ctx: AnalysisContext,
     group_size: int = 150,
 ) -> HierarchicalEvidenceEncoder:
     """
