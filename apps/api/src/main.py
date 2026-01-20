@@ -150,8 +150,15 @@ async def lifespan(app: FastAPI):
 def _verify_sentinel_engine():
     """Verify sentinel engine is available and log status."""
     try:
+        from sentinel_engine import _CORE_AVAILABLE, get_all_primitives
         from sentinel_engine import __version__ as engine_version
-        from sentinel_engine import get_all_primitives
+
+        if not _CORE_AVAILABLE or get_all_primitives is None:
+            logger.warning(
+                f"Sentinel Engine v{engine_version} loaded but core module unavailable. "
+                "Analysis will use heuristic fallback mode."
+            )
+            return True
 
         primitives = get_all_primitives()
         logger.info(
