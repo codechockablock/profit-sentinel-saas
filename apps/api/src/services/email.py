@@ -209,6 +209,86 @@ class EmailService:
             total_impact_low += impact.get("low_estimate", 0)
             total_impact_high += impact.get("high_estimate", 0)
 
+        # Extract cause diagnosis if available
+        cause_diagnosis_section = ""
+        for result in results:
+            cause_diagnosis = result.get("cause_diagnosis")
+            if cause_diagnosis and cause_diagnosis.get("top_cause"):
+                top_cause = cause_diagnosis.get("top_cause", "Unknown")
+                confidence = cause_diagnosis.get("confidence", 0) * 100
+                cause_details = cause_diagnosis.get("cause_details", {})
+                severity = cause_details.get("severity", "info")
+                category = cause_details.get("category", "Unknown")
+                description = cause_details.get("description", "")
+                recommendations = cause_details.get("recommendations", [])
+                alternative_causes = cause_diagnosis.get("alternative_causes", [])
+
+                severity_colors = {
+                    "critical": "#dc2626",
+                    "high": "#f97316",
+                    "medium": "#f59e0b",
+                    "info": "#3b82f6",
+                }
+                severity_color = severity_colors.get(severity, "#6b7280")
+
+                cause_diagnosis_section = f"""
+                <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(139, 92, 246, 0.05)); border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 16px; padding: 25px; margin-bottom: 30px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                        <span style="font-size: 24px; margin-right: 10px;">🔍</span>
+                        <h2 style="color: #a78bfa; margin: 0; font-size: 20px;">Root Cause Analysis</h2>
+                        <span style="margin-left: auto; background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">VSA-Grounded</span>
+                    </div>
+
+                    <div style="background: #0f172a; border-radius: 12px; padding: 20px; margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <span style="color: #f1f5f9; font-size: 18px; font-weight: bold;">{top_cause.replace('_', ' ').title()}</span>
+                            <span style="background: {severity_color}22; color: {severity_color}; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; text-transform: uppercase;">{severity}</span>
+                        </div>
+                        <p style="color: #94a3b8; font-size: 14px; margin: 0 0 12px 0;">{description}</p>
+                        <div style="display: flex; gap: 20px; margin-top: 10px;">
+                            <div>
+                                <span style="color: #64748b; font-size: 11px; text-transform: uppercase;">Confidence</span>
+                                <p style="color: #10b981; font-size: 20px; font-weight: bold; margin: 4px 0 0 0;">{confidence:.0f}%</p>
+                            </div>
+                            <div>
+                                <span style="color: #64748b; font-size: 11px; text-transform: uppercase;">Category</span>
+                                <p style="color: #f1f5f9; font-size: 14px; margin: 4px 0 0 0;">{category}</p>
+                            </div>
+                        </div>
+                    </div>
+                """
+
+                # Add recommendations
+                if recommendations:
+                    cause_diagnosis_section += """
+                    <div style="margin-bottom: 15px;">
+                        <h4 style="color: #fbbf24; margin: 0 0 10px 0; font-size: 14px;">📋 Targeted Actions</h4>
+                        <ul style="margin: 0; padding-left: 20px; color: #cbd5e1;">
+                    """
+                    for rec in recommendations[:4]:
+                        cause_diagnosis_section += f'<li style="margin-bottom: 6px; font-size: 13px;">{rec}</li>'
+                    cause_diagnosis_section += "</ul></div>"
+
+                # Add alternative causes
+                if alternative_causes:
+                    cause_diagnosis_section += """
+                    <div style="background: #1e293b; border-radius: 8px; padding: 12px; margin-top: 10px;">
+                        <p style="color: #64748b; font-size: 11px; text-transform: uppercase; margin: 0 0 8px 0;">Also Consider</p>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    """
+                    for alt in alternative_causes[:3]:
+                        alt_cause = alt.get("cause", "").replace("_", " ").title()
+                        alt_conf = alt.get("confidence", 0) * 100
+                        cause_diagnosis_section += f"""
+                            <span style="background: #0f172a; color: #94a3b8; padding: 4px 10px; border-radius: 4px; font-size: 12px;">
+                                {alt_cause} ({alt_conf:.0f}%)
+                            </span>
+                        """
+                    cause_diagnosis_section += "</div></div>"
+
+                cause_diagnosis_section += "</div>"
+                break  # Only show first cause diagnosis
+
         leak_sections = ""
         for result in results:
             filename = result.get("filename", "Unknown File")
@@ -304,6 +384,9 @@ class EmailService:
         <!-- Mock Data Warning (if applicable) -->
         {mock_warning}
 
+        <!-- Root Cause Analysis (VSA-Grounded) -->
+        {cause_diagnosis_section}
+
         <!-- Summary Card -->
         <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 25px; margin-bottom: 30px;">
             <h2 style="color: #10b981; margin: 0 0 20px 0; font-size: 20px;">Analysis Summary</h2>
@@ -372,6 +455,40 @@ class EmailService:
             "=" * 40,
             "",
         ]
+
+        # Add root cause analysis if available
+        for result in results:
+            cause_diagnosis = result.get("cause_diagnosis")
+            if cause_diagnosis and cause_diagnosis.get("top_cause"):
+                top_cause = cause_diagnosis.get("top_cause", "Unknown")
+                confidence = cause_diagnosis.get("confidence", 0) * 100
+                cause_details = cause_diagnosis.get("cause_details", {})
+                severity = cause_details.get("severity", "info")
+                description = cause_details.get("description", "")
+                recommendations = cause_details.get("recommendations", [])
+
+                lines.extend(
+                    [
+                        "ROOT CAUSE ANALYSIS (VSA-Grounded)",
+                        "-" * 35,
+                        f"Primary Cause: {top_cause.replace('_', ' ').title()}",
+                        f"Confidence: {confidence:.0f}%",
+                        f"Severity: {severity.upper()}",
+                        "",
+                        f"Description: {description}",
+                        "",
+                    ]
+                )
+
+                if recommendations:
+                    lines.append("Targeted Actions:")
+                    for i, rec in enumerate(recommendations[:4], 1):
+                        lines.append(f"  {i}. {rec}")
+                    lines.append("")
+
+                lines.append("=" * 40)
+                lines.append("")
+                break
 
         total_flagged = 0
         for result in results:
