@@ -76,36 +76,68 @@ from .context import (
     create_analysis_context,
 )
 
-# Core analysis functions
-from .core import (
-    CATEGORY_ALIASES,
-    COST_ALIASES,
-    LAST_SALE_ALIASES,
-    LEAK_METADATA,
-    MARGIN_ALIASES,
-    # Data structures
-    PRIMITIVES,
-    QTY_DIFF_ALIASES,
-    # Column aliases (for reference)
-    QUANTITY_ALIASES,
-    REVENUE_ALIASES,
-    SKU_ALIASES,
-    SOLD_ALIASES,
-    THRESHOLDS,
-    VENDOR_ALIASES,
-    add_to_codebook,
-    # Main functions
-    bundle_pos_facts,
-    codebook_dict,  # Deprecated - use ctx.codebook instead
-    convergence_lock_resonator_gpu,
-    get_all_primitives,
-    get_primitive_metadata,
-    normalize_torch,
-    query_bundle,
-    reset_codebook,  # Now a no-op for backward compatibility
-    # VSA utilities (legacy - prefer context methods)
-    seed_hash,
-)
+# Core analysis functions (proprietary - may not be available in all environments)
+try:
+    from .core import (
+        CATEGORY_ALIASES,
+        COST_ALIASES,
+        LAST_SALE_ALIASES,
+        LEAK_METADATA,
+        MARGIN_ALIASES,
+        # Data structures
+        PRIMITIVES,
+        QTY_DIFF_ALIASES,
+        # Column aliases (for reference)
+        QUANTITY_ALIASES,
+        REVENUE_ALIASES,
+        SKU_ALIASES,
+        SOLD_ALIASES,
+        THRESHOLDS,
+        VENDOR_ALIASES,
+        add_to_codebook,
+        # Main functions
+        bundle_pos_facts,
+        codebook_dict,  # Deprecated - use ctx.codebook instead
+        convergence_lock_resonator_gpu,
+        get_all_primitives,
+        get_primitive_metadata,
+        normalize_torch,
+        query_bundle,
+        reset_codebook,  # Now a no-op for backward compatibility
+        # VSA utilities (legacy - prefer context methods)
+        seed_hash,
+    )
+
+    _CORE_AVAILABLE = True
+except ImportError as e:
+    import logging
+
+    logging.getLogger(__name__).debug(f"Core module not available: {e}")
+    _CORE_AVAILABLE = False
+    # Set placeholders for optional core imports
+    CATEGORY_ALIASES = None
+    COST_ALIASES = None
+    LAST_SALE_ALIASES = None
+    LEAK_METADATA = None
+    MARGIN_ALIASES = None
+    PRIMITIVES = None
+    QTY_DIFF_ALIASES = None
+    QUANTITY_ALIASES = None
+    REVENUE_ALIASES = None
+    SKU_ALIASES = None
+    SOLD_ALIASES = None
+    THRESHOLDS = None
+    VENDOR_ALIASES = None
+    add_to_codebook = None
+    bundle_pos_facts = None
+    codebook_dict = None
+    convergence_lock_resonator_gpu = None
+    get_all_primitives = None
+    get_primitive_metadata = None
+    normalize_torch = None
+    query_bundle = None
+    reset_codebook = None
+    seed_hash = None
 
 # Pipeline components (if they exist and are complete)
 try:
@@ -257,6 +289,8 @@ __all__ = [
     "analysis_context",
     "DEFAULT_DIMENSIONS",
     "DEFAULT_MAX_CODEBOOK_SIZE",
+    # Core availability flag
+    "_CORE_AVAILABLE",
     # Core functions
     "bundle_pos_facts",
     "query_bundle",
