@@ -9,12 +9,10 @@ Validates:
 
 import pytest
 import torch
-
 from sentinel_engine.context import create_analysis_context
 from sentinel_engine.vsa_evidence.causes import (
     CAUSE_KEYS,
     CAUSE_METADATA,
-    CauseVectors,
     create_cause_vectors,
     get_cause_metadata,
 )
