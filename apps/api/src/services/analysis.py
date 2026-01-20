@@ -330,7 +330,9 @@ class AnalysisService:
                 row = row_lookup.get(item.lower())
                 if row:
                     quantity = self._safe_float(
-                        row.get("quantity", row.get("Qty.", row.get("In Stock Qty.", 0)))
+                        row.get(
+                            "quantity", row.get("Qty.", row.get("In Stock Qty.", 0))
+                        )
                     )
                     cost = self._safe_float(row.get("cost", row.get("Cost", 0)))
                     if quantity < 0:
