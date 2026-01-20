@@ -33,9 +33,10 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..context import AnalysisContext
@@ -53,8 +54,10 @@ logger = logging.getLogger(__name__)
 # ROUTING TYPES
 # =============================================================================
 
+
 class RoutingDecision(Enum):
     """Decision on which path to use."""
+
     HOT_PATH = "hot"  # VSA-only resolution
     COLD_PATH = "cold"  # Route to LLM
     HYBRID = "hybrid"  # Hot first, then cold for verification
@@ -63,6 +66,7 @@ class RoutingDecision(Enum):
 @dataclass
 class HotPathResult:
     """Result from hot path (VSA) analysis."""
+
     cause: str
     confidence: float
     ambiguity: float
@@ -91,6 +95,7 @@ class HotPathResult:
 @dataclass
 class ColdPathRequest:
     """Request to be sent to cold path (LLM)."""
+
     sku: str | None
     facts: list[dict[str, Any]]
     hot_path_result: HotPathResult | None
@@ -112,23 +117,27 @@ class ColdPathRequest:
             prompt_parts.append(f"  {i}. {fact}")
 
         if self.hot_path_result:
-            prompt_parts.extend([
-                "",
-                "Hot path preliminary analysis:",
-                f"  - Initial cause: {self.hot_path_result.cause}",
-                f"  - Confidence: {self.hot_path_result.confidence:.2f}",
-                f"  - Ambiguity: {self.hot_path_result.ambiguity:.2f}",
-            ])
+            prompt_parts.extend(
+                [
+                    "",
+                    "Hot path preliminary analysis:",
+                    f"  - Initial cause: {self.hot_path_result.cause}",
+                    f"  - Confidence: {self.hot_path_result.confidence:.2f}",
+                    f"  - Ambiguity: {self.hot_path_result.ambiguity:.2f}",
+                ]
+            )
 
-        prompt_parts.extend([
-            "",
-            "Please provide:",
-            "1. Root cause identification",
-            "2. Confidence level (0-1)",
-            "3. Evidence supporting this cause",
-            "4. Recommended actions",
-            "5. Any additional causes to investigate",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "Please provide:",
+                "1. Root cause identification",
+                "2. Confidence level (0-1)",
+                "3. Evidence supporting this cause",
+                "4. Recommended actions",
+                "5. Any additional causes to investigate",
+            ]
+        )
 
         return "\n".join(prompt_parts)
 
@@ -136,6 +145,7 @@ class ColdPathRequest:
 @dataclass
 class AnalysisResult:
     """Combined result from hot and/or cold path."""
+
     path_used: RoutingDecision
     hot_result: HotPathResult | None
     cold_result: dict[str, Any] | None
@@ -167,6 +177,7 @@ class AnalysisResult:
 # SMART ROUTER
 # =============================================================================
 
+
 @dataclass
 class SmartRouter:
     """
@@ -181,7 +192,7 @@ class SmartRouter:
     Cost-aware: Minimizes LLM calls for SMB efficiency.
     """
 
-    ctx: "AnalysisContext"
+    ctx: AnalysisContext
 
     # Routing thresholds
     confidence_threshold: float = 0.6
@@ -255,12 +266,15 @@ class SmartRouter:
 
                 # Build cold path request
                 from ..vsa_evidence.rules import extract_evidence_facts
+
                 facts = [extract_evidence_facts(row, context) for row in rows]
 
                 request = ColdPathRequest(
                     sku=sku,
                     facts=facts,
-                    hot_path_result=hot_result if routing == RoutingDecision.HYBRID else None,
+                    hot_path_result=(
+                        hot_result if routing == RoutingDecision.HYBRID else None
+                    ),
                     routing_reason=routing_reason or "unknown",
                     context=context or {},
                 )
@@ -288,7 +302,11 @@ class SmartRouter:
             final_cause = hot_result.cause
             final_confidence = hot_result.confidence
             grounded = True
-        elif routing == RoutingDecision.COLD_PATH and cold_result and "cause" in cold_result:
+        elif (
+            routing == RoutingDecision.COLD_PATH
+            and cold_result
+            and "cause" in cold_result
+        ):
             final_cause = cold_result.get("cause")
             final_confidence = cold_result.get("confidence", 0.0)
             grounded = False  # LLM results not automatically grounded
@@ -296,11 +314,19 @@ class SmartRouter:
             # Prefer hot path cause if confirmed by cold path
             if cold_result and cold_result.get("confirms_hot_path", False):
                 final_cause = hot_result.cause
-                final_confidence = max(hot_result.confidence, cold_result.get("confidence", 0.0))
+                final_confidence = max(
+                    hot_result.confidence, cold_result.get("confidence", 0.0)
+                )
                 grounded = True
             else:
-                final_cause = cold_result.get("cause") if cold_result else hot_result.cause
-                final_confidence = cold_result.get("confidence", 0.0) if cold_result else hot_result.confidence
+                final_cause = (
+                    cold_result.get("cause") if cold_result else hot_result.cause
+                )
+                final_confidence = (
+                    cold_result.get("confidence", 0.0)
+                    if cold_result
+                    else hot_result.confidence
+                )
                 grounded = False
         else:
             final_cause = hot_result.cause
@@ -328,12 +354,10 @@ class SmartRouter:
             cause = scoring_result.top_cause
             recommendations = metadata.get("recommendations", [])
             severity = metadata.get("severity", "info")
-            description = metadata.get("description", "")
         else:
             cause = "unknown"
             recommendations = ["Manual investigation required"]
             severity = "info"
-            description = "No cause identified"
 
         # Build explanation
         if scoring_result.scores:
@@ -404,6 +428,7 @@ class SmartRouter:
 # COLD PATH HANDLERS
 # =============================================================================
 
+
 def create_grok_cold_path_handler(
     api_key: str,
     model: str = "grok-beta",
@@ -466,7 +491,9 @@ def create_grok_cold_path_handler(
             logger.error(f"Grok API error: {e}")
             return {
                 "error": str(e),
-                "cause": request.hot_path_result.cause if request.hot_path_result else None,
+                "cause": (
+                    request.hot_path_result.cause if request.hot_path_result else None
+                ),
                 "confidence": 0.0,
             }
 
@@ -509,7 +536,11 @@ def _check_hot_path_confirmation(content: str, request: ColdPathRequest) -> bool
         # Check for negation
         negations = ["not", "unlikely", "ruled out", "incorrect"]
         for neg in negations:
-            if neg in content_lower and hot_cause in content_lower[content_lower.find(neg):content_lower.find(neg)+50]:
+            if (
+                neg in content_lower
+                and hot_cause
+                in content_lower[content_lower.find(neg) : content_lower.find(neg) + 50]
+            ):
                 return False
         return True
 
@@ -520,8 +551,9 @@ def _check_hot_path_confirmation(content: str, request: ColdPathRequest) -> bool
 # FACTORY FUNCTIONS
 # =============================================================================
 
+
 def create_smart_router(
-    ctx: "AnalysisContext",
+    ctx: AnalysisContext,
     cold_path_handler: Callable[[ColdPathRequest], dict] | None = None,
     confidence_threshold: float = 0.6,
     ambiguity_threshold: float = 0.5,
