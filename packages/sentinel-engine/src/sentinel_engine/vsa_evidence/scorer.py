@@ -401,7 +401,7 @@ class BatchScorer:
         Returns:
             Dict mapping SKU to ScoringResult
         """
-        from ..core import SKU_ALIASES, _get_field
+        from ._compat import SKU_ALIASES, _get_field
 
         # Group rows by SKU
         sku_rows: dict[str, list[dict]] = {}
@@ -435,7 +435,7 @@ class BatchScorer:
         Returns:
             Dict mapping category to ScoringResult
         """
-        from ..core import CATEGORY_ALIASES, _get_field
+        from ._compat import CATEGORY_ALIASES, _get_field
 
         # Group rows by category
         cat_rows: dict[str, list[dict]] = {}
