@@ -587,7 +587,7 @@ def extract_evidence_facts(
     Returns:
         Normalized fact dictionary
     """
-    from ..core import (
+    from ._compat import (
         COST_ALIASES,
         MARGIN_ALIASES,
         QTY_DIFF_ALIASES,
