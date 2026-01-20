@@ -185,13 +185,59 @@ class AnalysisService:
 
         try:
             # Bundle facts with aggressive detection
+            # This populates ctx.leak_counts with actual detection counts
             bundle_start = time.time()
             bundle = self._bundle_pos_facts(ctx, rows)
+            bundle_time = time.time() - bundle_start
+
+            # Get leak counts from context (populated during bundling)
+            ctx_summary = ctx.get_summary()
+            vsa_leak_counts = ctx_summary.get("leak_counts", {})
             logger.info(
-                f"Bundled {len(rows)} rows in {time.time() - bundle_start:.2f}s"
+                f"Bundled {len(rows)} rows in {bundle_time:.2f}s - "
+                f"VSA leak counts: {vsa_leak_counts}"
             )
 
-            # Query each primitive
+            # Build item data for heuristic detection of specific items
+            # VSA bundling counts detections but doesn't track which specific items
+            items_with_data = []
+            for row in rows:
+                sku = self._get_sku(row)
+                if sku:
+                    items_with_data.append(
+                        {
+                            "sku": sku.strip(),
+                            "cost": self._safe_float(
+                                row.get("Cost", row.get("cost", 0))
+                            ),
+                            "revenue": self._safe_float(
+                                row.get(
+                                    "Retail", row.get("retail", row.get("revenue", 0))
+                                )
+                            ),
+                            "quantity": self._safe_float(
+                                row.get(
+                                    "In Stock Qty.",
+                                    row.get("quantity", row.get("Qty.", 0)),
+                                )
+                            ),
+                            "sold": self._safe_float(
+                                row.get("Sold", row.get("sold", 0))
+                            ),
+                            "margin": self._safe_float(
+                                row.get("Profit Margin %", row.get("margin", 0))
+                            ),
+                            "sub_total": self._safe_float(
+                                row.get("Sub Total", row.get("sub_total", 0))
+                            ),
+                            "description": str(
+                                row.get("Description", row.get("description", ""))
+                            )[:50],
+                        }
+                    )
+
+            # Use heuristic detection to identify specific items per primitive
+            # VSA provides accurate counts, heuristics identify which items
             leaks = {}
             total_items_flagged = 0
             critical_count = 0
@@ -199,24 +245,40 @@ class AnalysisService:
 
             for primitive in self.PRIMITIVES:
                 query_start = time.time()
-                items, scores = self._query_bundle(ctx, bundle, primitive)
 
-                # Filter to meaningful scores (> 0.1 similarity threshold)
-                filtered_items = []
-                filtered_scores = []
-                for item, score in zip(items, scores):
-                    if score > 0.1:  # Threshold for relevance
-                        filtered_items.append(item)
-                        filtered_scores.append(float(score))
+                # Use heuristic to find specific flagged items
+                flagged_items = self._heuristic_detect(primitive, items_with_data)
 
                 # Get metadata for this primitive
                 metadata = self._leak_metadata.get(primitive, {})
                 display = LEAK_DISPLAY.get(primitive, {})
 
+                # Build item details for context
+                item_lookup = {item["sku"]: item for item in items_with_data}
+                item_details = []
+                for flagged in flagged_items[:20]:
+                    sku = flagged["sku"]
+                    full_item = item_lookup.get(sku, {})
+                    item_details.append(
+                        {
+                            "sku": sku,
+                            "score": flagged["score"],
+                            "description": full_item.get("description", ""),
+                            "quantity": full_item.get("quantity", 0),
+                            "cost": full_item.get("cost", 0),
+                            "revenue": full_item.get("revenue", 0),
+                            "sold": full_item.get("sold", 0),
+                            "margin": full_item.get("margin", 0),
+                            "sub_total": full_item.get("sub_total", 0),
+                            "context": self._get_issue_context(primitive, full_item),
+                        }
+                    )
+
                 leaks[primitive] = {
-                    "top_items": filtered_items[:20],
-                    "scores": filtered_scores[:20],
-                    "count": len(filtered_items),
+                    "top_items": [item["sku"] for item in flagged_items[:20]],
+                    "scores": [item["score"] for item in flagged_items[:20]],
+                    "item_details": item_details,
+                    "count": len(flagged_items),
                     "severity": metadata.get("severity", "info"),
                     "category": metadata.get("category", "Unknown"),
                     "recommendations": metadata.get("recommendations", []),
@@ -227,15 +289,16 @@ class AnalysisService:
                 }
 
                 # Track summary stats
-                total_items_flagged += len(filtered_items)
+                total_items_flagged += len(flagged_items)
                 if metadata.get("severity") == "critical":
-                    critical_count += len(filtered_items)
+                    critical_count += len(flagged_items)
                 elif metadata.get("severity") == "high":
-                    high_count += len(filtered_items)
+                    high_count += len(flagged_items)
 
                 elapsed = time.time() - query_start
                 logger.info(
-                    f"Query {primitive}: {len(filtered_items)} items in {elapsed:.2f}s"
+                    f"Query {primitive}: {len(flagged_items)} items in {elapsed:.2f}s "
+                    f"(VSA count: {vsa_leak_counts.get(primitive, 0)})"
                 )
 
             # Calculate estimated $ impact (simplified - based on available data)
