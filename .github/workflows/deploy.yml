@@ -84,6 +84,34 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Fetch proprietary modules from private repo
+        env:
+          CORE_REPO_PAT: ${{ secrets.CORE_REPO_PAT }}
+        run: |
+          # Fetch core.py from private repository
+          # This contains proprietary VSA detection logic
+          if [ -n "$CORE_REPO_PAT" ]; then
+            echo "Fetching proprietary modules from private repo..."
+
+            # Clone the private repo (shallow, single file)
+            git clone --depth 1 \
+              https://${CORE_REPO_PAT}@github.com/codechockablock/profit-sentinel-core.git \
+              /tmp/core-repo
+
+            # Copy core.py to sentinel-engine package
+            if [ -f /tmp/core-repo/core.py ]; then
+              cp /tmp/core-repo/core.py packages/sentinel-engine/src/sentinel_engine/core.py
+              echo "::notice::Proprietary core.py installed successfully"
+            else
+              echo "::warning::core.py not found in private repo, using heuristic fallback"
+            fi
+
+            # Cleanup
+            rm -rf /tmp/core-repo
+          else
+            echo "::warning::CORE_REPO_PAT not configured, VSA engine will use heuristic fallback"
+          fi
+
       - name: Build and push Docker image
         id: build
         env:
