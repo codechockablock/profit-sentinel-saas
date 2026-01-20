@@ -201,6 +201,7 @@ class EmailService:
         total_flagged = 0
         total_impact_low = 0
         total_impact_high = 0
+        negative_inventory_alert = None
 
         for result in results:
             summary = result.get("summary", {})
@@ -208,6 +209,69 @@ class EmailService:
             impact = summary.get("estimated_impact", {})
             total_impact_low += impact.get("low_estimate", 0)
             total_impact_high += impact.get("high_estimate", 0)
+            # Extract negative inventory alert (data integrity issue)
+            if impact.get("negative_inventory_alert"):
+                negative_inventory_alert = impact["negative_inventory_alert"]
+
+        # Build negative inventory data integrity alert section
+        data_integrity_section = ""
+        if negative_inventory_alert:
+            items_found = negative_inventory_alert.get("items_found", 0)
+            untracked_cogs = negative_inventory_alert.get("potential_untracked_cogs", 0)
+            is_anomalous = negative_inventory_alert.get("is_anomalous", False)
+
+            anomaly_warning = ""
+            if is_anomalous:
+                anomaly_warning = """
+                <p style="color: #fbbf24; font-size: 13px; margin: 12px 0 0 0; padding: 10px; background: #fbbf2415; border-radius: 6px; border-left: 3px solid #fbbf24;">
+                    ⚠️ This figure exceeds normal thresholds and requires physical audit.<br>
+                    Impact excluded from annual estimate until verified.
+                </p>
+                """
+
+            data_integrity_section = f"""
+            <div style="background: linear-gradient(135deg, rgba(220, 38, 38, 0.15), rgba(220, 38, 38, 0.05)); border: 1px solid rgba(220, 38, 38, 0.4); border-radius: 16px; padding: 25px; margin-bottom: 30px;">
+                <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                    <span style="font-size: 24px; margin-right: 10px;">🚨</span>
+                    <h2 style="color: #f87171; margin: 0; font-size: 20px;">Data Integrity Alert</h2>
+                    <span style="margin-left: auto; background: rgba(220, 38, 38, 0.2); color: #dc2626; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">CRITICAL</span>
+                </div>
+
+                <div style="background: #0f172a; border-radius: 12px; padding: 20px; margin-bottom: 15px;">
+                    <h3 style="color: #f87171; margin: 0 0 12px 0; font-size: 16px;">Negative Inventory</h3>
+                    <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                        <div>
+                            <span style="color: #64748b; font-size: 11px; text-transform: uppercase;">Items Found</span>
+                            <p style="color: #f87171; font-size: 24px; font-weight: bold; margin: 4px 0 0 0;">{items_found:,}</p>
+                        </div>
+                        <div>
+                            <span style="color: #64748b; font-size: 11px; text-transform: uppercase;">Potential Untracked COGS</span>
+                            <p style="color: #fbbf24; font-size: 24px; font-weight: bold; margin: 4px 0 0 0;">${untracked_cogs:,.0f}</p>
+                            <span style="color: #94a3b8; font-size: 10px;">(estimated, requires verification)</span>
+                        </div>
+                    </div>
+                    {anomaly_warning}
+                </div>
+
+                <div style="background: #1e293b; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                    <h4 style="color: #fbbf24; margin: 0 0 10px 0; font-size: 14px;">📋 What This Means</h4>
+                    <ul style="margin: 0; padding-left: 20px; color: #cbd5e1; font-size: 13px;">
+                        <li style="margin-bottom: 6px;">{items_found:,} items show negative quantities (sold without being received)</li>
+                        <li style="margin-bottom: 6px;">Financial records likely do not reflect true COGS</li>
+                        <li style="margin-bottom: 6px;">Tax and margin calculations may be materially misstated</li>
+                    </ul>
+                </div>
+
+                <div style="background: #1e293b; border-radius: 8px; padding: 15px;">
+                    <h4 style="color: #10b981; margin: 0 0 10px 0; font-size: 14px;">✅ Recommended Actions</h4>
+                    <ol style="margin: 0; padding-left: 20px; color: #cbd5e1; font-size: 13px;">
+                        <li style="margin-bottom: 6px;">Conduct physical inventory count</li>
+                        <li style="margin-bottom: 6px;">Reconcile receiving records against vendor invoices</li>
+                        <li style="margin-bottom: 6px;">Consult accountant regarding COGS and tax implications</li>
+                    </ol>
+                </div>
+            </div>
+            """
 
         # Extract cause diagnosis if available
         cause_diagnosis_section = ""
@@ -384,6 +448,9 @@ class EmailService:
         <!-- Mock Data Warning (if applicable) -->
         {mock_warning}
 
+        <!-- Data Integrity Alert (Negative Inventory) -->
+        {data_integrity_section}
+
         <!-- Root Cause Analysis (VSA-Grounded) -->
         {cause_diagnosis_section}
 
@@ -455,6 +522,53 @@ class EmailService:
             "=" * 40,
             "",
         ]
+
+        # Check for negative inventory data integrity alert
+        for result in results:
+            impact = result.get("summary", {}).get("estimated_impact", {})
+            neg_alert = impact.get("negative_inventory_alert")
+            if neg_alert:
+                items_found = neg_alert.get("items_found", 0)
+                untracked_cogs = neg_alert.get("potential_untracked_cogs", 0)
+                is_anomalous = neg_alert.get("is_anomalous", False)
+
+                lines.extend(
+                    [
+                        "!!! DATA INTEGRITY ALERT !!!",
+                        "-" * 35,
+                        "NEGATIVE INVENTORY - CRITICAL",
+                        f"Items Found: {items_found:,}",
+                        f"Potential Untracked COGS: ${untracked_cogs:,.0f} (estimated)",
+                        "",
+                    ]
+                )
+
+                if is_anomalous:
+                    lines.extend(
+                        [
+                            "WARNING: This figure exceeds normal thresholds.",
+                            "Impact excluded from annual estimate until verified.",
+                            "",
+                        ]
+                    )
+
+                lines.extend(
+                    [
+                        "What this means:",
+                        f"- {items_found:,} items show negative quantities (sold without being received)",
+                        "- Financial records likely do not reflect true COGS",
+                        "- Tax and margin calculations may be materially misstated",
+                        "",
+                        "Recommended Actions:",
+                        "1. Conduct physical inventory count",
+                        "2. Reconcile receiving records against vendor invoices",
+                        "3. Consult accountant regarding COGS and tax implications",
+                        "",
+                        "=" * 40,
+                        "",
+                    ]
+                )
+                break
 
         # Add root cause analysis if available
         for result in results:

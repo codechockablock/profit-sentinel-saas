@@ -297,12 +297,18 @@ class AnalysisService:
 
         This is a simplified estimation - actual impact requires
         deeper analysis with historical data.
+
+        NOTE: Negative inventory is tracked separately as a data integrity issue,
+        not included in the annual impact estimate (it represents untracked COGS,
+        not a recoverable profit leak).
         """
         impact = {
             "currency": "USD",
             "low_estimate": 0.0,
             "high_estimate": 0.0,
             "breakdown": {},
+            # Negative inventory tracked separately - data integrity issue
+            "negative_inventory_alert": None,
         }
 
         # Build lookup of row data by SKU for impact calculation
@@ -312,7 +318,44 @@ class AnalysisService:
             if sku:
                 row_lookup[sku.lower()] = row
 
+        # Track negative inventory separately
+        negative_inv_data = leaks.get("negative_inventory", {})
+        negative_inv_items = negative_inv_data.get("top_items", [])
+        negative_inv_count = negative_inv_data.get("count", 0)
+
+        if negative_inv_count > 0:
+            # Calculate potential untracked COGS for ALL negative inventory items
+            untracked_cogs = 0.0
+            for item in negative_inv_items:
+                row = row_lookup.get(item.lower())
+                if row:
+                    quantity = self._safe_float(
+                        row.get("quantity", row.get("Qty.", row.get("In Stock Qty.", 0)))
+                    )
+                    cost = self._safe_float(row.get("cost", row.get("Cost", 0)))
+                    if quantity < 0:
+                        untracked_cogs += abs(quantity) * cost
+
+            # Apply sanity cap - flag as anomalous if exceeds threshold
+            # Hard cap at $1M for single store, or flag for audit
+            ANOMALY_THRESHOLD = 1_000_000  # $1M hard cap
+            is_anomalous = untracked_cogs > ANOMALY_THRESHOLD
+
+            impact["negative_inventory_alert"] = {
+                "items_found": negative_inv_count,
+                "potential_untracked_cogs": round(untracked_cogs, 2),
+                "is_anomalous": is_anomalous,
+                "threshold_exceeded": is_anomalous,
+                "requires_audit": True,
+                "excluded_from_annual_estimate": True,
+            }
+
         for primitive, data in leaks.items():
+            # Skip negative_inventory - tracked separately above
+            if primitive == "negative_inventory":
+                impact["breakdown"][primitive] = 0.0  # Excluded from annual estimate
+                continue
+
             primitive_impact = 0.0
             for item in data.get("top_items", [])[:10]:  # Top 10 for estimation
                 row = row_lookup.get(item.lower())
@@ -870,7 +913,12 @@ class AnalysisService:
         return f"QOH: {qty:.0f}, Cost: ${cost:.2f}, Sold: {sold:.0f}."
 
     def _estimate_mock_impact(self, leaks: dict, items_with_data: list[dict]) -> dict:
-        """Estimate $ impact based on heuristic analysis."""
+        """
+        Estimate $ impact based on heuristic analysis.
+
+        NOTE: Negative inventory is tracked separately as a data integrity issue,
+        not included in the annual impact estimate.
+        """
         # Build lookup for quick access
         item_lookup = {item["sku"]: item for item in items_with_data}
 
@@ -879,9 +927,42 @@ class AnalysisService:
             "low_estimate": 0.0,
             "high_estimate": 0.0,
             "breakdown": {},
+            # Negative inventory tracked separately - data integrity issue
+            "negative_inventory_alert": None,
         }
 
+        # Track negative inventory separately
+        negative_inv_data = leaks.get("negative_inventory", {})
+        negative_inv_items = negative_inv_data.get("top_items", [])
+        negative_inv_count = negative_inv_data.get("count", 0)
+
+        if negative_inv_count > 0:
+            # Calculate potential untracked COGS
+            untracked_cogs = 0.0
+            for sku in negative_inv_items:
+                item = item_lookup.get(sku)
+                if item and item["quantity"] < 0:
+                    untracked_cogs += abs(item["quantity"]) * item["cost"]
+
+            # Apply sanity cap
+            ANOMALY_THRESHOLD = 1_000_000  # $1M hard cap
+            is_anomalous = untracked_cogs > ANOMALY_THRESHOLD
+
+            impact["negative_inventory_alert"] = {
+                "items_found": negative_inv_count,
+                "potential_untracked_cogs": round(untracked_cogs, 2),
+                "is_anomalous": is_anomalous,
+                "threshold_exceeded": is_anomalous,
+                "requires_audit": True,
+                "excluded_from_annual_estimate": True,
+            }
+
         for primitive, data in leaks.items():
+            # Skip negative_inventory - tracked separately above
+            if primitive == "negative_inventory":
+                impact["breakdown"][primitive] = 0.0  # Excluded from annual estimate
+                continue
+
             primitive_impact = 0.0
             for sku in data.get("top_items", [])[:10]:
                 item = item_lookup.get(sku)
@@ -889,8 +970,6 @@ class AnalysisService:
                     # Simple impact estimation
                     if primitive in ["high_margin_leak", "margin_erosion"]:
                         primitive_impact += item["revenue"] * 0.1 * max(item["sold"], 1)
-                    elif primitive == "negative_inventory":
-                        primitive_impact += abs(item["quantity"]) * item["cost"]
                     elif primitive == "dead_item":
                         primitive_impact += item["quantity"] * item["cost"] * 0.2
                     elif primitive == "overstock":
