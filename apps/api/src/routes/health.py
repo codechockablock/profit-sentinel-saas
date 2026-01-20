@@ -4,19 +4,26 @@ Health check endpoints with detailed service status.
 
 import os
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 router = APIRouter()
 
+# Rate limiter for health endpoints
+limiter = Limiter(key_func=get_remote_address)
+
 
 @router.get("/")
-async def root():
+@limiter.limit("100/minute")
+async def root(request: Request):
     """Root endpoint."""
     return {"message": "Profit Sentinel backend is running"}
 
 
 @router.get("/health")
-async def health():
+@limiter.limit("100/minute")
+async def health(request: Request):
     """Health check endpoint with detailed service status."""
     # Check sentinel engine
     engine_status = "unavailable"

@@ -12,10 +12,16 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import get_settings
 from .routes import api_router
+
+# Rate limiter instance (uses client IP by default)
+limiter = Limiter(key_func=get_remote_address)
 
 # Load environment variables
 load_dotenv()
@@ -183,13 +189,11 @@ def _verify_email_service():
     resend_key = os.getenv("RESEND_API_KEY")
     sendgrid_key = os.getenv("SENDGRID_API_KEY")
 
+    # SECURITY: Never log any part of API keys
     if resend_key:
-        # Mask key for logging (show first 8 chars)
-        masked = resend_key[:8] + "..." if len(resend_key) > 8 else "***"
-        logger.info(f"Email service: Resend configured (key: {masked})")
+        logger.info("Email service: Resend configured")
     elif sendgrid_key:
-        masked = sendgrid_key[:8] + "..." if len(sendgrid_key) > 8 else "***"
-        logger.info(f"Email service: SendGrid configured (key: {masked})")
+        logger.info("Email service: SendGrid configured")
     else:
         logger.warning(
             "Email service NOT CONFIGURED - no RESEND_API_KEY or SENDGRID_API_KEY found. "
@@ -212,6 +216,10 @@ def create_app() -> FastAPI:
             {"name": "analysis", "description": "Profit leak analysis"},
         ],
     )
+
+    # Rate limiting - protects against abuse and brute force
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # CORS middleware - layered approach for maximum compatibility:
     #
