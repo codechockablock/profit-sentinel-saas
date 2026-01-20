@@ -15,10 +15,15 @@ import os
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ..config import get_settings
-from ..dependencies import get_current_user, get_s3_client
+from ..dependencies import get_s3_client, require_user
+
+# Rate limiter for this router
+limiter = Limiter(key_func=get_remote_address)
 from ..services.mapping import MappingService
 from ..services.s3 import S3Service
 
@@ -81,9 +86,11 @@ def _sanitize_filename(filename: str) -> str:
 
 
 @router.post("/presign")
+@limiter.limit("20/minute")
 async def presign_upload(
+    request: Request,  # Required for rate limiter
     filenames: list[str] = Form(...),
-    user_id: str | None = Depends(get_current_user),
+    user_id: str = Depends(require_user),  # SECURITY: Require authentication
 ):
     """
     Generate presigned URLs for direct S3 upload.
@@ -121,7 +128,8 @@ async def presign_upload(
         safe_filename = _sanitize_filename(filename)
 
         # Generate unique key with sanitized filename
-        key = f"{user_id or 'anonymous'}/{uuid.uuid4()}-{safe_filename}"
+        # SECURITY: Key prefix is user_id, enforced at analysis time
+        key = f"{user_id}/{uuid.uuid4()}-{safe_filename}"
 
         # Generate presigned URL with size limit
         url = s3_service.generate_presigned_url(key, max_size_mb=MAX_FILE_SIZE_MB)
@@ -136,9 +144,7 @@ async def presign_upload(
             }
         )
 
-    logger.info(
-        f"Generated {len(presigned_urls)} presigned URLs for user {user_id or 'anonymous'}"
-    )
+    logger.info(f"Generated {len(presigned_urls)} presigned URLs for user {user_id}")
 
     return {
         "presigned_urls": presigned_urls,
@@ -150,10 +156,12 @@ async def presign_upload(
 
 
 @router.post("/suggest-mapping")
+@limiter.limit("20/minute")
 async def suggest_mapping(
+    request: Request,  # Required for rate limiter
     key: str = Form(...),
     filename: str = Form(...),
-    user_id: str | None = Depends(get_current_user),
+    user_id: str = Depends(require_user),  # SECURITY: Require authentication
 ) -> dict:
     """
     Analyze uploaded file and suggest column mappings.
@@ -168,6 +176,17 @@ async def suggest_mapping(
     Returns:
         Column mapping suggestions with confidence scores
     """
+    # SECURITY: Validate S3 key belongs to authenticated user
+    expected_prefix = f"{user_id}/"
+    if not key.startswith(expected_prefix):
+        logger.warning(
+            f"User {user_id} attempted to access unauthorized S3 key: {key}"
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: you can only access your own uploaded files",
+        )
+
     settings = get_settings()
     s3_client = get_s3_client()
     s3_service = S3Service(s3_client, settings.s3_bucket_name)

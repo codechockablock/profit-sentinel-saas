@@ -14,10 +14,15 @@ import logging
 import time
 
 import pandas as pd
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ..config import SUPPORTED_POS_SYSTEMS, get_settings
-from ..dependencies import get_current_user, get_s3_client
+from ..dependencies import get_s3_client, require_user
+
+# Rate limiter for this router
+limiter = Limiter(key_func=get_remote_address)
 from ..services.analysis import AnalysisService
 from ..services.anonymization import get_anonymization_service
 from ..services.s3 import S3Service
@@ -306,11 +311,13 @@ def _clean_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 @router.post("/analyze")
+@limiter.limit("10/minute")
 async def analyze_upload(
+    request: Request,  # Required for rate limiter
     key: str = Form(...),
     mapping: str = Form(...),  # JSON string
     background_tasks: BackgroundTasks = None,
-    user_id: str | None = Depends(get_current_user),
+    user_id: str = Depends(require_user),  # SECURITY: Require authentication
 ) -> dict:
     """
     Analyze uploaded POS data for profit leaks.
@@ -349,6 +356,18 @@ async def analyze_upload(
         raise HTTPException(
             status_code=400,
             detail="Mapping must be a JSON object with column name pairs",
+        )
+
+    # SECURITY: Validate S3 key belongs to authenticated user
+    # Keys are structured as: {user_id}/{uuid}-{filename}
+    expected_prefix = f"{user_id}/"
+    if not key.startswith(expected_prefix):
+        logger.warning(
+            f"User {user_id} attempted to access unauthorized S3 key: {key}"
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: you can only analyze your own uploaded files",
         )
 
     try:
