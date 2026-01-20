@@ -157,7 +157,9 @@ logs/
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+# SECURITY: All .tfvars files should be ignored (may contain secrets/ARNs)
 *.tfvars
+!*.tfvars.example
 *.tfplan
 crash.log
 override.tf
