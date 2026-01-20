@@ -51,6 +51,25 @@ class Settings(BaseSettings):
         default=0.02, description="Inventory variance % to flag"
     )
 
+    # VSA Evidence Grounding (v4.0.0)
+    # Enables evidence-based cause attribution for 0% hallucination
+    use_vsa_grounding: bool = Field(
+        default=True,
+        description="Enable VSA-grounded evidence retrieval for cause diagnosis",
+    )
+    # Hot path confidence threshold - below this routes to LLM cold path
+    vsa_confidence_threshold: float = Field(
+        default=0.6, description="Confidence below this routes to cold path"
+    )
+    # Ambiguity threshold - above this routes to LLM cold path
+    vsa_ambiguity_threshold: float = Field(
+        default=0.5, description="Ambiguity above this routes to cold path"
+    )
+    # Whether to include cause diagnosis in analysis results
+    include_cause_diagnosis: bool = Field(
+        default=True, description="Include VSA cause diagnosis in results"
+    )
+
     # CORS - All allowed origins for frontend requests
     # Includes production domains, Vercel previews, and local development
     cors_origins: list[str] = Field(
