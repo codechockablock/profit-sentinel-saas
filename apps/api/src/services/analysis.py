@@ -129,6 +129,7 @@ class AnalysisService:
         """Initialize analysis service with VSA engine."""
         try:
             from sentinel_engine import (
+                _CORE_AVAILABLE,
                 LEAK_METADATA,
                 bundle_pos_facts,
                 get_all_primitives,
@@ -137,12 +138,16 @@ class AnalysisService:
             )
             from sentinel_engine.context import create_analysis_context
 
+            # Check if core module is available (bundle_pos_facts may be None if core.py is gitignored)
+            if not _CORE_AVAILABLE or bundle_pos_facts is None:
+                raise ImportError("Core module not available")
+
             self._bundle_pos_facts = bundle_pos_facts
             self._query_bundle = query_bundle
             self._get_primitive_metadata = get_primitive_metadata
             self._get_all_primitives = get_all_primitives
             self._create_context = create_analysis_context
-            self._leak_metadata = LEAK_METADATA
+            self._leak_metadata = LEAK_METADATA if LEAK_METADATA else {}
             self._engine_available = True
             logger.info(
                 "Sentinel engine loaded successfully (8 primitives, context-isolated)"
