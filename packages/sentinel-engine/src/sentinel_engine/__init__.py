@@ -146,6 +146,7 @@ try:
     _CONTRADICTION_DETECTOR_AVAILABLE = True
 except ImportError as e:
     import logging
+
     logging.getLogger(__name__).debug(f"Contradiction detector not available: {e}")
     _CONTRADICTION_DETECTOR_AVAILABLE = False
     CONTRADICTORY_PAIRS = None
@@ -169,6 +170,7 @@ try:
     _STREAMING_AVAILABLE = True
 except ImportError as e:
     import logging
+
     logging.getLogger(__name__).debug(f"Streaming module not available: {e}")
     _STREAMING_AVAILABLE = False
     StreamingResult = None
@@ -181,6 +183,14 @@ except ImportError as e:
 
 # VSA Evidence Grounding (v4.0.0) - 0% hallucination, 100% multi-hop accuracy
 try:
+    from .routing import (
+        AnalysisResult,
+        ColdPathRequest,
+        HotPathResult,
+        RoutingDecision,
+        SmartRouter,
+        create_smart_router,
+    )
     from .vsa_evidence import (
         CAUSE_KEYS,
         CAUSE_METADATA,
@@ -203,21 +213,20 @@ try:
         extract_evidence_facts,
         get_cause_metadata,
     )
-    from .routing import (
-        AnalysisResult,
-        ColdPathRequest,
-        HotPathResult,
-        RoutingDecision,
-        SmartRouter,
-        create_smart_router,
-    )
 
     _VSA_EVIDENCE_AVAILABLE = True
 except ImportError as e:
     import logging
+
     logging.getLogger(__name__).debug(f"VSA Evidence module not available: {e}")
     _VSA_EVIDENCE_AVAILABLE = False
     # Set placeholders for optional imports
+    AnalysisResult = None
+    ColdPathRequest = None
+    HotPathResult = None
+    RoutingDecision = None
+    SmartRouter = None
+    create_smart_router = None
     CAUSE_KEYS = None
     CAUSE_METADATA = None
     RETAIL_EVIDENCE_RULES = None
@@ -238,12 +247,6 @@ except ImportError as e:
     create_rule_engine = None
     extract_evidence_facts = None
     get_cause_metadata = None
-    AnalysisResult = None
-    ColdPathRequest = None
-    HotPathResult = None
-    RoutingDecision = None
-    SmartRouter = None
-    create_smart_router = None
 
 __all__ = [
     # Version

@@ -30,9 +30,6 @@ jobs:
   vsa-unit-tests:
     name: VSA Unit Tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: packages/sentinel-engine
 
     steps:
       - name: Checkout repository
@@ -51,10 +48,10 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Set PYTHONPATH
-        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/packages/sentinel-engine/src:$GITHUB_WORKSPACE" >> $GITHUB_ENV
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/packages/sentinel-engine/src" >> $GITHUB_ENV
 
       - name: Run VSA evidence tests
-        run: pytest tests/vsa_evidence/ -v --tb=short --cov=src/sentinel_engine/vsa_evidence --cov-report=term-missing
+        run: pytest packages/sentinel-engine/tests/vsa_evidence/ -v --tb=short --cov=packages/sentinel-engine/src/sentinel_engine/vsa_evidence --cov-report=term-missing
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -87,7 +84,7 @@ jobs:
 
       - name: Set PYTHONPATH
         run: |
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/packages/sentinel-engine/src:$GITHUB_WORKSPACE/apps/api/src:$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/packages/sentinel-engine/src:$GITHUB_WORKSPACE/apps/api/src" >> $GITHUB_ENV
 
       - name: Run integration tests
         run: pytest apps/api/tests/ -v --tb=short -k "analysis"
@@ -123,14 +120,13 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Set PYTHONPATH
-        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/packages/sentinel-engine/src:$GITHUB_WORKSPACE" >> $GITHUB_ENV
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/packages/sentinel-engine/src" >> $GITHUB_ENV
 
       - name: Run performance benchmark
         run: |
           python -c "
           import time
           import sys
-          sys.path.insert(0, 'packages/sentinel-engine/src')
 
           from sentinel_engine.context import create_analysis_context
           from sentinel_engine.vsa_evidence import create_cause_scorer
