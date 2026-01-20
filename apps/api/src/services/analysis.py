@@ -338,8 +338,8 @@ class AnalysisService:
 
             # Apply sanity cap - flag as anomalous if exceeds threshold
             # Hard cap at $1M for single store, or flag for audit
-            ANOMALY_THRESHOLD = 1_000_000  # $1M hard cap
-            is_anomalous = untracked_cogs > ANOMALY_THRESHOLD
+            anomaly_threshold = 1_000_000  # $1M hard cap
+            is_anomalous = untracked_cogs > anomaly_threshold
 
             impact["negative_inventory_alert"] = {
                 "items_found": negative_inv_count,
@@ -945,8 +945,8 @@ class AnalysisService:
                     untracked_cogs += abs(item["quantity"]) * item["cost"]
 
             # Apply sanity cap
-            ANOMALY_THRESHOLD = 1_000_000  # $1M hard cap
-            is_anomalous = untracked_cogs > ANOMALY_THRESHOLD
+            anomaly_threshold = 1_000_000  # $1M hard cap
+            is_anomalous = untracked_cogs > anomaly_threshold
 
             impact["negative_inventory_alert"] = {
                 "items_found": negative_inv_count,
