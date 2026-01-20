@@ -358,12 +358,31 @@ class AnalysisService:
                 impact["breakdown"][primitive] = 0.0  # Excluded from annual estimate
                 continue
 
-            primitive_impact = 0.0
-            for item in data.get("top_items", [])[:10]:  # Top 10 for estimation
+            total_count = data.get("count", 0)
+            top_items = data.get("top_items", [])
+            sample_size = min(len(top_items), 10)  # Sample up to 10 items
+
+            if sample_size == 0 or total_count == 0:
+                impact["breakdown"][primitive] = 0.0
+                continue
+
+            # Calculate impact for sampled items
+            sample_impact = 0.0
+            for item in top_items[:sample_size]:
                 row = row_lookup.get(item.lower())
                 if row:
                     item_impact = self._calculate_item_impact(primitive, row)
-                    primitive_impact += item_impact
+                    sample_impact += item_impact
+
+            # Extrapolate to full count: avg per sampled item × total items
+            # Use conservative scaling (0.7x) since top items likely have higher impact
+            if sample_impact > 0:
+                avg_impact_per_item = sample_impact / sample_size
+                # Scale conservatively - top items likely overrepresent severity
+                scaling_factor = 0.7
+                primitive_impact = avg_impact_per_item * total_count * scaling_factor
+            else:
+                primitive_impact = 0.0
 
             impact["breakdown"][primitive] = round(primitive_impact, 2)
             impact["low_estimate"] += primitive_impact * 0.7
@@ -965,19 +984,36 @@ class AnalysisService:
                 impact["breakdown"][primitive] = 0.0  # Excluded from annual estimate
                 continue
 
-            primitive_impact = 0.0
-            for sku in data.get("top_items", [])[:10]:
+            total_count = data.get("count", 0)
+            top_items = data.get("top_items", [])
+            sample_size = min(len(top_items), 10)  # Sample up to 10 items
+
+            if sample_size == 0 or total_count == 0:
+                impact["breakdown"][primitive] = 0.0
+                continue
+
+            # Calculate impact for sampled items
+            sample_impact = 0.0
+            for sku in top_items[:sample_size]:
                 item = item_lookup.get(sku)
                 if item:
                     # Simple impact estimation
                     if primitive in ["high_margin_leak", "margin_erosion"]:
-                        primitive_impact += item["revenue"] * 0.1 * max(item["sold"], 1)
+                        sample_impact += item["revenue"] * 0.1 * max(item["sold"], 1)
                     elif primitive == "dead_item":
-                        primitive_impact += item["quantity"] * item["cost"] * 0.2
+                        sample_impact += item["quantity"] * item["cost"] * 0.2
                     elif primitive == "overstock":
-                        primitive_impact += item["sub_total"] * 0.05
+                        sample_impact += item["sub_total"] * 0.05
                     else:
-                        primitive_impact += item["sub_total"] * 0.02
+                        sample_impact += item["sub_total"] * 0.02
+
+            # Extrapolate to full count with conservative scaling
+            if sample_impact > 0:
+                avg_impact_per_item = sample_impact / sample_size
+                scaling_factor = 0.7  # Conservative - top items overrepresent severity
+                primitive_impact = avg_impact_per_item * total_count * scaling_factor
+            else:
+                primitive_impact = 0.0
 
             impact["breakdown"][primitive] = round(primitive_impact, 2)
             impact["low_estimate"] += primitive_impact * 0.7
