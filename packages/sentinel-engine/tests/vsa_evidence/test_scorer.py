@@ -16,13 +16,9 @@ Target metrics from research:
 import time
 
 import pytest
-import torch
-
 from sentinel_engine.context import create_analysis_context
 from sentinel_engine.vsa_evidence.scorer import (
-    BatchScorer,
     CauseScore,
-    CauseScorer,
     ScoringResult,
     create_batch_scorer,
     create_cause_scorer,
@@ -82,8 +78,10 @@ class TestCauseScorer:
         result = scorer.score_facts(facts)
 
         assert result.needs_cold_path is True
-        assert "no_matching_rules" in (result.cold_path_reason or "").lower() or \
-               "no rules" in (result.cold_path_reason or "").lower()
+        assert (
+            "no_matching_rules" in (result.cold_path_reason or "").lower()
+            or "no rules" in (result.cold_path_reason or "").lower()
+        )
 
     def test_theft_scenario_scores_theft(self, scorer):
         """Test that theft scenario scores theft highest."""
@@ -159,7 +157,9 @@ class TestCauseScorer:
         latency_ms = (time.perf_counter() - start) * 1000
 
         # Target: <50ms (research achieved 0.003ms)
-        assert latency_ms < 50, f"Hot path latency {latency_ms:.2f}ms exceeds 50ms target"
+        assert (
+            latency_ms < 50
+        ), f"Hot path latency {latency_ms:.2f}ms exceeds 50ms target"
 
 
 class TestColdPathRouting:
@@ -295,8 +295,19 @@ class TestBatchScorer:
         """Test scoring items individually."""
         rows = [
             {"sku": "SKU-001", "quantity": -10, "cost": 5.0, "Retail": 10.0},
-            {"sku": "SKU-001", "qty. difference": -5, "quantity": 100, "cost": 5.0, "Retail": 10.0},
-            {"sku": "SKU-002", "cost": 10.0, "Retail": 8.0, "quantity": 50},  # Below cost
+            {
+                "sku": "SKU-001",
+                "qty. difference": -5,
+                "quantity": 100,
+                "cost": 5.0,
+                "Retail": 10.0,
+            },
+            {
+                "sku": "SKU-002",
+                "cost": 10.0,
+                "Retail": 8.0,
+                "quantity": 50,
+            },  # Below cost
         ]
 
         results = batch_scorer.score_by_item(rows)
@@ -307,9 +318,27 @@ class TestBatchScorer:
     def test_score_by_category(self, batch_scorer):
         """Test scoring by category."""
         rows = [
-            {"category": "Electronics", "shrinkage_rate": 0.1, "quantity": 50, "cost": 100.0, "Retail": 200.0},
-            {"category": "Electronics", "shrinkage_rate": 0.08, "quantity": 30, "cost": 50.0, "Retail": 100.0},
-            {"category": "Apparel", "margin_delta": -0.15, "quantity": 100, "cost": 20.0, "Retail": 40.0},
+            {
+                "category": "Electronics",
+                "shrinkage_rate": 0.1,
+                "quantity": 50,
+                "cost": 100.0,
+                "Retail": 200.0,
+            },
+            {
+                "category": "Electronics",
+                "shrinkage_rate": 0.08,
+                "quantity": 30,
+                "cost": 50.0,
+                "Retail": 100.0,
+            },
+            {
+                "category": "Apparel",
+                "margin_delta": -0.15,
+                "quantity": 100,
+                "cost": 20.0,
+                "Retail": 40.0,
+            },
         ]
 
         results = batch_scorer.score_by_category(rows)
@@ -321,7 +350,13 @@ class TestBatchScorer:
         """Test splitting items into hot vs cold path."""
         rows = [
             # Clear theft case - may route to cold for severity
-            {"sku": "SKU-001", "shrinkage_rate": 0.2, "quantity": 100, "cost": 10.0, "Retail": 20.0},
+            {
+                "sku": "SKU-001",
+                "shrinkage_rate": 0.2,
+                "quantity": 100,
+                "cost": 10.0,
+                "Retail": 20.0,
+            },
             # Ambiguous case
             {"sku": "SKU-002", "quantity": 50, "cost": 10.0, "Retail": 15.0},
         ]

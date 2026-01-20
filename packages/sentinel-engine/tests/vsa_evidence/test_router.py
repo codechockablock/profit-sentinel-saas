@@ -14,17 +14,13 @@ Performance targets from research:
 - Speedup: 5,059x
 """
 
-import time
-
 import pytest
-
 from sentinel_engine.context import create_analysis_context
 from sentinel_engine.routing.smart_router import (
     AnalysisResult,
     ColdPathRequest,
     HotPathResult,
     RoutingDecision,
-    SmartRouter,
     create_smart_router,
 )
 
@@ -82,7 +78,9 @@ class TestSmartRouter:
 
         # Should still return result, but cold_result indicates no handler
         assert result.cold_result is not None
-        assert "skipped" in result.cold_result or "no_handler" in str(result.cold_result)
+        assert "skipped" in result.cold_result or "no_handler" in str(
+            result.cold_result
+        )
 
     def test_metrics_tracking(self, router):
         """Test that router tracks metrics."""
@@ -113,14 +111,13 @@ class TestSmartRouter:
             {"shrinkage_rate": 0.1, "quantity": 100, "cost": 10.0, "Retail": 20.0},
         ]
 
-        start = time.perf_counter()
         result = router.analyze(rows)
-        total_ms = (time.perf_counter() - start) * 1000
 
         # Hot path should be fast
         if result.path_used == RoutingDecision.HOT_PATH:
-            assert result.hot_result.latency_ms < 50, \
-                f"Hot path latency {result.hot_result.latency_ms:.2f}ms exceeds 50ms target"
+            assert (
+                result.hot_result.latency_ms < 50
+            ), f"Hot path latency {result.hot_result.latency_ms:.2f}ms exceeds 50ms target"
 
 
 class TestColdPathHandler:
@@ -322,4 +319,7 @@ class TestRoutingDecisions:
 
         # If top cause is theft (critical), should route for verification
         if result.hot_result and result.hot_result.cause == "theft":
-            assert result.path_used in (RoutingDecision.COLD_PATH, RoutingDecision.HYBRID)
+            assert result.path_used in (
+                RoutingDecision.COLD_PATH,
+                RoutingDecision.HYBRID,
+            )

@@ -8,11 +8,9 @@ Validates:
 """
 
 import pytest
-
 from sentinel_engine.vsa_evidence.rules import (
     RETAIL_EVIDENCE_RULES,
     EvidenceRule,
-    RuleEngine,
     _pattern_matches,
     create_rule_engine,
     extract_evidence_facts,
