@@ -312,8 +312,8 @@ class TestBatchScorer:
 
         results = batch_scorer.score_by_item(rows)
 
-        assert "sku-001" in results
-        assert "sku-002" in results
+        assert "SKU-001" in results
+        assert "SKU-002" in results
 
     def test_score_by_category(self, batch_scorer):
         """Test scoring by category."""
@@ -343,8 +343,8 @@ class TestBatchScorer:
 
         results = batch_scorer.score_by_category(rows)
 
-        assert "electronics" in results
-        assert "apparel" in results
+        assert "Electronics" in results
+        assert "Apparel" in results
 
     def test_hot_cold_split(self, batch_scorer):
         """Test splitting items into hot vs cold path."""
