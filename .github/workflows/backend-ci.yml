@@ -84,6 +84,7 @@ jobs:
       - name: Test Docker image
         run: |
           docker run -d --name test-api -p 8000:8000 profit-sentinel-api:${{ github.sha }}
-          sleep 5
+          sleep 15
+          docker logs test-api || true
           curl -f http://localhost:8000/health || exit 1
           docker stop test-api
