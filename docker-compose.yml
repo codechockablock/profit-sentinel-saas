@@ -18,6 +18,8 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - GROK_API_KEY=${GROK_API_KEY}
+      - USE_VSA_GROUNDING=true
+      - INCLUDE_CAUSE_DIAGNOSIS=true
     volumes:
       - ./apps/api:/app
       - ./packages:/packages:ro

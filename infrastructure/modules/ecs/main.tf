@@ -166,8 +166,8 @@ resource "aws_ecs_task_definition" "api" {
   family                   = "${var.name_prefix}-api"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "1024"   # Reduced from 2048 (~50% savings)
-  memory                   = "2048"   # Reduced from 8192 (~75% savings)
+  cpu                      = "1024" # Reduced from 2048 (~50% savings)
+  memory                   = "2048" # Reduced from 8192 (~75% savings)
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
@@ -194,6 +194,14 @@ resource "aws_ecs_task_definition" "api" {
         {
           name  = "SUPABASE_URL"
           value = var.supabase_url
+        },
+        {
+          name  = "USE_VSA_GROUNDING"
+          value = "true"
+        },
+        {
+          name  = "INCLUDE_CAUSE_DIAGNOSIS"
+          value = "true"
         }
       ]
       secrets = concat(
