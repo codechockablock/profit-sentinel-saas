@@ -20,14 +20,14 @@ from slowapi.util import get_remote_address
 
 from ..config import SUPPORTED_POS_SYSTEMS, get_settings
 from ..dependencies import get_current_user, get_s3_client
-
-# Rate limiter for this router
-limiter = Limiter(key_func=get_remote_address)
 from ..services.analysis import AnalysisService
 from ..services.anonymization import get_anonymization_service
 from ..services.s3 import S3Service
 
 router = APIRouter()
+
+# Rate limiter for this router
+limiter = Limiter(key_func=get_remote_address)
 logger = logging.getLogger(__name__)
 
 
