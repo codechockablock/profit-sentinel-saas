@@ -19,7 +19,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..config import SUPPORTED_POS_SYSTEMS, get_settings
-from ..dependencies import get_s3_client, require_user
+from ..dependencies import get_current_user, get_s3_client
 
 # Rate limiter for this router
 limiter = Limiter(key_func=get_remote_address)
@@ -317,7 +317,7 @@ async def analyze_upload(
     key: str = Form(...),
     mapping: str = Form(...),  # JSON string
     background_tasks: BackgroundTasks = None,
-    user_id: str = Depends(require_user),  # SECURITY: Require authentication
+    user_id: str | None = Depends(get_current_user),  # Optional auth (freemium)
 ) -> dict:
     """
     Analyze uploaded POS data for profit leaks.
@@ -358,12 +358,14 @@ async def analyze_upload(
             detail="Mapping must be a JSON object with column name pairs",
         )
 
-    # SECURITY: Validate S3 key belongs to authenticated user
-    # Keys are structured as: {user_id}/{uuid}-{filename}
-    expected_prefix = f"{user_id}/"
+    # SECURITY: Validate S3 key ownership
+    # - Authenticated users can only access their own files
+    # - Anonymous users can only access anonymous files
+    expected_prefix = f"{user_id}/" if user_id else "anonymous/"
     if not key.startswith(expected_prefix):
         logger.warning(
-            f"User {user_id} attempted to access unauthorized S3 key: {key}"
+            f"{'User ' + user_id if user_id else 'Anonymous user'} "
+            f"attempted to access unauthorized S3 key: {key}"
         )
         raise HTTPException(
             status_code=403,
