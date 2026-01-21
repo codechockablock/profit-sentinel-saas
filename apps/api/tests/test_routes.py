@@ -126,9 +126,10 @@ class TestUploadRoutes:
                 "src.services.mapping.get_grok_client",
                 return_value=mock_grok_client,
             ):
+                # Use anonymous/ prefix since tests run without auth
                 response = client.post(
                     "/uploads/suggest-mapping",
-                    data={"key": "test/file.csv", "filename": "file.csv"},
+                    data={"key": "anonymous/file.csv", "filename": "file.csv"},
                 )
 
         assert response.status_code == 200
@@ -148,9 +149,10 @@ class TestUploadRoutes:
             return_value=mock_s3_client_with_data,
         ):
             with patch("src.services.mapping.get_grok_client", return_value=None):
+                # Use anonymous/ prefix since tests run without auth
                 response = client.post(
                     "/uploads/suggest-mapping",
-                    data={"key": "test/file.csv", "filename": "file.csv"},
+                    data={"key": "anonymous/file.csv", "filename": "file.csv"},
                 )
 
         assert response.status_code == 200
@@ -197,10 +199,11 @@ class TestAnalysisRoutes:
             "src.dependencies.get_s3_client",
             return_value=mock_s3_client_with_data,
         ):
+            # Use anonymous/ prefix since tests run without auth
             response = client.post(
                 "/analysis/analyze",
                 data={
-                    "key": "test/file.csv",
+                    "key": "anonymous/file.csv",
                     "mapping": json.dumps(sample_column_mapping),
                 },
             )
@@ -219,10 +222,11 @@ class TestAnalysisRoutes:
             "src.dependencies.get_s3_client",
             return_value=mock_s3_client_with_data,
         ):
+            # Use anonymous/ prefix since tests run without auth
             response = client.post(
                 "/analysis/analyze",
                 data={
-                    "key": "test/file.csv",
+                    "key": "anonymous/file.csv",
                     "mapping": json.dumps(sample_column_mapping),
                 },
             )
@@ -250,8 +254,9 @@ class TestAnalysisRoutes:
             "src.dependencies.get_s3_client",
             return_value=mock_s3_client_with_data,
         ):
+            # Use anonymous/ prefix since tests run without auth
             response = client.post(
-                "/analysis/analyze", data={"key": "test/file.csv", "mapping": "{}"}
+                "/analysis/analyze", data={"key": "anonymous/file.csv", "mapping": "{}"}
             )
 
         # Should not crash with empty mapping
@@ -343,9 +348,10 @@ class TestErrorHandling:
         mock_s3.get_object.side_effect = Exception("S3 connection failed")
 
         with patch("src.dependencies.get_s3_client", return_value=mock_s3):
+            # Use anonymous/ prefix since tests run without auth
             response = client.post(
                 "/uploads/suggest-mapping",
-                data={"key": "test-key", "filename": "test.csv"},
+                data={"key": "anonymous/test.csv", "filename": "test.csv"},
             )
 
         assert response.status_code == 500
