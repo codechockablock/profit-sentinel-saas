@@ -20,7 +20,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..config import get_settings
-from ..dependencies import get_s3_client, require_user
+from ..dependencies import get_current_user, get_s3_client
 
 # Rate limiter for this router
 limiter = Limiter(key_func=get_remote_address)
@@ -90,7 +90,7 @@ def _sanitize_filename(filename: str) -> str:
 async def presign_upload(
     request: Request,  # Required for rate limiter
     filenames: list[str] = Form(...),
-    user_id: str = Depends(require_user),  # SECURITY: Require authentication
+    user_id: str | None = Depends(get_current_user),  # Optional auth (freemium)
 ):
     """
     Generate presigned URLs for direct S3 upload.
@@ -100,10 +100,11 @@ async def presign_upload(
         - Only allowed file extensions accepted
         - Presigned URLs have size limits enforced
         - Limited to MAX_FILES_PER_REQUEST files
+        - Rate limited to prevent abuse
 
     Args:
         filenames: List of filenames to upload
-        user_id: Current user ID (from auth)
+        user_id: Current user ID (from auth), or None for anonymous
 
     Returns:
         List of presigned URL objects with filename, key, and url
@@ -122,14 +123,17 @@ async def presign_upload(
     s3_client = get_s3_client()
     s3_service = S3Service(s3_client, settings.s3_bucket_name)
 
+    # Use user_id if authenticated, otherwise "anonymous"
+    # SECURITY: Key prefix identifies owner for validation at analysis time
+    key_prefix = user_id if user_id else "anonymous"
+
     presigned_urls = []
     for filename in filenames:
         # Sanitize filename (raises HTTPException if invalid)
         safe_filename = _sanitize_filename(filename)
 
         # Generate unique key with sanitized filename
-        # SECURITY: Key prefix is user_id, enforced at analysis time
-        key = f"{user_id}/{uuid.uuid4()}-{safe_filename}"
+        key = f"{key_prefix}/{uuid.uuid4()}-{safe_filename}"
 
         # Generate presigned URL with size limit
         url = s3_service.generate_presigned_url(key, max_size_mb=MAX_FILE_SIZE_MB)
@@ -144,7 +148,10 @@ async def presign_upload(
             }
         )
 
-    logger.info(f"Generated {len(presigned_urls)} presigned URLs for user {user_id}")
+    logger.info(
+        f"Generated {len(presigned_urls)} presigned URLs for "
+        f"{'user ' + user_id if user_id else 'anonymous user'}"
+    )
 
     return {
         "presigned_urls": presigned_urls,
@@ -161,7 +168,7 @@ async def suggest_mapping(
     request: Request,  # Required for rate limiter
     key: str = Form(...),
     filename: str = Form(...),
-    user_id: str = Depends(require_user),  # SECURITY: Require authentication
+    user_id: str | None = Depends(get_current_user),  # Optional auth (freemium)
 ) -> dict:
     """
     Analyze uploaded file and suggest column mappings.
@@ -171,16 +178,19 @@ async def suggest_mapping(
     Args:
         key: S3 object key
         filename: Original filename
-        user_id: Current user ID (from auth)
+        user_id: Current user ID (from auth), or None for anonymous
 
     Returns:
         Column mapping suggestions with confidence scores
     """
-    # SECURITY: Validate S3 key belongs to authenticated user
-    expected_prefix = f"{user_id}/"
+    # SECURITY: Validate S3 key ownership
+    # - Authenticated users can only access their own files
+    # - Anonymous users can only access anonymous files
+    expected_prefix = f"{user_id}/" if user_id else "anonymous/"
     if not key.startswith(expected_prefix):
         logger.warning(
-            f"User {user_id} attempted to access unauthorized S3 key: {key}"
+            f"{'User ' + user_id if user_id else 'Anonymous user'} "
+            f"attempted to access unauthorized S3 key: {key}"
         )
         raise HTTPException(
             status_code=403,
