@@ -7,7 +7,7 @@ export default function PrivacyPage() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-emerald-400 mb-4">Privacy Policy</h1>
-          <p className="text-slate-400">Last updated: January 2025</p>
+          <p className="text-slate-400">Last updated: January 2026</p>
         </div>
 
         {/* Content */}
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             <ul className="list-disc list-inside text-slate-300 space-y-2">
               <li>POS export files (CSV, Excel) that you upload for analysis</li>
               <li>Files are processed in-memory and stored temporarily in encrypted S3 storage</li>
-              <li><strong className="text-emerald-400">Automatically deleted within 1 hour of processing</strong></li>
+              <li><strong className="text-emerald-400">Automatically deleted within 24 hours of processing</strong></li>
             </ul>
 
             <h3 className="text-xl font-semibold text-slate-200 mt-6 mb-3">Email Address (Optional)</h3>
@@ -62,11 +62,10 @@ export default function PrivacyPage() {
                   Preview Report (On-Screen)
                 </h3>
                 <ul className="text-sm text-slate-400 space-y-2">
-                  <li>Shows anonymized items (Item A, Item B, etc.)</li>
+                  <li>Shows sample items from your data to verify analysis</li>
                   <li>Displays leak categories and severity levels</li>
                   <li>Shows estimated dollar impact ranges</li>
                   <li>No email required</li>
-                  <li>No specific SKUs or product identifiers shown</li>
                 </ul>
               </div>
 
@@ -110,7 +109,7 @@ export default function PrivacyPage() {
               <div className="bg-slate-800/50 rounded-xl p-6">
                 <h3 className="font-bold text-emerald-400 mb-2">Encryption in Transit</h3>
                 <p className="text-sm text-slate-400">
-                  All data transferred via HTTPS/TLS 1.3. Your files are encrypted from your browser to our servers.
+                  All data transferred via HTTPS/TLS 1.2+. Your files are encrypted from your browser to our servers.
                 </p>
               </div>
 
@@ -124,7 +123,7 @@ export default function PrivacyPage() {
               <div className="bg-slate-800/50 rounded-xl p-6">
                 <h3 className="font-bold text-emerald-400 mb-2">Auto-Deletion</h3>
                 <p className="text-sm text-slate-400">
-                  Raw files are automatically deleted within 1 hour of analysis. No manual intervention needed.
+                  Raw files are automatically deleted within 24 hours of analysis. No manual intervention needed.
                 </p>
               </div>
 
@@ -196,6 +195,11 @@ export default function PrivacyPage() {
                 <h3 className="font-bold text-slate-200">Vercel</h3>
                 <p className="text-sm text-slate-400">Website hosting and deployment</p>
               </div>
+
+              <div className="border-l-4 border-emerald-500 pl-4">
+                <h3 className="font-bold text-slate-200">xAI</h3>
+                <p className="text-sm text-slate-400">AI-powered column mapping to identify data fields in your uploads</p>
+              </div>
             </div>
           </section>
 
@@ -227,7 +231,7 @@ export default function PrivacyPage() {
                 <tbody className="text-slate-300">
                   <tr className="border-b border-slate-800">
                     <td className="py-3 px-4">Uploaded files</td>
-                    <td className="py-3 px-4">Deleted immediately after email report sent, or within 1 hour max</td>
+                    <td className="py-3 px-4">Deleted immediately after email report sent, or within 24 hours</td>
                   </tr>
                   <tr className="border-b border-slate-800">
                     <td className="py-3 px-4">Email address (if opted-in)</td>

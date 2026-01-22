@@ -69,7 +69,7 @@ export default function AboutPage() {
               <div>
                 <p className="text-lg text-slate-300 leading-relaxed">
                   <strong className="text-white">Your data stays protected.</strong> Files are
-                  encrypted in transit and at rest, then automatically deleted within 1 hour.
+                  encrypted in transit and at rest, then automatically deleted within 24 hours.
                   We only retain anonymized aggregate statistics to improve our detection
                   algorithms - never your actual SKUs or item names.
                 </p>

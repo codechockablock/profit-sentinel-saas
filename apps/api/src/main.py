@@ -2,16 +2,25 @@
 Profit Sentinel API - FastAPI Application Entry Point
 
 Forensic analysis of POS exports to detect hidden profit leaks.
+
+SECURITY HARDENING:
+- Security headers middleware (X-Content-Type-Options, X-Frame-Options, etc.)
+- Request ID correlation for audit logging
+- CORS restricted to specific origins
+- Rate limiting on sensitive endpoints
+- Input validation via Pydantic models
 """
 
 import logging
 import re
+import uuid
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -67,6 +76,60 @@ def is_allowed_origin(origin: str, allowed_origins: list[str]) -> bool:
         return True
 
     return False
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Add security headers to all responses.
+
+    SECURITY: These headers protect against common web vulnerabilities:
+    - X-Content-Type-Options: Prevents MIME-type sniffing
+    - X-Frame-Options: Prevents clickjacking
+    - X-XSS-Protection: Legacy XSS protection (modern browsers use CSP)
+    - Strict-Transport-Security: Enforces HTTPS
+    - Content-Security-Policy: Restricts resource loading
+    - Referrer-Policy: Controls referrer information
+    - Permissions-Policy: Restricts browser features
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        response = await call_next(request)
+
+        # Security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=()"
+        )
+
+        return response
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """
+    Add request ID to all requests for correlation and audit logging.
+
+    SECURITY: Request IDs enable:
+    - Audit trail correlation across services
+    - Incident investigation
+    - Rate limiting bypass detection
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Use existing request ID from header or generate new one
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        request.state.request_id = request_id
+
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+
+        return response
 
 
 class DynamicCORSMiddleware(BaseHTTPMiddleware):
@@ -246,6 +309,23 @@ def create_app() -> FastAPI:
 
     # Layer 2: Custom CORS for dynamic origins (Vercel previews, error handling)
     app.add_middleware(DynamicCORSMiddleware, allowed_origins=settings.cors_origins)
+
+    # Security headers middleware
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # Request ID middleware for audit logging
+    app.add_middleware(RequestIDMiddleware)
+
+    # Trusted hosts middleware (production only)
+    if settings.env == "production":
+        app.add_middleware(
+            TrustedHostMiddleware,
+            allowed_hosts=[
+                "api.profitsentinel.com",
+                "profitsentinel.com",
+                "www.profitsentinel.com",
+            ],
+        )
 
     # Include routes
     app.include_router(api_router)

@@ -85,9 +85,52 @@ class ReportResponse(BaseModel):
     files_deleted: int | None = None
 
 
+def validate_s3_key(key: str) -> bool:
+    """
+    Validate S3 key to prevent path traversal attacks.
+
+    SECURITY: Prevents attackers from manipulating S3 keys to:
+    - Access files in other user's directories (../../other_user/file)
+    - Access system files or sensitive paths
+
+    Args:
+        key: S3 object key to validate
+
+    Returns:
+        True if key is safe, False otherwise
+    """
+    if not key:
+        return False
+
+    # Block path traversal attempts
+    if ".." in key:
+        logger.warning(f"Path traversal attempt blocked in S3 key: {key}")
+        return False
+
+    # Block absolute paths
+    if key.startswith("/"):
+        logger.warning(f"Absolute path blocked in S3 key: {key}")
+        return False
+
+    # Block null bytes and other control characters
+    if "\x00" in key or any(ord(c) < 32 for c in key):
+        logger.warning(f"Control characters blocked in S3 key: {key}")
+        return False
+
+    # S3 keys should follow pattern: anonymous/{session_id}/{filename} or {user_id}/{filename}
+    # Must have at least one "/" (directory structure)
+    if "/" not in key:
+        logger.warning(f"Invalid S3 key structure (no directory): {key}")
+        return False
+
+    return True
+
+
 async def cleanup_s3_files(s3_keys: list[str], bucket_name: str):
     """
     Background task to delete S3 files after report is sent.
+
+    SECURITY: Validates all S3 keys before deletion to prevent path traversal.
 
     Args:
         s3_keys: List of S3 object keys to delete
@@ -100,6 +143,11 @@ async def cleanup_s3_files(s3_keys: list[str], bucket_name: str):
     deleted_count = 0
 
     for key in s3_keys:
+        # SECURITY: Validate key before deletion
+        if not validate_s3_key(key):
+            logger.warning(f"Skipping invalid S3 key during cleanup: {key}")
+            continue
+
         try:
             s3_client.delete_object(Bucket=bucket_name, Key=key)
             logger.info(f"Deleted S3 file after report sent: {key}")
