@@ -18,7 +18,7 @@ interface PrivacyBannerProps {
  *
  * Shows users that:
  * 1. Files are encrypted in transit and at rest
- * 2. Files are auto-deleted within 1 hour
+ * 2. Files are auto-deleted within 24 hours
  * 3. Only aggregate statistics are retained (no SKUs)
  *
  * Two variants:
@@ -46,7 +46,7 @@ export function PrivacyBanner({
         <ShieldIcon className="w-3.5 h-3.5 text-emerald-500/70" />
         <span>
           Files encrypted & {' '}
-          <span className="text-emerald-400/80">auto-deleted in 1 hour.</span>
+          <span className="text-emerald-400/80">auto-deleted in 24 hours.</span>
         </span>
       </div>
     )
@@ -66,12 +66,12 @@ export function PrivacyBanner({
           </h4>
           <p className="text-xs text-slate-300 leading-relaxed">
             Files are <span className="text-emerald-400 font-medium">encrypted in transit and at rest</span>,
-            then automatically deleted within 1 hour. We only retain aggregate statistics
+            then automatically deleted within 24 hours. We only retain aggregate statistics
             (counts, not SKUs) to improve our detection algorithms.
           </p>
           <div className="mt-3 flex flex-wrap gap-3 text-xs">
             <PrivacyPoint icon={<LockClosedIcon />} text="Encrypted storage" />
-            <PrivacyPoint icon={<ClockIcon />} text="Auto-deleted in 1 hour" />
+            <PrivacyPoint icon={<ClockIcon />} text="Auto-deleted in 24 hours" />
             <PrivacyPoint icon={<EyeOffIcon />} text="No SKUs retained" />
           </div>
         </div>
@@ -121,7 +121,7 @@ export function PrivacyFooter({ className = '' }: { className?: string }) {
   return (
     <p className={`text-xs text-slate-500 ${className}`}>
       <ShieldIcon className="w-3 h-3 inline-block mr-1 text-emerald-500/50" />
-      We respect your privacy. Your files are encrypted and automatically deleted within 1 hour.
+      We respect your privacy. Your files are encrypted and automatically deleted within 24 hours.
       We only retain anonymized statistics. Your email is stored only if you opt in.{' '}
       <a
         href="/privacy"

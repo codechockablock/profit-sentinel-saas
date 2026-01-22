@@ -40,7 +40,7 @@ export default function Home() {
 
           {/* Trust Badges */}
           <div className="flex flex-wrap justify-center gap-6 mt-10 text-sm text-slate-400">
-            <Badge icon={<ShieldIcon />} text="Files auto-deleted in 1 hour" />
+            <Badge icon={<ShieldIcon />} text="Files auto-deleted in 24 hours" />
             <Badge icon={<ClockIcon />} text="Results in 60 seconds" />
             <Badge icon={<CheckIcon />} text="No credit card required" />
           </div>
@@ -159,7 +159,7 @@ export default function Home() {
           </h2>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-8">
             Your files are <strong className="text-emerald-400">encrypted in transit and at rest</strong>.
-            Files are automatically deleted within 1 hour after analysis.
+            Files are automatically deleted within 24 hours after analysis.
             We only retain anonymized aggregate statistics - never your actual SKUs, item names, or customer data.
           </p>
           <Link
