@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     app_name: str = "Profit Sentinel"
     app_version: str = "1.0.0"
     debug: bool = Field(default=False)
-    env: str = Field(default="development", description="Environment: development, staging, production")
+    env: str = Field(
+        default="development",
+        description="Environment: development, staging, production",
+    )
 
     # Analysis thresholds (configurable via environment)
     # Margin leak detection: flag items with margin below this threshold
