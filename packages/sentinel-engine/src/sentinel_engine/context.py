@@ -128,6 +128,11 @@ class AnalysisContext:
             "price_discrepancy": 0,
             "shrinkage_pattern": 0,
             "margin_erosion": 0,
+            # New primitives (v2.2)
+            "zero_cost_anomaly": 0,
+            "negative_profit": 0,
+            "severe_inventory_deficit": 0,
+            # Utility primitives
             "high_velocity": 0,
             "seasonal": 0,
         }
@@ -418,6 +423,12 @@ class AnalysisContext:
                 "price_discrepancy": self.seed_hash("primitive_price_discrepancy_v2"),
                 "shrinkage_pattern": self.seed_hash("primitive_shrinkage_pattern_v2"),
                 "margin_erosion": self.seed_hash("primitive_margin_erosion_v2"),
+                # New primitives (v2.2)
+                "zero_cost_anomaly": self.seed_hash("primitive_zero_cost_anomaly_v2"),
+                "negative_profit": self.seed_hash("primitive_negative_profit_v2"),
+                "severe_inventory_deficit": self.seed_hash(
+                    "primitive_severe_inventory_deficit_v2"
+                ),
                 # Utility primitives
                 "high_velocity": self.seed_hash("primitive_high_velocity_v2"),
                 "seasonal": self.seed_hash("primitive_seasonal_v2"),
