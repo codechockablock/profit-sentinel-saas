@@ -58,7 +58,9 @@ resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.main.arn
   port              = 443
   protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  # SECURITY: Use TLS 1.2+ only - ELBSecurityPolicy-TLS13-1-2-2021-06 supports TLS 1.3 and 1.2
+  # Previous policy (2016-08) allowed TLS 1.0/1.1 which are deprecated and insecure
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   certificate_arn   = var.certificate_arn
 
   default_action {
