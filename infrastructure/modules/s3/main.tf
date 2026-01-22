@@ -39,12 +39,28 @@ resource "aws_s3_bucket_public_access_block" "uploads" {
 resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   bucket = aws_s3_bucket.uploads.id
 
+  # PRIVACY COMPLIANCE: Auto-delete uploaded files within 24 hours
+  # This ensures files are deleted even if application-level deletion fails
+  rule {
+    id     = "delete-uploads-24h"
+    status = "Enabled"
+
+    filter {
+      prefix = ""  # Apply to all objects
+    }
+
+    expiration {
+      days = 1  # S3 minimum granularity is 1 day (24 hours)
+    }
+  }
+
+  # Clean up old versions quickly for privacy
   rule {
     id     = "expire-old-versions"
     status = "Enabled"
 
     noncurrent_version_expiration {
-      noncurrent_days = 90
+      noncurrent_days = 1  # Changed from 90 to 1 day for privacy
     }
   }
 }
