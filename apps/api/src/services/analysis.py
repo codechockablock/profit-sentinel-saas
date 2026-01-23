@@ -479,6 +479,17 @@ class AnalysisService:
             impact["low_estimate"] += primitive_impact * 0.7
             impact["high_estimate"] += primitive_impact * 1.3
 
+        # Sanity cap: prevent unrealistic impact estimates (v2.3)
+        # Max reasonable annual impact is $10M for a single-location retailer
+        max_reasonable_annual_impact = 10_000_000
+        if impact["high_estimate"] > max_reasonable_annual_impact:
+            # Scale down proportionally
+            scale_factor = max_reasonable_annual_impact / impact["high_estimate"]
+            impact["low_estimate"] *= scale_factor
+            impact["high_estimate"] = max_reasonable_annual_impact
+            for prim in impact["breakdown"]:
+                impact["breakdown"][prim] *= scale_factor
+
         impact["low_estimate"] = round(impact["low_estimate"], 2)
         impact["high_estimate"] = round(impact["high_estimate"], 2)
 
@@ -859,11 +870,15 @@ class AnalysisService:
                     score = min(0.99, abs(quantity) / 100)
 
             elif primitive == "low_stock":
-                # Flag items with low stock but good sales
-                if 0 < quantity < 10 and sold > 50:
-                    score = min(0.90, (10 - quantity) / 10 * (sold / 100))
-                elif 0 < quantity < 5:
-                    score = min(0.80, (5 - quantity) / 5)
+                # Flag items with low stock but good sales (velocity-aware v2.3)
+                # Require minimum sales velocity to prevent flagging slow-moving items
+                min_sold_for_low_stock = 10
+                if 0 < quantity < 10 and sold > min_sold_for_low_stock:
+                    # Scale score by both urgency (low qty) and velocity (high sold)
+                    urgency = (10 - quantity) / 10
+                    velocity = min(1.0, sold / 100)
+                    score = min(0.90, urgency * velocity)
+                # Removed: unconditional qty < 5 flagging that caused 26K false positives
 
             elif primitive == "dead_item":
                 # Flag items with high stock but no sales
@@ -1142,6 +1157,17 @@ class AnalysisService:
             impact["breakdown"][primitive] = round(primitive_impact, 2)
             impact["low_estimate"] += primitive_impact * 0.7
             impact["high_estimate"] += primitive_impact * 1.3
+
+        # Sanity cap: prevent unrealistic impact estimates (v2.3)
+        # Max reasonable annual impact is $10M for a single-location retailer
+        max_reasonable_annual_impact = 10_000_000
+        if impact["high_estimate"] > max_reasonable_annual_impact:
+            # Scale down proportionally
+            scale_factor = max_reasonable_annual_impact / impact["high_estimate"]
+            impact["low_estimate"] *= scale_factor
+            impact["high_estimate"] = max_reasonable_annual_impact
+            for prim in impact["breakdown"]:
+                impact["breakdown"][prim] *= scale_factor
 
         impact["low_estimate"] = round(impact["low_estimate"], 2)
         impact["high_estimate"] = round(impact["high_estimate"], 2)
