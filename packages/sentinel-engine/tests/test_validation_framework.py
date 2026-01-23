@@ -405,9 +405,7 @@ class VSAValidator:
         overall = (
             "KEEP"
             if kill_count == 0 and keep_count >= 4
-            else "CALIBRATE"
-            if kill_count < 3
-            else "KILL"
+            else "CALIBRATE" if kill_count < 3 else "KILL"
         )
         print(f"\n  OVERALL RECOMMENDATION: {overall}")
 
