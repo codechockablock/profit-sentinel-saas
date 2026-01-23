@@ -28,7 +28,6 @@ import csv
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 import torch
 
@@ -92,7 +91,7 @@ class NumericalVSAEncoder:
     NO PRIMITIVES. Just encodes numbers as phasor vectors.
     """
 
-    def __init__(self, dimensions: int = 2048, device: Optional[str] = None):
+    def __init__(self, dimensions: int = 2048, device: str | None = None):
         self.dimensions = dimensions
 
         if device is None:
@@ -379,7 +378,7 @@ def load_ytd_numerical_data(
     encoder = NumericalVSAEncoder()
     data_points = []
 
-    with open(csv_path, "r", encoding="utf-8", errors="ignore") as f:
+    with open(csv_path, encoding="utf-8", errors="ignore") as f:
         reader = csv.DictReader(f)
 
         # Find which columns actually exist
@@ -428,7 +427,7 @@ def load_ytd_numerical_data(
                     raw_values=raw_values,
                 ))
 
-            except Exception as e:
+            except Exception:
                 continue
 
         if i > 0 and i % 2000 == 0:
@@ -447,7 +446,7 @@ def load_ytd_numerical_data(
 def run_level5_experiment(
     csv_path: str,
     max_rows: int = 10000,
-    output_path: Optional[str] = None,
+    output_path: str | None = None,
 ) -> DiscoveryResult:
     """
     Run the Level 5 self-grounding experiment.
@@ -520,17 +519,17 @@ def print_discovery_report(result: DiscoveryResult) -> None:
     print(f"Discovery time: {result.discovery_time:.1f}s")
 
     for cluster in result.clusters:
-        print(f"\n" + "-" * 70)
+        print("\n" + "-" * 70)
         print(f"CLUSTER {cluster.id}")
-        print(f"-" * 70)
+        print("-" * 70)
         print(f"  Members: {len(cluster.members)}")
         print(f"  Radius: {cluster.radius:.3f}")
 
-        print(f"\n  DISTINGUISHING FEATURES:")
+        print("\n  DISTINGUISHING FEATURES:")
         for feat in cluster.distinguishing_features:
             print(f"    {feat}")
 
-        print(f"\n  EXAMPLE ROWS (first 10):")
+        print("\n  EXAMPLE ROWS (first 10):")
         for i, idx in enumerate(cluster.members[:10]):
             dp = result.data_points[idx]
             # Show key features
@@ -543,10 +542,10 @@ def print_discovery_report(result: DiscoveryResult) -> None:
             print(f"    {i+1}. {dp.sku[:25]:<25} | Stock={stock:>8.0f} | Sales=${sales:>10.2f} | Profit=${profit:>10.2f} | Margin={margin:>6.1f}% | Cost=${cost:>10.2f}")
 
     if result.outliers:
-        print(f"\n" + "-" * 70)
+        print("\n" + "-" * 70)
         print(f"OUTLIERS ({len(result.outliers)} total)")
         print("-" * 70)
-        print(f"  Sample outliers (first 10):")
+        print("  Sample outliers (first 10):")
         for i, idx in enumerate(result.outliers[:10]):
             dp = result.data_points[idx]
             stock = dp.raw_values.get("Stock", 0)

@@ -23,10 +23,9 @@ Example discovery:
 
 import csv
 import logging
+import math
 import time
 from dataclasses import dataclass, field
-from typing import Optional
-import math
 
 import torch
 
@@ -92,7 +91,7 @@ class ColumnBindingEncoder:
     - unbind(bound, a): Recover B from A ⊗ B given A
     """
 
-    def __init__(self, dimensions: int = 2048, device: Optional[str] = None):
+    def __init__(self, dimensions: int = 2048, device: str | None = None):
         self.dimensions = dimensions
 
         if device is None:
@@ -278,7 +277,7 @@ class ColumnRelationshipDiscoverer:
         logger.info("Discovering binding patterns...")
 
         discovered = []
-        num_rows = len(data)
+        len(data)
 
         # Pre-encode all column values per row
         logger.info("  Encoding column values...")
@@ -485,7 +484,7 @@ def load_data_for_binding(
 
     data = []
 
-    with open(csv_path, 'r', encoding='utf-8-sig') as f:
+    with open(csv_path, encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
 
         # Filter to columns that exist
@@ -630,7 +629,7 @@ def print_binding_report(result: BindingDiscoveryResult, column_names: list[str]
         print(f"    Relationship type:      {rel.relationship_type}")
 
         if rel.sample_evidence:
-            print(f"    Sample evidence:")
+            print("    Sample evidence:")
             for ev in rel.sample_evidence[:3]:
                 print(f"      Row {ev['row']}: {name_a}={ev['val_a']:.2f}, {name_b}={ev['val_b']:.2f} → {name_t}={ev['val_target']:.2f}")
 

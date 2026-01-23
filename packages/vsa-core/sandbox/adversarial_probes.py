@@ -14,15 +14,12 @@ accuracy degrades.
 from __future__ import annotations
 
 import logging
-import math
-import time
 from dataclasses import dataclass, field
 from typing import Any
 
 import torch
-
-from vsa_sandbox_harness import VSASandboxHarness, create_harness
 from test_sequences import create_controlled_test_data
+from vsa_sandbox_harness import create_harness
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -85,7 +82,6 @@ def probe_breaking_point(
     logger.info(f"{'Magnitude':>10} {'Accuracy':>10} {'Confidence':>12} {'Acc Drop':>10} {'Conf Drop':>11} {'Gap':>8} {'Status'}")
     logger.info("-" * 70)
 
-    prev_gap = 0
 
     for mag in magnitudes:
         # Fresh harness for each test
@@ -135,7 +131,6 @@ def probe_breaking_point(
 
         logger.info(f"{mag:10.2f} {acc:10.3f} {conf:12.3f} {acc_drop:+10.3f} {conf_drop:+11.3f} {gap:+8.3f} {status}")
 
-        prev_gap = gap
 
     logger.info("-" * 70)
 
@@ -221,7 +216,7 @@ def probe_silent_failure(dimensions: int = 2048) -> SilentFailureHuntResult:
 
             if gap < -0.1:
                 result.silent_failure_found = True
-                logger.info(f"  *** SILENT FAILURE FOUND ***")
+                logger.info("  *** SILENT FAILURE FOUND ***")
 
             if gap < worst_gap:
                 worst_gap = gap
