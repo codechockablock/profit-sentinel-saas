@@ -14,14 +14,13 @@ Architecture:
                           [If flagged: log + queue for review]
 """
 
-import re
-import json
 import hashlib
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, field, asdict
-from enum import Enum
+import json
+import re
 from collections import defaultdict
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
 
 
 class FlagCategory(Enum):
@@ -48,11 +47,11 @@ class SemanticFlag:
     category: FlagCategory
     severity: FlagSeverity
     reason: str
-    matched_patterns: List[str]
+    matched_patterns: list[str]
     confidence: float  # 0.0 - 1.0
     timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    
-    def to_dict(self) -> Dict:
+
+    def to_dict(self) -> dict:
         d = asdict(self)
         d['category'] = self.category.value
         d['severity'] = self.severity.value
@@ -67,16 +66,16 @@ class FlaggedQuery:
     session_id: str
     timestamp: str
     raw_query: str
-    vsa_patterns_accessed: List[str]
+    vsa_patterns_accessed: list[str]
     llm_response_summary: str
-    flags: List[SemanticFlag]
-    context: Dict  # Additional metadata
+    flags: list[SemanticFlag]
+    context: dict  # Additional metadata
     reviewed: bool = False
-    review_notes: Optional[str] = None
-    reviewer_id: Optional[str] = None
-    review_timestamp: Optional[str] = None
-    
-    def to_dict(self) -> Dict:
+    review_notes: str | None = None
+    reviewer_id: str | None = None
+    review_timestamp: str | None = None
+
+    def to_dict(self) -> dict:
         d = asdict(self)
         d['flags'] = [f.to_dict() if isinstance(f, SemanticFlag) else f for f in self.flags]
         return d
@@ -85,20 +84,20 @@ class FlaggedQuery:
 class SemanticFlagDetector:
     """
     Detects potentially sensitive query patterns for employer review.
-    
+
     Design principles:
     - Never blocks queries, only flags
     - Low false positive tolerance (don't cry wolf)
     - Employer has full context, we just surface patterns
     - Accumulation detection catches slow-burn concerns
     """
-    
-    def __init__(self, config: Optional[Dict] = None):
+
+    def __init__(self, config: dict | None = None):
         self.config = config or self._default_config()
-        self.user_query_history: Dict[str, List[Dict]] = defaultdict(list)
-        self.flagged_queries: List[FlaggedQuery] = []
-        
-    def _default_config(self) -> Dict:
+        self.user_query_history: dict[str, list[dict]] = defaultdict(list)
+        self.flagged_queries: list[FlaggedQuery] = []
+
+    def _default_config(self) -> dict:
         return {
             # Individual surveillance detection
             "individual_patterns": {
@@ -119,7 +118,7 @@ class SemanticFlagDetector:
                 ],
                 "threshold_mentions": 2,  # Flag if ID + N behavioral keywords
             },
-            
+
             # Competitive intelligence detection
             "competitive_patterns": {
                 "enabled": True,
@@ -137,7 +136,7 @@ class SemanticFlagDetector:
                 ],
                 "threshold_matches": 2,
             },
-            
+
             # Pricing coordination detection
             "pricing_patterns": {
                 "enabled": True,
@@ -150,7 +149,7 @@ class SemanticFlagDetector:
                 ],
                 "threshold_matches": 2,
             },
-            
+
             # Accumulation detection (slow-burn patterns)
             "accumulation_patterns": {
                 "enabled": True,
@@ -158,7 +157,7 @@ class SemanticFlagDetector:
                 "related_query_threshold": 5,  # N similar queries in window
                 "similarity_threshold": 0.6,
             },
-            
+
             # Unusual scope detection
             "scope_patterns": {
                 "enabled": True,
@@ -167,7 +166,7 @@ class SemanticFlagDetector:
                     "complete list", "entire database", "bulk download"
                 ],
             },
-            
+
             # Review settings
             "review": {
                 "immediate_notify_severities": ["critical", "high"],
@@ -175,55 +174,55 @@ class SemanticFlagDetector:
                 "retention_days": 90,
             }
         }
-    
+
     def analyze_query(
         self,
         query: str,
         user_id: str,
         session_id: str,
-        vsa_patterns: Optional[List[str]] = None,
-        llm_response: Optional[str] = None,
-        context: Optional[Dict] = None
-    ) -> Tuple[List[SemanticFlag], Optional[FlaggedQuery]]:
+        vsa_patterns: list[str] | None = None,
+        llm_response: str | None = None,
+        context: dict | None = None
+    ) -> tuple[list[SemanticFlag], FlaggedQuery | None]:
         """
         Analyze a query for sensitive patterns. Returns flags and optionally
         a complete FlaggedQuery record if any flags were raised.
-        
+
         This runs AFTER the query executes - it never blocks.
         """
         flags = []
         vsa_patterns = vsa_patterns or []
         context = context or {}
-        
+
         # Check each detection category
         if self.config["individual_patterns"]["enabled"]:
             flag = self._check_individual_surveillance(query, vsa_patterns)
             if flag:
                 flags.append(flag)
-        
+
         if self.config["competitive_patterns"]["enabled"]:
             flag = self._check_competitive_intelligence(query, vsa_patterns)
             if flag:
                 flags.append(flag)
-        
+
         if self.config["pricing_patterns"]["enabled"]:
             flag = self._check_pricing_coordination(query, vsa_patterns)
             if flag:
                 flags.append(flag)
-        
+
         if self.config["accumulation_patterns"]["enabled"]:
             flag = self._check_accumulation_pattern(query, user_id)
             if flag:
                 flags.append(flag)
-        
+
         if self.config["scope_patterns"]["enabled"]:
             flag = self._check_unusual_scope(query)
             if flag:
                 flags.append(flag)
-        
+
         # Record query in history for accumulation detection
         self._record_query(query, user_id)
-        
+
         # Create flagged query record if any flags
         flagged_query = None
         if flags:
@@ -240,33 +239,33 @@ class SemanticFlagDetector:
                 context=context
             )
             self.flagged_queries.append(flagged_query)
-        
+
         return flags, flagged_query
-    
+
     def _check_individual_surveillance(
-        self, 
-        query: str, 
-        vsa_patterns: List[str]
-    ) -> Optional[SemanticFlag]:
+        self,
+        query: str,
+        vsa_patterns: list[str]
+    ) -> SemanticFlag | None:
         """Detect queries that may constitute individual employee surveillance"""
         config = self.config["individual_patterns"]
         combined_text = f"{query} {' '.join(vsa_patterns)}".lower()
-        
+
         # Find individual identifiers
         id_matches = []
         for pattern in config["id_patterns"]:
             matches = re.findall(pattern, query, re.IGNORECASE)
             id_matches.extend(matches)
-        
+
         if not id_matches:
             return None
-        
+
         # Count behavioral keywords
         behavioral_matches = []
         for keyword in config["behavioral_keywords"]:
             if keyword.lower() in combined_text:
                 behavioral_matches.append(keyword)
-        
+
         if len(behavioral_matches) >= config["threshold_mentions"]:
             # Determine severity based on specificity
             if len(id_matches) > 3 or "relationship" in behavioral_matches:
@@ -275,7 +274,7 @@ class SemanticFlagDetector:
                 severity = FlagSeverity.MEDIUM
             else:
                 severity = FlagSeverity.LOW
-            
+
             return SemanticFlag(
                 category=FlagCategory.INDIVIDUAL_SURVEILLANCE,
                 severity=severity,
@@ -283,33 +282,33 @@ class SemanticFlagDetector:
                 matched_patterns=id_matches[:5] + behavioral_matches[:5],
                 confidence=min(0.5 + (len(behavioral_matches) * 0.1), 0.95)
             )
-        
+
         return None
-    
+
     def _check_competitive_intelligence(
         self,
         query: str,
-        vsa_patterns: List[str]
-    ) -> Optional[SemanticFlag]:
+        vsa_patterns: list[str]
+    ) -> SemanticFlag | None:
         """Detect queries that may constitute competitive espionage"""
         config = self.config["competitive_patterns"]
         combined_text = f"{query} {' '.join(vsa_patterns)}".lower()
-        
+
         # Find competitor references
         competitor_matches = []
         for pattern in config["competitor_indicators"]:
             matches = re.findall(pattern, query, re.IGNORECASE)
             competitor_matches.extend(matches)
-        
+
         if not competitor_matches:
             return None
-        
+
         # Check sensitive topics
         topic_matches = []
         for topic in config["sensitive_topics"]:
             if topic.lower() in combined_text:
                 topic_matches.append(topic)
-        
+
         if len(topic_matches) >= config["threshold_matches"]:
             # High severity for account targeting or reverse engineering
             high_severity_topics = {"poach", "target", "vulnerability", "reverse engineer", "steal"}
@@ -317,32 +316,32 @@ class SemanticFlagDetector:
                 severity = FlagSeverity.HIGH
             else:
                 severity = FlagSeverity.MEDIUM
-            
+
             return SemanticFlag(
                 category=FlagCategory.COMPETITIVE_INTELLIGENCE,
                 severity=severity,
-                reason=f"Query combines competitor references with sensitive business intelligence topics",
+                reason="Query combines competitor references with sensitive business intelligence topics",
                 matched_patterns=competitor_matches[:3] + topic_matches[:5],
                 confidence=min(0.4 + (len(topic_matches) * 0.15), 0.9)
             )
-        
+
         return None
-    
+
     def _check_pricing_coordination(
         self,
         query: str,
-        vsa_patterns: List[str]
-    ) -> Optional[SemanticFlag]:
+        vsa_patterns: list[str]
+    ) -> SemanticFlag | None:
         """Detect queries that may indicate price fixing intent"""
         config = self.config["pricing_patterns"]
         combined_text = f"{query} {' '.join(vsa_patterns)}".lower()
-        
+
         # Check coordination language
         matches = []
         for term in config["coordination_language"]:
             if term.lower() in combined_text:
                 matches.append(term)
-        
+
         if len(matches) >= config["threshold_matches"]:
             # Critical severity for explicit coordination language
             critical_terms = {"coordinate", "signal", "defector", "retaliate", "tacit"}
@@ -352,41 +351,41 @@ class SemanticFlagDetector:
                 severity = FlagSeverity.HIGH
             else:
                 severity = FlagSeverity.MEDIUM
-            
+
             return SemanticFlag(
                 category=FlagCategory.PRICING_COORDINATION,
                 severity=severity,
-                reason=f"Query contains language associated with pricing coordination",
+                reason="Query contains language associated with pricing coordination",
                 matched_patterns=matches[:7],
                 confidence=min(0.5 + (len(matches) * 0.1), 0.95)
             )
-        
+
         return None
-    
+
     def _check_accumulation_pattern(
         self,
         query: str,
         user_id: str
-    ) -> Optional[SemanticFlag]:
+    ) -> SemanticFlag | None:
         """Detect users building up sensitive analysis over multiple queries"""
         config = self.config["accumulation_patterns"]
         window = timedelta(hours=config["window_hours"])
         cutoff = datetime.utcnow() - window
-        
+
         # Get recent queries for this user
         recent = [
             q for q in self.user_query_history[user_id]
             if datetime.fromisoformat(q["timestamp"]) > cutoff
         ]
-        
+
         if len(recent) < config["related_query_threshold"]:
             return None
-        
+
         # Simple similarity check - count shared significant words
         query_words = set(self._extract_significant_words(query))
         similar_count = 0
         related_queries = []
-        
+
         for past in recent:
             past_words = set(self._extract_significant_words(past["query"]))
             if query_words and past_words:
@@ -394,7 +393,7 @@ class SemanticFlagDetector:
                 if overlap >= config["similarity_threshold"]:
                     similar_count += 1
                     related_queries.append(past["query"][:50])
-        
+
         if similar_count >= config["related_query_threshold"]:
             return SemanticFlag(
                 category=FlagCategory.ACCUMULATION_PATTERN,
@@ -403,31 +402,31 @@ class SemanticFlagDetector:
                 matched_patterns=related_queries[:5],
                 confidence=min(0.3 + (similar_count * 0.1), 0.8)
             )
-        
+
         return None
-    
-    def _check_unusual_scope(self, query: str) -> Optional[SemanticFlag]:
+
+    def _check_unusual_scope(self, query: str) -> SemanticFlag | None:
         """Detect queries requesting unusually broad data access"""
         config = self.config["scope_patterns"]
         query_lower = query.lower()
-        
+
         matches = []
         for indicator in config["bulk_indicators"]:
             if indicator.lower() in query_lower:
                 matches.append(indicator)
-        
+
         if matches:
             return SemanticFlag(
                 category=FlagCategory.UNUSUAL_SCOPE,
                 severity=FlagSeverity.LOW,
-                reason=f"Query requests broad data scope",
+                reason="Query requests broad data scope",
                 matched_patterns=matches,
                 confidence=0.6
             )
-        
+
         return None
-    
-    def _extract_significant_words(self, text: str) -> List[str]:
+
+    def _extract_significant_words(self, text: str) -> list[str]:
         """Extract significant words for similarity comparison"""
         # Remove common words, keep nouns/verbs that indicate intent
         stopwords = {
@@ -447,17 +446,17 @@ class SemanticFlagDetector:
             "once", "here", "there", "any", "please", "show", "me", "get",
             "find", "tell", "give", "analyze", "analysis", "data", "report"
         }
-        
+
         words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
         return [w for w in words if w not in stopwords]
-    
+
     def _record_query(self, query: str, user_id: str):
         """Record query for accumulation detection"""
         self.user_query_history[user_id].append({
             "query": query,
             "timestamp": datetime.utcnow().isoformat()
         })
-        
+
         # Prune old entries
         window = timedelta(hours=self.config["accumulation_patterns"]["window_hours"])
         cutoff = datetime.utcnow() - window
@@ -465,43 +464,43 @@ class SemanticFlagDetector:
             q for q in self.user_query_history[user_id]
             if datetime.fromisoformat(q["timestamp"]) > cutoff
         ]
-    
+
     def _generate_query_id(self, query: str, user_id: str, session_id: str) -> str:
         """Generate unique ID for flagged query"""
         content = f"{query}{user_id}{session_id}{datetime.utcnow().isoformat()}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
-    
-    def _summarize_response(self, response: Optional[str]) -> str:
+
+    def _summarize_response(self, response: str | None) -> str:
         """Create brief summary of LLM response for review context"""
         if not response:
             return "[No response captured]"
         if len(response) <= 200:
             return response
         return response[:200] + "..."
-    
+
     # === REVIEW INTERFACE ===
-    
+
     def get_pending_reviews(
         self,
-        severity_filter: Optional[List[FlagSeverity]] = None,
-        category_filter: Optional[List[FlagCategory]] = None,
+        severity_filter: list[FlagSeverity] | None = None,
+        category_filter: list[FlagCategory] | None = None,
         limit: int = 50
-    ) -> List[FlaggedQuery]:
+    ) -> list[FlaggedQuery]:
         """Get flagged queries pending review"""
         pending = [q for q in self.flagged_queries if not q.reviewed]
-        
+
         if severity_filter:
             pending = [
                 q for q in pending
                 if any(f.severity in severity_filter for f in q.flags)
             ]
-        
+
         if category_filter:
             pending = [
                 q for q in pending
                 if any(f.category in category_filter for f in q.flags)
             ]
-        
+
         # Sort by highest severity flag
         severity_order = {
             FlagSeverity.CRITICAL: 0,
@@ -509,19 +508,19 @@ class SemanticFlagDetector:
             FlagSeverity.MEDIUM: 2,
             FlagSeverity.LOW: 3
         }
-        
+
         def max_severity(q):
             return min(severity_order[f.severity] for f in q.flags)
-        
+
         pending.sort(key=max_severity)
         return pending[:limit]
-    
+
     def mark_reviewed(
         self,
         query_id: str,
         reviewer_id: str,
         notes: str,
-        action_taken: Optional[str] = None
+        action_taken: str | None = None
     ):
         """Mark a flagged query as reviewed"""
         for q in self.flagged_queries:
@@ -533,21 +532,21 @@ class SemanticFlagDetector:
                 if action_taken:
                     q.context["action_taken"] = action_taken
                 break
-    
+
     def generate_digest(
         self,
         hours: int = 24,
         include_reviewed: bool = False
-    ) -> Dict:
+    ) -> dict:
         """Generate summary digest for employer review"""
         cutoff = datetime.utcnow() - timedelta(hours=hours)
-        
+
         relevant = [
             q for q in self.flagged_queries
             if datetime.fromisoformat(q.timestamp) > cutoff
             and (include_reviewed or not q.reviewed)
         ]
-        
+
         # Aggregate by category
         by_category = defaultdict(list)
         for q in relevant:
@@ -559,19 +558,19 @@ class SemanticFlagDetector:
                     "reason": flag.reason,
                     "timestamp": q.timestamp
                 })
-        
+
         # Count by severity
         severity_counts = defaultdict(int)
         for q in relevant:
             max_sev = max(f.severity.value for f in q.flags)
             severity_counts[max_sev] += 1
-        
+
         # Identify repeat users
         user_counts = defaultdict(int)
         for q in relevant:
             user_counts[q.user_id] += 1
         repeat_users = {u: c for u, c in user_counts.items() if c > 1}
-        
+
         return {
             "period_hours": hours,
             "generated_at": datetime.utcnow().isoformat(),
@@ -587,7 +586,7 @@ class SemanticFlagDetector:
                 and not q.reviewed
             ]
         }
-    
+
     def export_for_review(self, filepath: str):
         """Export all flagged queries to JSON for external review"""
         export_data = {
@@ -604,33 +603,33 @@ class SemanticFlagDetector:
 class ProfitSentinelFlagIntegration:
     """
     Drop-in integration for Profit Sentinel query pipeline.
-    
+
     Usage:
         flagger = ProfitSentinelFlagIntegration()
-        
+
         # In your query handler:
         response = process_query(query)  # Normal processing
         flagger.check_and_log(query, user_id, session_id, vsa_patterns, response)
         return response  # Response always returned, flagging is async
     """
-    
-    def __init__(self, config: Optional[Dict] = None):
+
+    def __init__(self, config: dict | None = None):
         self.detector = SemanticFlagDetector(config)
         self.notification_callbacks = []
-    
+
     def register_notification_callback(self, callback):
         """Register callback for immediate notifications (high/critical severity)"""
         self.notification_callbacks.append(callback)
-    
+
     def check_and_log(
         self,
         query: str,
         user_id: str,
         session_id: str,
-        vsa_patterns: Optional[List[str]] = None,
-        llm_response: Optional[str] = None,
-        context: Optional[Dict] = None
-    ) -> List[SemanticFlag]:
+        vsa_patterns: list[str] | None = None,
+        llm_response: str | None = None,
+        context: dict | None = None
+    ) -> list[SemanticFlag]:
         """
         Check query for flags and log if needed.
         Returns flags but NEVER blocks the query.
@@ -643,7 +642,7 @@ class ProfitSentinelFlagIntegration:
             llm_response=llm_response,
             context=context
         )
-        
+
         # Immediate notification for high severity
         if flagged_query:
             high_severity = any(
@@ -656,10 +655,10 @@ class ProfitSentinelFlagIntegration:
                         callback(flagged_query)
                     except Exception:
                         pass  # Don't let notification failures affect query
-        
+
         return flags
-    
-    def get_review_dashboard_data(self) -> Dict:
+
+    def get_review_dashboard_data(self) -> dict:
         """Get data for employer review dashboard"""
         return {
             "digest_24h": self.detector.generate_digest(hours=24),
@@ -678,9 +677,9 @@ if __name__ == "__main__":
     print("=" * 70)
     print("PROFIT SENTINEL SEMANTIC FLAGGING MODULE - DEMONSTRATION")
     print("=" * 70)
-    
+
     flagger = ProfitSentinelFlagIntegration()
-    
+
     # Test queries
     test_queries = [
         {
@@ -719,9 +718,9 @@ if __name__ == "__main__":
             "expected_flag": None  # Should NOT flag - normal query
         }
     ]
-    
+
     print("\nRunning test queries...\n")
-    
+
     for test in test_queries:
         flags = flagger.check_and_log(
             query=test["query"],
@@ -729,33 +728,33 @@ if __name__ == "__main__":
             session_id=test["session_id"],
             vsa_patterns=test["vsa_patterns"]
         )
-        
+
         print(f"Query: {test['query'][:60]}...")
         print(f"  Expected flag: {test['expected_flag']}")
         print(f"  Actual flags: {[f.category.value for f in flags] if flags else 'None'}")
-        
+
         if flags:
             for flag in flags:
                 print(f"    - {flag.category.value}: {flag.severity.value}")
                 print(f"      Reason: {flag.reason}")
                 print(f"      Confidence: {flag.confidence:.2f}")
-        
+
         expected = test["expected_flag"]
         actual = [f.category.value for f in flags] if flags else []
-        
+
         if (expected is None and not actual) or (expected and expected.lower() in [a.lower() for a in actual]):
-            print(f"  ✓ PASS")
+            print("  ✓ PASS")
         else:
-            print(f"  ✗ FAIL")
+            print("  ✗ FAIL")
         print()
-    
+
     print("=" * 70)
     print("GENERATING REVIEW DIGEST")
     print("=" * 70)
-    
+
     digest = flagger.detector.generate_digest(hours=24)
     print(json.dumps(digest, indent=2, default=str))
-    
+
     print("\n" + "=" * 70)
     print("MODULE READY FOR INTEGRATION")
     print("=" * 70)
