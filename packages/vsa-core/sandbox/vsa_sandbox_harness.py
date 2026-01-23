@@ -58,6 +58,7 @@ class GeometricSnapshot:
     This captures everything needed to restore the system to a previous state
     and to measure how far the current state has drifted.
     """
+
     timestamp: float
     snapshot_id: str
 
@@ -67,7 +68,9 @@ class GeometricSnapshot:
 
     # Derived metrics (computed at snapshot time)
     primitive_similarity_matrix: torch.Tensor  # (n_primitives, n_primitives)
-    codebook_similarity_matrix: torch.Tensor | None  # (n_codebook, n_codebook) - can be large
+    codebook_similarity_matrix: (
+        torch.Tensor | None
+    )  # (n_codebook, n_codebook) - can be large
     primitive_norms: dict[str, float]
     primitive_phases: dict[str, torch.Tensor]  # Phase angles per dimension
 
@@ -103,6 +106,7 @@ class HealthMetrics:
 
     These are the "vital signs" we monitor to detect degradation.
     """
+
     timestamp: float
 
     # Binding accuracy: can we bind and unbind correctly?
@@ -153,6 +157,7 @@ class HealthMetrics:
 @dataclass
 class DriftMeasurement:
     """Measures how far current state has drifted from a baseline."""
+
     baseline_id: str
     current_time: float
 
@@ -179,8 +184,11 @@ class DriftMeasurement:
 @dataclass
 class ModificationRecord:
     """Record of a single modification to the geometry."""
+
     timestamp: float
-    modification_type: str  # "primitive_perturbation", "phase_drift", "codebook_modification"
+    modification_type: (
+        str  # "primitive_perturbation", "phase_drift", "codebook_modification"
+    )
     target: str  # Which primitive or codebook entry
     parameters: dict[str, Any]
 
@@ -242,7 +250,9 @@ class VSASandboxHarness:
         logger.info(f"VSA Sandbox initialized: dims={dimensions}, device={self.device}")
 
         # Initialize random generator
-        self._generator = torch.Generator(device="cpu")  # MPS doesn't support generators
+        self._generator = torch.Generator(
+            device="cpu"
+        )  # MPS doesn't support generators
         self._generator.manual_seed(seed)
 
         # Core state: primitives (the conceptual basis)
@@ -340,7 +350,9 @@ class VSASandboxHarness:
         sim = (dot.real / (norm_a * norm_b + 1e-10)).item()
         return float(sim)
 
-    def batch_similarity(self, query: torch.Tensor, codebook: torch.Tensor) -> torch.Tensor:
+    def batch_similarity(
+        self, query: torch.Tensor, codebook: torch.Tensor
+    ) -> torch.Tensor:
         """Compute similarity between query and all codebook vectors."""
         dots = torch.sum(codebook * torch.conj(query), dim=-1)
         # Use abs() for complex norm
@@ -409,11 +421,18 @@ class VSASandboxHarness:
                 codebook_sim_matrix = torch.zeros(n_cb, n_cb, device=self.device)
                 for i in range(n_cb):
                     for j in range(n_cb):
-                        codebook_sim_matrix[i, j] = self.similarity(cb_list[i], cb_list[j])
+                        codebook_sim_matrix[i, j] = self.similarity(
+                            cb_list[i], cb_list[j]
+                        )
 
         # Compute primitive norms and phases
-        primitive_norms = {k: float(torch.sqrt(torch.sum(torch.abs(v) ** 2))) for k, v in self.primitives.items()}
-        primitive_phases = {k: torch.angle(v).clone() for k, v in self.primitives.items()}
+        primitive_norms = {
+            k: float(torch.sqrt(torch.sum(torch.abs(v) ** 2)))
+            for k, v in self.primitives.items()
+        }
+        primitive_phases = {
+            k: torch.angle(v).clone() for k, v in self.primitives.items()
+        }
 
         snapshot = GeometricSnapshot(
             timestamp=time.time(),
@@ -488,7 +507,9 @@ class VSASandboxHarness:
 
             sim_errors.append(abs(orig_sim - bound_sim))
 
-        sim_preservation_error = sum(sim_errors) / len(sim_errors) if sim_errors else 0.0
+        sim_preservation_error = (
+            sum(sim_errors) / len(sim_errors) if sim_errors else 0.0
+        )
 
         # Test retrieval fidelity (needs codebook)
         retrieval_accuracy = 1.0
@@ -516,7 +537,9 @@ class VSASandboxHarness:
                 else:
                     retrieval_ranks.append(len(cb_keys))
 
-            retrieval_accuracy = sum(1 for r in retrieval_ranks if r == 0) / len(retrieval_ranks)
+            retrieval_accuracy = sum(1 for r in retrieval_ranks if r == 0) / len(
+                retrieval_ranks
+            )
 
         # Test multi-hop reasoning
         multihop_sims = []
@@ -536,7 +559,9 @@ class VSASandboxHarness:
             sim = self.similarity(recovered_c, c)
             multihop_sims.append(sim)
 
-        multihop_accuracy = sum(1 for s in multihop_sims if s > 0.7) / len(multihop_sims)
+        multihop_accuracy = sum(1 for s in multihop_sims if s > 0.7) / len(
+            multihop_sims
+        )
 
         # Test primitive orthogonality
         prim_list = list(self.primitives.values())
@@ -730,9 +755,13 @@ class VSASandboxHarness:
                 angular_drift[name] = self.angular_distance(current_vec, baseline_vec)
 
                 # Similarity
-                similarity_to_baseline[name] = self.similarity(current_vec, baseline_vec)
+                similarity_to_baseline[name] = self.similarity(
+                    current_vec, baseline_vec
+                )
 
-        mean_prim_drift = sum(angular_drift.values()) / len(angular_drift) if angular_drift else 0
+        mean_prim_drift = (
+            sum(angular_drift.values()) / len(angular_drift) if angular_drift else 0
+        )
         max_prim_drift = max(angular_drift.values()) if angular_drift else 0
 
         # Codebook drift
@@ -760,7 +789,7 @@ class VSASandboxHarness:
         baseline_sim_matrix = baseline.primitive_similarity_matrix.to(self.device)
         # Frobenius norm for real-valued similarity matrix
         diff = current_sim_matrix - baseline_sim_matrix
-        frobenius_dist = float(torch.sqrt(torch.sum(diff ** 2)))
+        frobenius_dist = float(torch.sqrt(torch.sum(diff**2)))
 
         return DriftMeasurement(
             baseline_id=baseline.snapshot_id,
@@ -774,7 +803,11 @@ class VSASandboxHarness:
             similarity_matrix_frobenius_distance=frobenius_dist,
             total_modifications=len(self.modification_history),
             modification_history=[
-                {"type": m.modification_type, "target": m.target, "timestamp": m.timestamp}
+                {
+                    "type": m.modification_type,
+                    "target": m.target,
+                    "timestamp": m.timestamp,
+                }
                 for m in self.modification_history
             ],
         )
@@ -811,7 +844,12 @@ class VSASandboxHarness:
             # Add random phase shifts
             gen = torch.Generator(device="cpu")
             gen.manual_seed(int(time.time() * 1000) % (2**32))
-            noise_phases = (torch.rand(self.dimensions, generator=gen) - 0.5) * 2 * math.pi * magnitude
+            noise_phases = (
+                (torch.rand(self.dimensions, generator=gen) - 0.5)
+                * 2
+                * math.pi
+                * magnitude
+            )
             noise_phases = noise_phases.to(self.device)
 
             perturbation = torch.exp(1j * noise_phases).to(self.dtype)
@@ -879,7 +917,9 @@ class VSASandboxHarness:
             if drift_type == "uniform":
                 drift = torch.full((self.dimensions,), drift_angle, device=self.device)
             elif drift_type == "gradient":
-                drift = torch.linspace(0, drift_angle, self.dimensions, device=self.device)
+                drift = torch.linspace(
+                    0, drift_angle, self.dimensions, device=self.device
+                )
             elif drift_type == "sinusoidal":
                 x = torch.linspace(0, 4 * math.pi, self.dimensions, device=self.device)
                 drift = drift_angle * torch.sin(x)
@@ -940,7 +980,12 @@ class VSASandboxHarness:
         if modification_type == "noise":
             gen = torch.Generator(device="cpu")
             gen.manual_seed(int(time.time() * 1000) % (2**32))
-            noise_phases = (torch.rand(self.dimensions, generator=gen) - 0.5) * 2 * math.pi * magnitude
+            noise_phases = (
+                (torch.rand(self.dimensions, generator=gen) - 0.5)
+                * 2
+                * math.pi
+                * magnitude
+            )
             noise_phases = noise_phases.to(self.device)
             perturbation = torch.exp(1j * noise_phases).to(self.dtype)
             self.codebook[entity_name] = self._normalize(current * perturbation)
@@ -1021,19 +1066,15 @@ class VSASandboxHarness:
 
         # Save primitives
         torch.save(
-            {k: v.cpu() for k, v in self.primitives.items()},
-            path / "primitives.pt"
+            {k: v.cpu() for k, v in self.primitives.items()}, path / "primitives.pt"
         )
         torch.save(
             {k: v.cpu() for k, v in self._original_primitives.items()},
-            path / "original_primitives.pt"
+            path / "original_primitives.pt",
         )
 
         # Save codebook
-        torch.save(
-            {k: v.cpu() for k, v in self.codebook.items()},
-            path / "codebook.pt"
-        )
+        torch.save({k: v.cpu() for k, v in self.codebook.items()}, path / "codebook.pt")
 
         # Save metadata
         metadata = {
@@ -1057,8 +1098,12 @@ class VSASandboxHarness:
         primitives = torch.load(path / "primitives.pt", weights_only=True)
         self.primitives = {k: v.to(self.device) for k, v in primitives.items()}
 
-        original_primitives = torch.load(path / "original_primitives.pt", weights_only=True)
-        self._original_primitives = {k: v.to(self.device) for k, v in original_primitives.items()}
+        original_primitives = torch.load(
+            path / "original_primitives.pt", weights_only=True
+        )
+        self._original_primitives = {
+            k: v.to(self.device) for k, v in original_primitives.items()
+        }
 
         # Load codebook
         codebook = torch.load(path / "codebook.pt", weights_only=True)

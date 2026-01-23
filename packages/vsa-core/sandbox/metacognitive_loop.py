@@ -40,15 +40,19 @@ logger = logging.getLogger(__name__)
 
 class Strategy(Enum):
     """Available modification strategies."""
+
     SMALL_PERTURBATION = "small_perturbation"
     LARGE_JUMP = "large_jump"
     STRUCTURED = "structured"  # Target specific primitives
     RESET_AND_DIVERGE = "reset_and_diverge"
-    GRADIENT_DIRECTION = "gradient_direction"  # Move in direction that improves accuracy
+    GRADIENT_DIRECTION = (
+        "gradient_direction"  # Move in direction that improves accuracy
+    )
 
 
 class Decision(Enum):
     """Agent decisions at each step."""
+
     CONTINUE = "continue"
     SWITCH_STRATEGY = "switch_strategy"
     STOP = "stop"
@@ -57,6 +61,7 @@ class Decision(Enum):
 @dataclass
 class Observation:
     """What the agent can see at each decision point."""
+
     step: int
     current_accuracy: float
     best_accuracy: float
@@ -76,6 +81,7 @@ class Observation:
 @dataclass
 class DecisionRecord:
     """Full record of an agent decision for logging."""
+
     step: int
     observation: Observation
     decision: Decision
@@ -87,6 +93,7 @@ class DecisionRecord:
 @dataclass
 class StrategyAttempt:
     """Record of a strategy attempt."""
+
     strategy: Strategy
     start_step: int
     end_step: int | None = None
@@ -100,6 +107,7 @@ class StrategyAttempt:
 @dataclass
 class MetacognitiveResult:
     """Full results of a metacognitive loop run."""
+
     # Configuration
     max_steps: int = 0
     ground_truth_source: str = ""
@@ -216,7 +224,8 @@ class RuleBasedAgent(MetacognitiveAgent):
 
         # Rule 1: Check if all strategies exhausted
         strategies_available = [
-            s for s in Strategy
+            s
+            for s in Strategy
             if self.strategy_attempt_counts[s] < self.max_strategy_attempts
         ]
 
@@ -226,7 +235,7 @@ class RuleBasedAgent(MetacognitiveAgent):
                 None,
                 f"All strategies exhausted (tried each {self.max_strategy_attempts}x). "
                 f"Best accuracy {obs.best_accuracy:.3f} at step {obs.best_accuracy_step}. "
-                f"No further improvement possible with current approaches."
+                f"No further improvement possible with current approaches.",
             )
 
         # Rule 2: Don't switch too early
@@ -235,7 +244,7 @@ class RuleBasedAgent(MetacognitiveAgent):
                 Decision.CONTINUE,
                 None,
                 f"Continuing {obs.current_strategy.value}: "
-                f"only {self.current_strategy_steps}/{self.min_steps_per_strategy} minimum steps completed."
+                f"only {self.current_strategy_steps}/{self.min_steps_per_strategy} minimum steps completed.",
             )
 
         # Rule 3: Check for plateau
@@ -245,7 +254,8 @@ class RuleBasedAgent(MetacognitiveAgent):
 
             # Recalculate available strategies after incrementing count
             strategies_still_available = [
-                s for s in Strategy
+                s
+                for s in Strategy
                 if self.strategy_attempt_counts[s] < self.max_strategy_attempts
             ]
 
@@ -258,7 +268,7 @@ class RuleBasedAgent(MetacognitiveAgent):
                     Decision.STOP,
                     None,
                     f"Plateau detected ({obs.steps_since_improvement} steps without improvement). "
-                    f"All strategies exhausted. Stopping with best accuracy {obs.best_accuracy:.3f}."
+                    f"All strategies exhausted. Stopping with best accuracy {obs.best_accuracy:.3f}.",
                 )
 
             # Switch strategy
@@ -270,7 +280,7 @@ class RuleBasedAgent(MetacognitiveAgent):
                 next_strategy,
                 f"Plateau detected after {obs.steps_since_improvement} steps without improvement. "
                 f"Current accuracy {obs.current_accuracy:.3f}, best was {obs.best_accuracy:.3f}. "
-                f"Switching from {obs.current_strategy.value} to {next_strategy.value}."
+                f"Switching from {obs.current_strategy.value} to {next_strategy.value}.",
             )
 
         # Rule 4: Check for negative trend
@@ -283,7 +293,7 @@ class RuleBasedAgent(MetacognitiveAgent):
                     Decision.SWITCH_STRATEGY,
                     Strategy.RESET_AND_DIVERGE,
                     f"Negative trend detected ({obs.recent_trend:.4f}). "
-                    f"Resetting to best-known-good state."
+                    f"Resetting to best-known-good state.",
                 )
 
         # Default: continue current strategy
@@ -293,7 +303,7 @@ class RuleBasedAgent(MetacognitiveAgent):
             None,
             f"Continuing {obs.current_strategy.value}: "
             f"accuracy={obs.current_accuracy:.3f}, trend={trend_str}, "
-            f"steps_since_improvement={obs.steps_since_improvement}"
+            f"steps_since_improvement={obs.steps_since_improvement}",
         )
 
     def _compute_trend(self, history: list[float]) -> float | None:
@@ -301,7 +311,7 @@ class RuleBasedAgent(MetacognitiveAgent):
         if len(history) < self.trend_window:
             return None
 
-        recent = history[-self.trend_window:]
+        recent = history[-self.trend_window :]
         # Simple linear regression slope
         n = len(recent)
         x_mean = (n - 1) / 2
@@ -322,9 +332,7 @@ class RuleBasedAgent(MetacognitiveAgent):
         return sum((x - mean) ** 2 for x in history) / len(history)
 
     def _select_next_strategy(
-        self,
-        obs: Observation,
-        available: list[Strategy]
+        self, obs: Observation, available: list[Strategy]
     ) -> Strategy | None:
         """Select the best next strategy to try."""
         if not available:
@@ -379,7 +387,7 @@ class BaselineAgent(MetacognitiveAgent):
         return (
             Decision.CONTINUE,
             None,
-            "Baseline agent: continuing without metacognition."
+            "Baseline agent: continuing without metacognition.",
         )
 
 
@@ -403,22 +411,28 @@ class ModificationStrategy:
             self.best_accuracy = accuracy
             self.best_step = step
             self.best_state = {
-                "primitives": {k: v.clone() for k, v in self.harness.primitives.items()},
+                "primitives": {
+                    k: v.clone() for k, v in self.harness.primitives.items()
+                },
                 "codebook": {k: v.clone() for k, v in self.harness.codebook.items()},
             }
 
     def restore_best_state(self) -> None:
         """Restore the best-known-good state."""
         if self.best_state is not None:
-            self.harness.primitives = {k: v.clone() for k, v in self.best_state["primitives"].items()}
-            self.harness.codebook = {k: v.clone() for k, v in self.best_state["codebook"].items()}
+            self.harness.primitives = {
+                k: v.clone() for k, v in self.best_state["primitives"].items()
+            }
+            self.harness.codebook = {
+                k: v.clone() for k, v in self.best_state["codebook"].items()
+            }
 
     def apply(
         self,
         strategy: Strategy,
         step: int,
         failing_primitives: list[str] | None = None,
-        evaluator: Optional["GroundTruthEvaluator"] = None
+        evaluator: Optional["GroundTruthEvaluator"] = None,
     ) -> dict:
         """
         Apply a modification strategy.
@@ -445,9 +459,7 @@ class ModificationStrategy:
 
         for name in self.harness.primitives:
             self.harness.apply_primitive_perturbation(
-                primitive_name=name,
-                magnitude=magnitude,
-                perturbation_type="additive"
+                primitive_name=name, magnitude=magnitude, perturbation_type="additive"
             )
             modified.append(name)
 
@@ -464,9 +476,7 @@ class ModificationStrategy:
 
         for name in self.harness.primitives:
             self.harness.apply_primitive_perturbation(
-                primitive_name=name,
-                magnitude=magnitude,
-                perturbation_type="additive"
+                primitive_name=name, magnitude=magnitude, perturbation_type="additive"
             )
             modified.append(name)
 
@@ -481,7 +491,7 @@ class ModificationStrategy:
         if not failing_primitives:
             # If no specific failures, perturb half the primitives
             all_prims = list(self.harness.primitives.keys())
-            failing_primitives = all_prims[:len(all_prims) // 2]
+            failing_primitives = all_prims[: len(all_prims) // 2]
 
         magnitude = 0.1
         for name in failing_primitives:
@@ -489,7 +499,7 @@ class ModificationStrategy:
                 self.harness.apply_primitive_perturbation(
                     primitive_name=name,
                     magnitude=magnitude,
-                    perturbation_type="additive"
+                    perturbation_type="additive",
                 )
 
         return {
@@ -569,7 +579,7 @@ class GroundTruthEvaluator:
         self,
         harness: VSASandboxHarness,
         n_test_cases: int = 50,
-        scenario: str = "default"
+        scenario: str = "default",
     ):
         self.harness = harness
         self.n_test_cases = n_test_cases
@@ -616,11 +626,13 @@ class GroundTruthEvaluator:
             norm = torch.sqrt(torch.sum(torch.abs(signal) ** 2))
             signal = signal / (norm + 1e-10)
 
-            cases.append({
-                "signal": signal,
-                "ground_truth": set(selected),
-                "n_anomalies": n_anomalies,
-            })
+            cases.append(
+                {
+                    "signal": signal,
+                    "ground_truth": set(selected),
+                    "n_anomalies": n_anomalies,
+                }
+            )
 
         return cases
 
@@ -638,11 +650,11 @@ class GroundTruthEvaluator:
         # Create a consistent "bias" direction
         torch.manual_seed(42)
         bias_direction = torch.randn(
-            self.harness.dimensions,
-            dtype=torch.complex64,
-            device=self.harness.device
+            self.harness.dimensions, dtype=torch.complex64, device=self.harness.device
         )
-        bias_direction = bias_direction / torch.sqrt(torch.sum(torch.abs(bias_direction) ** 2))
+        bias_direction = bias_direction / torch.sqrt(
+            torch.sum(torch.abs(bias_direction) ** 2)
+        )
 
         # Store bias for potential use by strategies
         self._improvement_bias = bias_direction * 0.15
@@ -669,11 +681,13 @@ class GroundTruthEvaluator:
             norm = torch.sqrt(torch.sum(torch.abs(signal) ** 2))
             signal = signal / (norm + 1e-10)
 
-            cases.append({
-                "signal": signal,
-                "ground_truth": set(selected),
-                "n_anomalies": 1,
-            })
+            cases.append(
+                {
+                    "signal": signal,
+                    "ground_truth": set(selected),
+                    "n_anomalies": 1,
+                }
+            )
 
         return cases
 
@@ -704,7 +718,9 @@ class GroundTruthEvaluator:
         accuracy = correct / len(self.test_cases)
         return accuracy, list(failing_primitives)
 
-    def _detect_anomalies(self, signal: torch.Tensor, threshold: float = 0.3) -> set[str]:
+    def _detect_anomalies(
+        self, signal: torch.Tensor, threshold: float = 0.3
+    ) -> set[str]:
         """Detect which anomalies are present in a signal."""
         detected = set()
 
@@ -823,7 +839,10 @@ class MetacognitiveLoop:
                 result.strategy_attempts.append(current_attempt)
 
                 # Check if recognized no progress
-                if "exhausted" in reasoning.lower() or "no further improvement" in reasoning.lower():
+                if (
+                    "exhausted" in reasoning.lower()
+                    or "no further improvement" in reasoning.lower()
+                ):
                     result.recognized_no_progress = True
                 break
 
@@ -834,7 +853,9 @@ class MetacognitiveLoop:
                 current_attempt.end_step = step
                 current_attempt.final_accuracy = accuracy
                 current_attempt.steps_run = step - current_attempt.start_step
-                current_attempt.improved = current_attempt.best_accuracy > current_attempt.start_accuracy
+                current_attempt.improved = (
+                    current_attempt.best_accuracy > current_attempt.start_accuracy
+                )
                 result.strategy_attempts.append(current_attempt)
 
                 # Start new attempt
@@ -854,7 +875,7 @@ class MetacognitiveLoop:
                 current_strategy,
                 step,
                 failing_primitives=failing,
-                evaluator=self.evaluator
+                evaluator=self.evaluator,
             )
 
             # Evaluate
@@ -1045,7 +1066,7 @@ def compare_agent_behaviors(
             "metacog_stopped_self": metacog_result.stopped_self,
             "metacog_switched_strategy": metacog_result.switched_strategy,
             "metacog_success_level": metacog_result.success_level,
-        }
+        },
     }
 
 
@@ -1062,7 +1083,9 @@ def print_metacognitive_report(result: MetacognitiveResult) -> None:
     print("\nOutcomes:")
     print(f"  Total steps run: {result.total_steps}")
     print(f"  Final accuracy: {result.final_accuracy:.3f}")
-    print(f"  Best accuracy: {result.best_accuracy:.3f} (at step {result.best_accuracy_step})")
+    print(
+        f"  Best accuracy: {result.best_accuracy:.3f} (at step {result.best_accuracy_step})"
+    )
 
     # Show restoration info if it happened
     if result.restored_to_best:
@@ -1089,15 +1112,16 @@ def print_metacognitive_report(result: MetacognitiveResult) -> None:
     print("\nStrategy Attempts:")
     for i, attempt in enumerate(result.strategy_attempts):
         print(f"  {i+1}. {attempt.strategy.value}")
-        print(f"     Steps {attempt.start_step}-{attempt.end_step} ({attempt.steps_run} steps)")
-        print(f"     Accuracy: {attempt.start_accuracy:.3f} -> {attempt.final_accuracy:.3f} (best: {attempt.best_accuracy:.3f})")
+        print(
+            f"     Steps {attempt.start_step}-{attempt.end_step} ({attempt.steps_run} steps)"
+        )
+        print(
+            f"     Accuracy: {attempt.start_accuracy:.3f} -> {attempt.final_accuracy:.3f} (best: {attempt.best_accuracy:.3f})"
+        )
         print(f"     Improved: {attempt.improved}")
 
     print("\nKey Decision Points:")
-    key_decisions = [
-        d for d in result.decision_log
-        if d.decision != Decision.CONTINUE
-    ]
+    key_decisions = [d for d in result.decision_log if d.decision != Decision.CONTINUE]
     for d in key_decisions[:5]:  # Show first 5
         print(f"  Step {d.step}: {d.decision.value}")
         if d.new_strategy:
@@ -1109,8 +1133,7 @@ def print_metacognitive_report(result: MetacognitiveResult) -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s"
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
     )
 
     print("Running metacognitive loop comparison...")
@@ -1131,8 +1154,12 @@ if __name__ == "__main__":
     print("COMPARISON SUMMARY")
     print("=" * 70)
     comp = results["comparison"]
-    print(f"Baseline: {comp['baseline_steps']} steps, final accuracy {comp['baseline_final_accuracy']:.3f}")
-    print(f"Metacog:  {comp['metacog_steps']} steps, final accuracy {comp['metacog_final_accuracy']:.3f}")
+    print(
+        f"Baseline: {comp['baseline_steps']} steps, final accuracy {comp['baseline_final_accuracy']:.3f}"
+    )
+    print(
+        f"Metacog:  {comp['metacog_steps']} steps, final accuracy {comp['metacog_final_accuracy']:.3f}"
+    )
     print(f"Metacog stopped self: {comp['metacog_stopped_self']}")
     print(f"Metacog switched strategy: {comp['metacog_switched_strategy']}")
     print(f"Metacog success level: {comp['metacog_success_level']}")

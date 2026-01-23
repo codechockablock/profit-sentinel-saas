@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 class StructureOperation(Enum):
     """Types of structure modifications."""
+
     MERGE = "merge"
     SPLIT = "split"
     ADD = "add"
@@ -42,6 +43,7 @@ class StructureOperation(Enum):
 @dataclass
 class MergeCandidate:
     """Candidate for merging two primitives."""
+
     primitive_a: str
     primitive_b: str
     similarity: float
@@ -53,6 +55,7 @@ class MergeCandidate:
 @dataclass
 class SplitCandidate:
     """Candidate for splitting an overloaded primitive."""
+
     primitive_name: str
     pattern_variance: float  # Variance among cases where it fires
     cluster_separation: float  # How separable the two clusters are
@@ -66,6 +69,7 @@ class SplitCandidate:
 @dataclass
 class AddCandidate:
     """Candidate for adding a new primitive."""
+
     unexplained_pattern: torch.Tensor
     coverage_gap: float  # How much of the data this would explain
     confidence: float
@@ -76,6 +80,7 @@ class AddCandidate:
 @dataclass
 class StructureChange:
     """Record of a structure change that was applied."""
+
     operation: StructureOperation
     step: int
     primitives_before: list[str]
@@ -90,6 +95,7 @@ class StructureChange:
 @dataclass
 class StructureLearningResult:
     """Full results of structure learning."""
+
     # Configuration
     max_iterations: int = 0
 
@@ -147,12 +153,16 @@ class StructureCritic:
         # Track firing patterns
         self.firing_history: list[dict] = []
 
-    def record_firing(self, signal: torch.Tensor, detected_primitives: set[str]) -> None:
+    def record_firing(
+        self, signal: torch.Tensor, detected_primitives: set[str]
+    ) -> None:
         """Record which primitives fired on a given signal."""
-        self.firing_history.append({
-            "signal": signal.clone(),
-            "detected": detected_primitives.copy(),
-        })
+        self.firing_history.append(
+            {
+                "signal": signal.clone(),
+                "detected": detected_primitives.copy(),
+            }
+        )
 
     def clear_history(self) -> None:
         """Clear firing history."""
@@ -164,11 +174,10 @@ class StructureCritic:
         prim_names = list(self.harness.primitives.keys())
 
         for i, name_a in enumerate(prim_names):
-            for name_b in prim_names[i+1:]:
+            for name_b in prim_names[i + 1 :]:
                 # Check similarity
                 sim = self.harness.similarity(
-                    self.harness.primitives[name_a],
-                    self.harness.primitives[name_b]
+                    self.harness.primitives[name_a], self.harness.primitives[name_b]
                 )
 
                 if sim < self.merge_similarity_threshold:
@@ -191,14 +200,16 @@ class StructureCritic:
 
                 if cofire_rate >= self.merge_cofire_threshold:
                     confidence = (sim + cofire_rate) / 2
-                    candidates.append(MergeCandidate(
-                        primitive_a=name_a,
-                        primitive_b=name_b,
-                        similarity=sim,
-                        co_firing_rate=cofire_rate,
-                        confidence=confidence,
-                        reason=f"High similarity ({sim:.3f}) and co-firing ({cofire_rate:.3f})"
-                    ))
+                    candidates.append(
+                        MergeCandidate(
+                            primitive_a=name_a,
+                            primitive_b=name_b,
+                            similarity=sim,
+                            co_firing_rate=cofire_rate,
+                            confidence=confidence,
+                            reason=f"High similarity ({sim:.3f}) and co-firing ({cofire_rate:.3f})",
+                        )
+                    )
 
         # Sort by confidence
         candidates.sort(key=lambda c: c.confidence, reverse=True)
@@ -222,7 +233,7 @@ class StructureCritic:
             n = len(firing_signals)
             similarities = []
             for i in range(n):
-                for j in range(i+1, n):
+                for j in range(i + 1, n):
                     sim = self.harness.similarity(firing_signals[i], firing_signals[j])
                     similarities.append(sim)
 
@@ -231,7 +242,9 @@ class StructureCritic:
 
             # High variance = primitive is doing double duty
             mean_sim = sum(similarities) / len(similarities)
-            variance = sum((s - mean_sim) ** 2 for s in similarities) / len(similarities)
+            variance = sum((s - mean_sim) ** 2 for s in similarities) / len(
+                similarities
+            )
 
             if variance < self.split_variance_threshold:
                 continue
@@ -241,22 +254,23 @@ class StructureCritic:
 
             if separation > 0.3:  # Clusters are reasonably separated
                 confidence = min(variance, separation)
-                candidates.append(SplitCandidate(
-                    primitive_name=name,
-                    pattern_variance=variance,
-                    cluster_separation=separation,
-                    confidence=confidence,
-                    reason=f"High pattern variance ({variance:.3f}), cluster separation ({separation:.3f})",
-                    cluster_a_centroid=cluster_a,
-                    cluster_b_centroid=cluster_b,
-                ))
+                candidates.append(
+                    SplitCandidate(
+                        primitive_name=name,
+                        pattern_variance=variance,
+                        cluster_separation=separation,
+                        confidence=confidence,
+                        reason=f"High pattern variance ({variance:.3f}), cluster separation ({separation:.3f})",
+                        cluster_a_centroid=cluster_a,
+                        cluster_b_centroid=cluster_b,
+                    )
+                )
 
         candidates.sort(key=lambda c: c.confidence, reverse=True)
         return candidates
 
     def _find_clusters(
-        self,
-        signals: list[torch.Tensor]
+        self, signals: list[torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor, float]:
         """Simple 2-means clustering of signals."""
         if len(signals) < 2:
@@ -264,7 +278,7 @@ class StructureCritic:
 
         # Initialize with two random signals
         centroid_a = signals[0].clone()
-        centroid_b = signals[len(signals)//2].clone()
+        centroid_b = signals[len(signals) // 2].clone()
 
         for _ in range(10):  # K-means iterations
             # Assign signals to clusters
@@ -294,7 +308,9 @@ class StructureCritic:
     def _compute_centroid(self, signals: list[torch.Tensor]) -> torch.Tensor:
         """Compute centroid of a set of signals."""
         if not signals:
-            return torch.zeros_like(self.harness.primitives[list(self.harness.primitives.keys())[0]])
+            return torch.zeros_like(
+                self.harness.primitives[list(self.harness.primitives.keys())[0]]
+            )
 
         centroid = signals[0].clone()
         for sig in signals[1:]:
@@ -335,20 +351,24 @@ class StructureCritic:
                 max_existing_sim = max(max_existing_sim, sim)
 
             if max_existing_sim < 0.5:  # Genuinely new pattern
-                candidates.append(AddCandidate(
-                    unexplained_pattern=centroid,
-                    coverage_gap=coverage,
-                    confidence=coverage * (1 - max_existing_sim),
-                    reason=f"Covers {coverage:.1%} of data, max similarity to existing: {max_existing_sim:.3f}",
-                    suggested_name=f"learned_primitive_{len(self.harness.primitives)}",
-                ))
+                candidates.append(
+                    AddCandidate(
+                        unexplained_pattern=centroid,
+                        coverage_gap=coverage,
+                        confidence=coverage * (1 - max_existing_sim),
+                        reason=f"Covers {coverage:.1%} of data, max similarity to existing: {max_existing_sim:.3f}",
+                        suggested_name=f"learned_primitive_{len(self.harness.primitives)}",
+                    )
+                )
 
         candidates.sort(key=lambda c: c.confidence, reverse=True)
         return candidates
 
     def get_best_structure_change(
-        self
-    ) -> tuple[StructureOperation, MergeCandidate | SplitCandidate | AddCandidate | None]:
+        self,
+    ) -> tuple[
+        StructureOperation, MergeCandidate | SplitCandidate | AddCandidate | None
+    ]:
         """Get the highest-confidence structure change."""
         merge_candidates = self.find_merge_candidates()
         split_candidates = self.find_split_candidates()
@@ -506,7 +526,9 @@ class StructureLearningLoop:
         result.primitive_count_trajectory.append(len(self.harness.primitives))
         result.phase_trajectory.append("initial")
 
-        logger.info(f"Starting structure learning: {len(self.harness.primitives)} primitives, accuracy={accuracy:.3f}")
+        logger.info(
+            f"Starting structure learning: {len(self.harness.primitives)} primitives, accuracy={accuracy:.3f}"
+        )
 
         iteration = 0
         while iteration < self.max_iterations:
@@ -579,7 +601,9 @@ class StructureLearningLoop:
                     )
 
                     result.accuracy_trajectory.append(accuracy)
-                    result.primitive_count_trajectory.append(len(self.harness.primitives))
+                    result.primitive_count_trajectory.append(
+                        len(self.harness.primitives)
+                    )
                     result.phase_trajectory.append(f"structure_{op.value}")
 
                     # Update tracking
@@ -600,7 +624,9 @@ class StructureLearningLoop:
             # Check convergence
             if self.steps_since_improvement >= self.patience:
                 result.converged = True
-                result.convergence_reason = f"No improvement for {self.patience} iterations"
+                result.convergence_reason = (
+                    f"No improvement for {self.patience} iterations"
+                )
                 logger.info(f"Converged: {result.convergence_reason}")
                 break
 
@@ -616,7 +642,9 @@ class StructureLearningLoop:
 
         # Restore best state
         if accuracy < self.best_accuracy - 0.001:
-            logger.info(f"Restoring best state: {accuracy:.3f} -> {self.best_accuracy:.3f}")
+            logger.info(
+                f"Restoring best state: {accuracy:.3f} -> {self.best_accuracy:.3f}"
+            )
             self._restore_best_state()
             accuracy = self.best_accuracy
 
@@ -639,7 +667,9 @@ class StructureLearningLoop:
             original_acc = self.evaluator.evaluate_quick()
 
             # Try a small perturbation
-            noise = torch.randn_like(original.real) + 1j * torch.randn_like(original.real)
+            noise = torch.randn_like(original.real) + 1j * torch.randn_like(
+                original.real
+            )
             noise = noise * 0.02
             perturbed = original + noise
             norm = torch.sqrt(torch.sum(torch.abs(perturbed) ** 2))
@@ -667,7 +697,9 @@ class StructureLearningLoop:
             original_acc = self.evaluator.evaluate_quick()
 
             # Try a small perturbation
-            noise = torch.randn_like(original.real) + 1j * torch.randn_like(original.real)
+            noise = torch.randn_like(original.real) + 1j * torch.randn_like(
+                original.real
+            )
             noise = noise * 0.02
             perturbed = original + noise
             norm = torch.sqrt(torch.sum(torch.abs(perturbed) ** 2))
@@ -686,7 +718,7 @@ class StructureLearningLoop:
     def _apply_structure_change(
         self,
         op: StructureOperation,
-        candidate: MergeCandidate | SplitCandidate | AddCandidate
+        candidate: MergeCandidate | SplitCandidate | AddCandidate,
     ) -> dict:
         """Apply a structure change."""
         if op == StructureOperation.MERGE:
@@ -707,8 +739,12 @@ class StructureLearningLoop:
     def _restore_best_state(self) -> None:
         """Restore best state."""
         if self.best_state:
-            self.harness.primitives = {k: v.clone() for k, v in self.best_state["primitives"].items()}
-            self.harness.codebook = {k: v.clone() for k, v in self.best_state["codebook"].items()}
+            self.harness.primitives = {
+                k: v.clone() for k, v in self.best_state["primitives"].items()
+            }
+            self.harness.codebook = {
+                k: v.clone() for k, v in self.best_state["codebook"].items()
+            }
 
 
 # =============================================================================
@@ -860,7 +896,7 @@ def create_structure_learning_scenario(
     harness.primitives["redundant_2"] = r2 / torch.sqrt(torch.sum(torch.abs(r2) ** 2))
 
     # 2. OVERLOADED: One primitive positioned between pattern_a1 and pattern_a2
-    overloaded = (pattern_a1 + pattern_a2)
+    overloaded = pattern_a1 + pattern_a2
     overloaded = overloaded / torch.sqrt(torch.sum(torch.abs(overloaded) ** 2))
     harness.primitives["overloaded"] = overloaded
 
@@ -881,45 +917,56 @@ def create_structure_learning_scenario(
         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
         # Initially both redundant primitives should fire (they're nearly identical)
         # The evaluator will count this as correct if EITHER fires
-        test_cases.append({
-            "signal": signal,
-            "ground_truth": {"redundant_1", "redundant_2"},  # Both should fire (redundant)
-            "true_pattern": "d",
-            "accepts_any": True,  # Accept if any of ground_truth fires
-        })
+        test_cases.append(
+            {
+                "signal": signal,
+                "ground_truth": {
+                    "redundant_1",
+                    "redundant_2",
+                },  # Both should fire (redundant)
+                "true_pattern": "d",
+                "accepts_any": True,  # Accept if any of ground_truth fires
+            }
+        )
 
     # Cases for pattern_a1 (should fire on overloaded initially)
     for i in range(15):
         noise = torch.randn_like(pattern_a1) * 0.02
         signal = pattern_a1 + noise
         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
-        test_cases.append({
-            "signal": signal,
-            "ground_truth": {"overloaded"},  # Initially fires on overloaded
-            "true_pattern": "a1",
-        })
+        test_cases.append(
+            {
+                "signal": signal,
+                "ground_truth": {"overloaded"},  # Initially fires on overloaded
+                "true_pattern": "a1",
+            }
+        )
 
     # Cases for pattern_a2 (should also fire on overloaded initially)
     for i in range(15):
         noise = torch.randn_like(pattern_a2) * 0.02
         signal = pattern_a2 + noise
         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
-        test_cases.append({
-            "signal": signal,
-            "ground_truth": {"overloaded"},  # Initially fires on overloaded
-            "true_pattern": "a2",
-        })
+        test_cases.append(
+            {
+                "signal": signal,
+                "ground_truth": {"overloaded"},  # Initially fires on overloaded
+                "true_pattern": "a2",
+            }
+        )
 
     # Cases for pattern_b (correct primitive exists)
     for i in range(15):
         noise = torch.randn_like(pattern_b) * 0.02
         signal = pattern_b + noise
         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
-        test_cases.append({
-            "signal": signal,
-            "ground_truth": {"correct_b"},
-            "true_pattern": "b",
-        })
+        test_cases.append(
+            {
+                "signal": signal,
+                "ground_truth": {"correct_b"},
+                "true_pattern": "b",
+            }
+        )
 
     # Cases for pattern_c (no primitive exists - these SHOULD have a primitive)
     # These will fail until a new primitive is added
@@ -928,15 +975,25 @@ def create_structure_learning_scenario(
         noise = torch.randn_like(pattern_c) * 0.02
         signal = pattern_c + noise
         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
-        test_cases.append({
-            "signal": signal,
-            "ground_truth": {"pattern_c_expected"},  # Should fire on a pattern_c primitive
-            "true_pattern": "c",
-            "needs_primitive": True,  # Mark as needing a primitive to be added
-        })
+        test_cases.append(
+            {
+                "signal": signal,
+                "ground_truth": {
+                    "pattern_c_expected"
+                },  # Should fire on a pattern_c primitive
+                "true_pattern": "c",
+                "needs_primitive": True,  # Mark as needing a primitive to be added
+            }
+        )
 
     ground_truth_structure = {
-        "optimal_primitives": ["redundant", "pattern_a1", "pattern_a2", "correct_b", "pattern_c"],
+        "optimal_primitives": [
+            "redundant",
+            "pattern_a1",
+            "pattern_a2",
+            "correct_b",
+            "pattern_c",
+        ],
         "initial_primitives": ["redundant_1", "redundant_2", "overloaded", "correct_b"],
         "expected_merges": [("redundant_1", "redundant_2")],
         "expected_splits": ["overloaded"],
@@ -993,7 +1050,9 @@ def print_structure_learning_report(result: StructureLearningResult) -> None:
     print("\nPrimitive Structure:")
     print(f"  Initial: {result.initial_primitives}")
     print(f"  Final:   {result.final_primitives}")
-    print(f"  Count:   {len(result.initial_primitives)} -> {len(result.final_primitives)}")
+    print(
+        f"  Count:   {len(result.initial_primitives)} -> {len(result.final_primitives)}"
+    )
 
     print("\nAccuracy:")
     print(f"  Initial: {result.accuracy_trajectory[0]:.3f}")
@@ -1003,8 +1062,12 @@ def print_structure_learning_report(result: StructureLearningResult) -> None:
     print(f"\nStructure Changes ({len(result.structure_changes)} total):")
     for i, change in enumerate(result.structure_changes):
         print(f"  {i+1}. {change.operation.value.upper()} at step {change.step}")
-        print(f"     {len(change.primitives_before)} -> {len(change.primitives_after)} primitives")
-        print(f"     Accuracy: {change.accuracy_before:.3f} -> {change.accuracy_after:.3f}")
+        print(
+            f"     {len(change.primitives_before)} -> {len(change.primitives_after)} primitives"
+        )
+        print(
+            f"     Accuracy: {change.accuracy_before:.3f} -> {change.accuracy_after:.3f}"
+        )
         print(f"     Reason: {change.reason}")
         print(f"     Details: {change.details}")
 
@@ -1159,7 +1222,9 @@ def create_real_retail_scenario(
                         anomaly_name = list(row_anomalies)[0]
                         signal = anomaly_patterns[anomaly_name].clone()
                         # Add very small phase perturbation (preserves similarity)
-                        phase_noise = torch.randn(dimensions, device=harness.device) * 0.01
+                        phase_noise = (
+                            torch.randn(dimensions, device=harness.device) * 0.01
+                        )
                         signal = signal * torch.exp(1j * phase_noise)
                         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
                     else:
@@ -1171,12 +1236,14 @@ def create_real_retail_scenario(
                             signal = signal + s
                         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
 
-                    test_cases.append({
-                        "signal": signal,
-                        "ground_truth": row_anomalies.copy(),
-                        "sku": row.get("SKU", ""),
-                        "accepts_any": len(row_anomalies) > 1,  # Multi-anomaly rows
-                    })
+                    test_cases.append(
+                        {
+                            "signal": signal,
+                            "ground_truth": row_anomalies.copy(),
+                            "sku": row.get("SKU", ""),
+                            "accepts_any": len(row_anomalies) > 1,  # Multi-anomaly rows
+                        }
+                    )
                 else:
                     normal_count += 1
 
@@ -1313,7 +1380,9 @@ def create_ytd_inventory_scenario(
                     if len(row_anomalies) == 1:
                         anomaly_name = list(row_anomalies)[0]
                         signal = anomaly_patterns[anomaly_name].clone()
-                        phase_noise = torch.randn(dimensions, device=harness.device) * 0.01
+                        phase_noise = (
+                            torch.randn(dimensions, device=harness.device) * 0.01
+                        )
                         signal = signal * torch.exp(1j * phase_noise)
                         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
                     else:
@@ -1323,12 +1392,14 @@ def create_ytd_inventory_scenario(
                             signal = signal + s
                         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
 
-                    test_cases.append({
-                        "signal": signal,
-                        "ground_truth": row_anomalies.copy(),
-                        "sku": row.get("SKU", "")[:30],
-                        "accepts_any": len(row_anomalies) > 1,
-                    })
+                    test_cases.append(
+                        {
+                            "signal": signal,
+                            "ground_truth": row_anomalies.copy(),
+                            "sku": row.get("SKU", "")[:30],
+                            "accepts_any": len(row_anomalies) > 1,
+                        }
+                    )
                 else:
                     normal_count += 1
 
@@ -1397,11 +1468,15 @@ def create_flawed_retail_scenario(
     harness.primitives["margin_erosion_v1"] = true_patterns["margin_erosion"].clone()
     noise = torch.randn_like(true_patterns["margin_erosion"]) * 0.01
     me2 = true_patterns["margin_erosion"] + noise
-    harness.primitives["margin_erosion_v2"] = me2 / torch.sqrt(torch.sum(torch.abs(me2) ** 2))
+    harness.primitives["margin_erosion_v2"] = me2 / torch.sqrt(
+        torch.sum(torch.abs(me2) ** 2)
+    )
 
     # 2. OVERLOADED: One primitive that handles both negative_inventory AND low_stock
     overloaded = true_patterns["negative_inventory"] + true_patterns["low_stock"]
-    harness.primitives["inventory_problem"] = overloaded / torch.sqrt(torch.sum(torch.abs(overloaded) ** 2))
+    harness.primitives["inventory_problem"] = overloaded / torch.sqrt(
+        torch.sum(torch.abs(overloaded) ** 2)
+    )
 
     # 3. CORRECT: These primitives are correctly defined
     harness.primitives["high_margin_leak"] = true_patterns["high_margin_leak"].clone()
@@ -1448,7 +1523,11 @@ def create_flawed_retail_scenario(
                     row_anomalies.add("low_stock")
                 if qty > 0 and sales > 0 and qty / sales > 5:
                     row_anomalies.add("overstock")
-                if sug_retail > 0 and retail > 0 and abs(retail - sug_retail) / sug_retail > 0.2:
+                if (
+                    sug_retail > 0
+                    and retail > 0
+                    and abs(retail - sug_retail) / sug_retail > 0.2
+                ):
                     row_anomalies.add("price_discrepancy")
                 if sales > 0 and returns > 0 and returns / sales > 0.5:
                     row_anomalies.add("shrinkage_pattern")
@@ -1461,7 +1540,9 @@ def create_flawed_retail_scenario(
                     if len(row_anomalies) == 1:
                         anomaly_name = list(row_anomalies)[0]
                         signal = true_patterns[anomaly_name].clone()
-                        phase_noise = torch.randn(dimensions, device=harness.device) * 0.01
+                        phase_noise = (
+                            torch.randn(dimensions, device=harness.device) * 0.01
+                        )
                         signal = signal * torch.exp(1j * phase_noise)
                         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
                     else:
@@ -1477,22 +1558,28 @@ def create_flawed_retail_scenario(
                     for a in row_anomalies:
                         if a == "margin_erosion":
                             expected_primitives.add("margin_erosion_v1")
-                            expected_primitives.add("margin_erosion_v2")  # Both will fire (redundant)
+                            expected_primitives.add(
+                                "margin_erosion_v2"
+                            )  # Both will fire (redundant)
                         elif a in ["negative_inventory", "low_stock"]:
-                            expected_primitives.add("inventory_problem")  # Overloaded handles both
+                            expected_primitives.add(
+                                "inventory_problem"
+                            )  # Overloaded handles both
                         elif a == "price_discrepancy":
                             pass  # No primitive for this - will be unexplained
                         elif a in harness.primitives:
                             expected_primitives.add(a)
 
-                    test_cases.append({
-                        "signal": signal,
-                        "ground_truth": expected_primitives,
-                        "true_anomalies": row_anomalies.copy(),
-                        "sku": row.get("SKU", ""),
-                        "accepts_any": True,  # Accept partial matches due to flawed structure
-                        "needs_primitive": "price_discrepancy" in row_anomalies,
-                    })
+                    test_cases.append(
+                        {
+                            "signal": signal,
+                            "ground_truth": expected_primitives,
+                            "true_anomalies": row_anomalies.copy(),
+                            "sku": row.get("SKU", ""),
+                            "accepts_any": True,  # Accept partial matches due to flawed structure
+                            "needs_primitive": "price_discrepancy" in row_anomalies,
+                        }
+                    )
                 else:
                     normal_count += 1
 
@@ -1559,7 +1646,7 @@ def run_real_retail_structure_learning(
     print(f"  Normal (non-anomaly) rows: {scenario_info['normal_count']}")
 
     print("\nAnomaly Distribution:")
-    for name, count in scenario_info['anomaly_counts'].items():
+    for name, count in scenario_info["anomaly_counts"].items():
         print(f"  {name}: {count}")
 
     print(f"\nInitial Primitives ({len(harness.primitives)}):")
@@ -1595,18 +1682,18 @@ def print_real_retail_report(result: StructureLearningResult) -> None:
     print("=" * 70)
 
     # Get scenario info if available
-    scenario_info = getattr(result, 'scenario_info', None)
+    scenario_info = getattr(result, "scenario_info", None)
     if scenario_info:
         print("\nData Summary:")
         print(f"  Rows processed: {scenario_info['total_rows_processed']}")
         print(f"  Test cases: {scenario_info['test_cases_generated']}")
         print("\nAnomaly Distribution:")
-        for name, count in scenario_info['anomaly_counts'].items():
+        for name, count in scenario_info["anomaly_counts"].items():
             print(f"  {name}: {count}")
 
     print(f"\n{'='*70}")
     print("STRUCTURE CHANGES")
-    print("="*70)
+    print("=" * 70)
 
     print(f"\nStarting Structure ({len(result.initial_primitives)} primitives):")
     for name in result.initial_primitives:
@@ -1619,17 +1706,21 @@ def print_real_retail_report(result: StructureLearningResult) -> None:
     if result.structure_changes:
         print(f"\nOperations Applied ({len(result.structure_changes)}):")
         for i, change in enumerate(result.structure_changes):
-            print(f"\n  {i+1}. {change.operation.value.upper()} at iteration {change.step}")
+            print(
+                f"\n  {i+1}. {change.operation.value.upper()} at iteration {change.step}"
+            )
             print(f"     Reason: {change.reason}")
             print(f"     Details: {change.details}")
-            print(f"     Accuracy: {change.accuracy_before:.3f} -> {change.accuracy_after:.3f}")
+            print(
+                f"     Accuracy: {change.accuracy_before:.3f} -> {change.accuracy_after:.3f}"
+            )
     else:
         print("\n  No structure changes applied.")
         print("  This suggests the current primitive set is well-calibrated!")
 
     print(f"\n{'='*70}")
     print("ACCURACY TRAJECTORY")
-    print("="*70)
+    print("=" * 70)
 
     print(f"\n  Initial accuracy: {result.accuracy_trajectory[0]:.3f}")
     print(f"  Final accuracy:   {result.final_accuracy:.3f}")
@@ -1643,30 +1734,46 @@ def print_real_retail_report(result: StructureLearningResult) -> None:
 
     print(f"\n{'='*70}")
     print("RECOMMENDATIONS")
-    print("="*70)
+    print("=" * 70)
 
     if not result.structure_changes:
         print("\n  The primitive structure appears well-suited to this data.")
         print("  No redundant, overloaded, or missing primitives detected.")
     else:
-        merges = [c for c in result.structure_changes if c.operation == StructureOperation.MERGE]
-        splits = [c for c in result.structure_changes if c.operation == StructureOperation.SPLIT]
-        adds = [c for c in result.structure_changes if c.operation == StructureOperation.ADD]
+        merges = [
+            c
+            for c in result.structure_changes
+            if c.operation == StructureOperation.MERGE
+        ]
+        splits = [
+            c
+            for c in result.structure_changes
+            if c.operation == StructureOperation.SPLIT
+        ]
+        adds = [
+            c for c in result.structure_changes if c.operation == StructureOperation.ADD
+        ]
 
         if merges:
             print(f"\n  REDUNDANCIES FOUND ({len(merges)}):")
             for m in merges:
-                print(f"    - {m.details.get('merged_into', '?')} absorbed {m.details.get('removed', '?')}")
+                print(
+                    f"    - {m.details.get('merged_into', '?')} absorbed {m.details.get('removed', '?')}"
+                )
 
         if splits:
             print(f"\n  OVERLOADED PRIMITIVES ({len(splits)}):")
             for s in splits:
-                print(f"    - {s.details.get('original', '?')} split into {s.details.get('split_into', [])}")
+                print(
+                    f"    - {s.details.get('original', '?')} split into {s.details.get('split_into', [])}"
+                )
 
         if adds:
             print(f"\n  COVERAGE GAPS ({len(adds)}):")
             for a in adds:
-                print(f"    - Added {a.details.get('added', '?')} (coverage: {a.details.get('coverage_gap', 0):.1%})")
+                print(
+                    f"    - Added {a.details.get('added', '?')} (coverage: {a.details.get('coverage_gap', 0):.1%})"
+                )
 
     print(f"\n{'='*70}")
     print(f"Convergence: {result.convergence_reason}")
@@ -1682,7 +1789,7 @@ def save_report_to_file(result: StructureLearningResult, output_path: str) -> No
     # Capture printed output
     f = io.StringIO()
     with redirect_stdout(f):
-        scenario_info = getattr(result, 'scenario_info', None)
+        scenario_info = getattr(result, "scenario_info", None)
         if scenario_info:
             print_real_retail_report(result)
         else:
@@ -1692,11 +1799,14 @@ def save_report_to_file(result: StructureLearningResult, output_path: str) -> No
 
     # Also add JSON summary at the end
     import json
+
     summary = {
         "initial_primitives": result.initial_primitives,
         "final_primitives": result.final_primitives,
         "accuracy": {
-            "initial": result.accuracy_trajectory[0] if result.accuracy_trajectory else 0,
+            "initial": (
+                result.accuracy_trajectory[0] if result.accuracy_trajectory else 0
+            ),
             "final": result.final_accuracy,
             "best": result.best_accuracy,
         },
@@ -1732,8 +1842,7 @@ def save_report_to_file(result: StructureLearningResult, output_path: str) -> No
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s"
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
     )
 
     import sys
@@ -1745,7 +1854,9 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1 and sys.argv[1] == "--real":
         # Run on real retail data with well-calibrated primitives
-        csv_path = sys.argv[2] if len(sys.argv) > 2 else "/Users/joseph/Downloads/custom_1.csv"
+        csv_path = (
+            sys.argv[2] if len(sys.argv) > 2 else "/Users/joseph/Downloads/custom_1.csv"
+        )
         result = run_real_retail_structure_learning(
             csv_path=csv_path,
             dimensions=2048,
@@ -1761,12 +1872,18 @@ if __name__ == "__main__":
 
     elif len(sys.argv) > 1 and sys.argv[1] == "--flawed":
         # Run on real retail data with FLAWED primitives (to test structure learning)
-        csv_path = sys.argv[2] if len(sys.argv) > 2 else "/Users/joseph/Downloads/custom_1.csv"
+        csv_path = (
+            sys.argv[2] if len(sys.argv) > 2 else "/Users/joseph/Downloads/custom_1.csv"
+        )
         print("\n" + "!" * 70)
         print("FLAWED PRIMITIVES TEST")
-        print("Testing structure learning with deliberately broken primitive structure:")
+        print(
+            "Testing structure learning with deliberately broken primitive structure:"
+        )
         print("  - REDUNDANT: margin_erosion_v1 + margin_erosion_v2 (should merge)")
-        print("  - OVERLOADED: inventory_problem (handles negative_inventory + low_stock)")
+        print(
+            "  - OVERLOADED: inventory_problem (handles negative_inventory + low_stock)"
+        )
         print("  - MISSING: No primitive for price_discrepancy")
         print("!" * 70 + "\n")
 
@@ -1785,7 +1902,11 @@ if __name__ == "__main__":
 
     elif len(sys.argv) > 1 and sys.argv[1] == "--ytd":
         # Run on YTD inventory report (156K rows)
-        csv_path = sys.argv[2] if len(sys.argv) > 2 else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+        csv_path = (
+            sys.argv[2]
+            if len(sys.argv) > 2
+            else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+        )
         max_rows = int(sys.argv[3]) if len(sys.argv) > 3 else 50000
 
         print("\n" + "=" * 70)
@@ -1805,7 +1926,9 @@ if __name__ == "__main__":
         print(f"  Normal rows: {scenario_info['normal_count']:,}")
 
         print("\nAnomaly Distribution:")
-        for name, count in sorted(scenario_info['anomaly_counts'].items(), key=lambda x: -x[1]):
+        for name, count in sorted(
+            scenario_info["anomaly_counts"].items(), key=lambda x: -x[1]
+        ):
             if count > 0:
                 print(f"  {name}: {count:,}")
 
@@ -1839,7 +1962,11 @@ if __name__ == "__main__":
     elif len(sys.argv) > 1 and sys.argv[1] == "--ytd-original":
         # Run on YTD data with ORIGINAL Profit Sentinel primitives
         # Tests the actual primitives from the codebase against real YTD data
-        csv_path = sys.argv[2] if len(sys.argv) > 2 else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+        csv_path = (
+            sys.argv[2]
+            if len(sys.argv) > 2
+            else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+        )
         max_rows = int(sys.argv[3]) if len(sys.argv) > 3 else 10000
 
         print("\n" + "=" * 70)
@@ -1962,37 +2089,51 @@ if __name__ == "__main__":
                         if len(row_anomalies) == 1:
                             anomaly_name = list(row_anomalies)[0]
                             signal = primitive_patterns[anomaly_name].clone()
-                            phase_noise = torch.randn(2048, device=harness.device) * 0.01
+                            phase_noise = (
+                                torch.randn(2048, device=harness.device) * 0.01
+                            )
                             signal = signal * torch.exp(1j * phase_noise)
-                            signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
+                            signal = signal / torch.sqrt(
+                                torch.sum(torch.abs(signal) ** 2)
+                            )
                         else:
-                            signals_to_bundle = [primitive_patterns[a] for a in row_anomalies]
+                            signals_to_bundle = [
+                                primitive_patterns[a] for a in row_anomalies
+                            ]
                             signal = signals_to_bundle[0].clone()
                             for s in signals_to_bundle[1:]:
                                 signal = signal + s
-                            signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
+                            signal = signal / torch.sqrt(
+                                torch.sum(torch.abs(signal) ** 2)
+                            )
 
-                        test_cases.append({
-                            "signal": signal,
-                            "ground_truth": row_anomalies.copy(),
-                            "sku": row.get("SKU", "")[:30],
-                            "accepts_any": len(row_anomalies) > 1,
-                            "unmapped": unmapped,
-                        })
+                        test_cases.append(
+                            {
+                                "signal": signal,
+                                "ground_truth": row_anomalies.copy(),
+                                "sku": row.get("SKU", "")[:30],
+                                "accepts_any": len(row_anomalies) > 1,
+                                "unmapped": unmapped,
+                            }
+                        )
 
                     elif unmapped:
                         # Row has ONLY unmapped anomalies - these are coverage gaps!
                         # Create signal from random pattern (won't match any primitive)
-                        signal = torch.randn(2048, dtype=torch.complex64, device=harness.device)
+                        signal = torch.randn(
+                            2048, dtype=torch.complex64, device=harness.device
+                        )
                         signal = signal / torch.sqrt(torch.sum(torch.abs(signal) ** 2))
 
-                        test_cases.append({
-                            "signal": signal,
-                            "ground_truth": set(),  # Nothing should fire
-                            "sku": row.get("SKU", "")[:30],
-                            "needs_primitive": True,  # Flag for structure learning
-                            "unmapped": unmapped,
-                        })
+                        test_cases.append(
+                            {
+                                "signal": signal,
+                                "ground_truth": set(),  # Nothing should fire
+                                "sku": row.get("SKU", "")[:30],
+                                "needs_primitive": True,  # Flag for structure learning
+                                "unmapped": unmapped,
+                            }
+                        )
                     else:
                         normal_count += 1
 
@@ -2048,7 +2189,9 @@ if __name__ == "__main__":
         print_real_retail_report(result)
 
         # Save to file
-        report_path = f"{output_dir}/structure_learning_ytd_original_report_{timestamp}.txt"
+        report_path = (
+            f"{output_dir}/structure_learning_ytd_original_report_{timestamp}.txt"
+        )
         save_report_to_file(result, report_path)
 
     else:
@@ -2060,5 +2203,7 @@ if __name__ == "__main__":
         print_structure_learning_report(result)
 
         # Save to file
-        report_path = f"{output_dir}/structure_learning_synthetic_report_{timestamp}.txt"
+        report_path = (
+            f"{output_dir}/structure_learning_synthetic_report_{timestamp}.txt"
+        )
         save_report_to_file(result, report_path)

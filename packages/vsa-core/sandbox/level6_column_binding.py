@@ -30,8 +30,7 @@ from dataclasses import dataclass, field
 import torch
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -44,6 +43,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ColumnRelation:
     """A discovered relationship between columns."""
+
     col_a: int
     col_b: int
     col_target: int
@@ -56,6 +56,7 @@ class ColumnRelation:
 @dataclass
 class ColumnProfile:
     """Statistical profile of a single column."""
+
     col_idx: int
     mean: float
     std: float
@@ -69,6 +70,7 @@ class ColumnProfile:
 @dataclass
 class BindingDiscoveryResult:
     """Results of column binding discovery."""
+
     column_profiles: list[ColumnProfile]
     pairwise_correlations: dict  # (i, j) -> correlation
     discovered_bindings: list[ColumnRelation]
@@ -110,7 +112,7 @@ class ColumnBindingEncoder:
     def _get_basis(self, col_idx: int) -> torch.Tensor:
         """Get random basis vector for column."""
         if col_idx not in self._basis_cache:
-            gen = torch.Generator(device='cpu')
+            gen = torch.Generator(device="cpu")
             gen.manual_seed(42 + col_idx * 1000)
 
             angles = torch.rand(self.dimensions, generator=gen) * 2 * torch.pi
@@ -182,15 +184,17 @@ class ColumnRelationshipDiscoverer:
         self.encoder = encoder
 
     def profile_columns(
-        self,
-        data: list[list[float]],
-        num_columns: int
+        self, data: list[list[float]], num_columns: int
     ) -> list[ColumnProfile]:
         """Build statistical profile for each column."""
         profiles = []
 
         for col_idx in range(num_columns):
-            values = [row[col_idx] for row in data if col_idx < len(row) and row[col_idx] is not None]
+            values = [
+                row[col_idx]
+                for row in data
+                if col_idx < len(row) and row[col_idx] is not None
+            ]
 
             if not values:
                 continue
@@ -206,26 +210,28 @@ class ColumnRelationshipDiscoverer:
 
             # Classify distribution
             if pct_zero > 50:
-                dist_type = 'sparse'
+                dist_type = "sparse"
             elif abs(mean) < std * 0.1:
-                dist_type = 'symmetric'
+                dist_type = "symmetric"
             elif mean > 0 and min_val >= 0:
-                dist_type = 'positive_skewed'
+                dist_type = "positive_skewed"
             elif pct_negative > 30:
-                dist_type = 'mixed_sign'
+                dist_type = "mixed_sign"
             else:
-                dist_type = 'normal'
+                dist_type = "normal"
 
-            profiles.append(ColumnProfile(
-                col_idx=col_idx,
-                mean=mean,
-                std=std,
-                min_val=min_val,
-                max_val=max_val,
-                pct_negative=pct_negative,
-                pct_zero=pct_zero,
-                distribution_type=dist_type,
-            ))
+            profiles.append(
+                ColumnProfile(
+                    col_idx=col_idx,
+                    mean=mean,
+                    std=std,
+                    min_val=min_val,
+                    max_val=max_val,
+                    pct_negative=pct_negative,
+                    pct_zero=pct_zero,
+                    distribution_type=dist_type,
+                )
+            )
 
         return profiles
 
@@ -310,7 +316,11 @@ class ColumnRelationshipDiscoverer:
                     evidence = []
 
                     for row_idx, row_enc in enumerate(row_encodings):
-                        if col_a not in row_enc or col_b not in row_enc or col_target not in row_enc:
+                        if (
+                            col_a not in row_enc
+                            or col_b not in row_enc
+                            or col_target not in row_enc
+                        ):
                             continue
 
                         # Bind A ⊗ B
@@ -321,13 +331,15 @@ class ColumnRelationshipDiscoverer:
                         similarities.append(sim)
 
                         if len(evidence) < 5 and abs(sim) > 0.5:
-                            evidence.append({
-                                'row': row_idx,
-                                'val_a': data[row_idx][col_a],
-                                'val_b': data[row_idx][col_b],
-                                'val_target': data[row_idx][col_target],
-                                'similarity': sim,
-                            })
+                            evidence.append(
+                                {
+                                    "row": row_idx,
+                                    "val_a": data[row_idx][col_a],
+                                    "val_b": data[row_idx][col_b],
+                                    "val_target": data[row_idx][col_target],
+                                    "similarity": sim,
+                                }
+                            )
 
                     if not similarities:
                         continue
@@ -340,15 +352,17 @@ class ColumnRelationshipDiscoverer:
                     )
 
                     if abs(avg_sim) > 0.3 or corr_strength > 0.7:
-                        discovered.append(ColumnRelation(
-                            col_a=col_a,
-                            col_b=col_b,
-                            col_target=col_target,
-                            binding_similarity=avg_sim,
-                            correlation_strength=corr_strength,
-                            relationship_type=rel_type,
-                            sample_evidence=evidence,
-                        ))
+                        discovered.append(
+                            ColumnRelation(
+                                col_a=col_a,
+                                col_b=col_b,
+                                col_target=col_target,
+                                binding_similarity=avg_sim,
+                                correlation_strength=corr_strength,
+                                relationship_type=rel_type,
+                                sample_evidence=evidence,
+                            )
+                        )
 
         # Sort by strength
         discovered.sort(key=lambda x: abs(x.correlation_strength), reverse=True)
@@ -364,7 +378,7 @@ class ColumnRelationshipDiscoverer:
     ) -> tuple[str, float]:
         """Check if target = A + B, A - B, A * B, or A / B."""
 
-        best_type = 'unknown'
+        best_type = "unknown"
         best_corr = 0.0
 
         targets = []
@@ -396,15 +410,15 @@ class ColumnRelationshipDiscoverer:
                 ratios.append(0)
 
         if len(targets) < 10:
-            return 'unknown', 0.0
+            return "unknown", 0.0
 
         # Check each relationship type
         for name, predicted in [
-            ('sum', sums),
-            ('difference_ab', diffs),
-            ('difference_ba', diffs_rev),
-            ('product', products),
-            ('ratio', ratios),
+            ("sum", sums),
+            ("difference_ab", diffs),
+            ("difference_ba", diffs_rev),
+            ("product", products),
+            ("ratio", ratios),
         ]:
             corr = self._pearson(targets, predicted)
             if abs(corr) > abs(best_corr):
@@ -440,19 +454,31 @@ class ColumnRelationshipDiscoverer:
         formulas = []
 
         for rel in relations:
-            name_a = column_names[rel.col_a] if rel.col_a < len(column_names) else f'Col{rel.col_a}'
-            name_b = column_names[rel.col_b] if rel.col_b < len(column_names) else f'Col{rel.col_b}'
-            name_t = column_names[rel.col_target] if rel.col_target < len(column_names) else f'Col{rel.col_target}'
+            name_a = (
+                column_names[rel.col_a]
+                if rel.col_a < len(column_names)
+                else f"Col{rel.col_a}"
+            )
+            name_b = (
+                column_names[rel.col_b]
+                if rel.col_b < len(column_names)
+                else f"Col{rel.col_b}"
+            )
+            name_t = (
+                column_names[rel.col_target]
+                if rel.col_target < len(column_names)
+                else f"Col{rel.col_target}"
+            )
 
-            if rel.relationship_type == 'sum':
+            if rel.relationship_type == "sum":
                 formula = f"{name_t} ≈ {name_a} + {name_b}"
-            elif rel.relationship_type == 'difference_ab':
+            elif rel.relationship_type == "difference_ab":
                 formula = f"{name_t} ≈ {name_a} - {name_b}"
-            elif rel.relationship_type == 'difference_ba':
+            elif rel.relationship_type == "difference_ba":
                 formula = f"{name_t} ≈ {name_b} - {name_a}"
-            elif rel.relationship_type == 'product':
+            elif rel.relationship_type == "product":
                 formula = f"{name_t} ≈ {name_a} × {name_b}"
-            elif rel.relationship_type == 'ratio':
+            elif rel.relationship_type == "ratio":
                 formula = f"{name_t} ≈ {name_a} / {name_b}"
             else:
                 formula = f"{name_t} ~ f({name_a}, {name_b})"
@@ -475,16 +501,32 @@ def load_data_for_binding(
     """Load data as raw numerical matrix with column names."""
 
     target_columns = [
-        'Gross Sales', 'Gross Cost', 'Gross Profit', 'Profit Margin%',
-        'Avg. Cost', 'Stock', 'Year Total', 'Report Total',
-        'Jan', 'Last Dec', 'Last Nov', 'Last Oct', 'Last Sep',
-        'Last Aug', 'Last Jul', 'Last Jun', 'Last May', 'Last Apr',
-        'Last Mar', 'Last Feb', 'Last Jan'
+        "Gross Sales",
+        "Gross Cost",
+        "Gross Profit",
+        "Profit Margin%",
+        "Avg. Cost",
+        "Stock",
+        "Year Total",
+        "Report Total",
+        "Jan",
+        "Last Dec",
+        "Last Nov",
+        "Last Oct",
+        "Last Sep",
+        "Last Aug",
+        "Last Jul",
+        "Last Jun",
+        "Last May",
+        "Last Apr",
+        "Last Mar",
+        "Last Feb",
+        "Last Jan",
     ]
 
     data = []
 
-    with open(csv_path, encoding='utf-8-sig') as f:
+    with open(csv_path, encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
 
         # Filter to columns that exist
@@ -496,7 +538,9 @@ def load_data_for_binding(
 
             values = []
             for col in available_columns:
-                val_str = row[col].replace(',', '').replace('$', '').replace('%', '').strip()
+                val_str = (
+                    row[col].replace(",", "").replace("$", "").replace("%", "").strip()
+                )
                 try:
                     values.append(float(val_str) if val_str else 0.0)
                 except ValueError:
@@ -551,8 +595,14 @@ def run_level6_experiment(
     profiles = discoverer.profile_columns(data, num_columns)
 
     for p in profiles[:8]:  # First 8 columns
-        name = column_names[p.col_idx] if p.col_idx < len(column_names) else f'Col{p.col_idx}'
-        print(f"  {name:20s}: mean={p.mean:>10.2f}, std={p.std:>10.2f}, neg={p.pct_negative:>5.1f}%, zero={p.pct_zero:>5.1f}%")
+        name = (
+            column_names[p.col_idx]
+            if p.col_idx < len(column_names)
+            else f"Col{p.col_idx}"
+        )
+        print(
+            f"  {name:20s}: mean={p.mean:>10.2f}, std={p.std:>10.2f}, neg={p.pct_negative:>5.1f}%, zero={p.pct_zero:>5.1f}%"
+        )
     print()
 
     # Compute correlations
@@ -569,8 +619,8 @@ def run_level6_experiment(
             continue
         seen.add((i, j))
 
-        name_i = column_names[i] if i < len(column_names) else f'Col{i}'
-        name_j = column_names[j] if j < len(column_names) else f'Col{j}'
+        name_i = column_names[i] if i < len(column_names) else f"Col{i}"
+        name_j = column_names[j] if j < len(column_names) else f"Col{j}"
         print(f"  {name_i:20s} ↔ {name_j:20s}: r = {corr:>7.3f}")
 
         count += 1
@@ -618,9 +668,21 @@ def print_binding_report(result: BindingDiscoveryResult, column_names: list[str]
     print("-" * 70)
 
     for rel in result.discovered_bindings[:10]:
-        name_a = column_names[rel.col_a] if rel.col_a < len(column_names) else f'Col{rel.col_a}'
-        name_b = column_names[rel.col_b] if rel.col_b < len(column_names) else f'Col{rel.col_b}'
-        name_t = column_names[rel.col_target] if rel.col_target < len(column_names) else f'Col{rel.col_target}'
+        name_a = (
+            column_names[rel.col_a]
+            if rel.col_a < len(column_names)
+            else f"Col{rel.col_a}"
+        )
+        name_b = (
+            column_names[rel.col_b]
+            if rel.col_b < len(column_names)
+            else f"Col{rel.col_b}"
+        )
+        name_t = (
+            column_names[rel.col_target]
+            if rel.col_target < len(column_names)
+            else f"Col{rel.col_target}"
+        )
 
         print()
         print(f"  {name_a} ⊗ {name_b} → {name_t}")
@@ -631,7 +693,9 @@ def print_binding_report(result: BindingDiscoveryResult, column_names: list[str]
         if rel.sample_evidence:
             print("    Sample evidence:")
             for ev in rel.sample_evidence[:3]:
-                print(f"      Row {ev['row']}: {name_a}={ev['val_a']:.2f}, {name_b}={ev['val_b']:.2f} → {name_t}={ev['val_target']:.2f}")
+                print(
+                    f"      Row {ev['row']}: {name_a}={ev['val_a']:.2f}, {name_b}={ev['val_b']:.2f} → {name_t}={ev['val_target']:.2f}"
+                )
 
     print()
     print("=" * 70)
@@ -658,7 +722,11 @@ def print_binding_report(result: BindingDiscoveryResult, column_names: list[str]
 if __name__ == "__main__":
     import sys
 
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+    csv_path = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+    )
     max_rows = int(sys.argv[2]) if len(sys.argv) > 2 else 10000
 
     result = run_level6_experiment(csv_path, max_rows)
