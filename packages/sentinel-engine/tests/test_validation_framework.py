@@ -149,7 +149,11 @@ class SyntheticDataGenerator:
         }
 
     def _generate_low_stock_item(self, sku: str) -> dict:
-        """Generate item with low stock signal (qty < 5, high sales velocity)."""
+        """Generate item with low stock signal (qty 1-5, high sales velocity).
+
+        Note: qty must be > 0 because 0 qty is not low stock (it's out of stock).
+        The v2.3 detection also requires sold > 10 for velocity context.
+        """
         cost = random.uniform(10, 100)
         margin = random.uniform(0.30, 0.40)
         revenue = cost / (1 - margin)
@@ -159,10 +163,10 @@ class SyntheticDataGenerator:
             "description": f"Low Stock Item {sku}",
             "vendor": f"Vendor_{random.randint(1, 10)}",
             "category": "Electronics",
-            "quantity": random.randint(0, 4),  # LOW STOCK
+            "quantity": random.randint(1, 5),  # LOW STOCK (must be > 0)
             "cost": round(cost, 2),
             "revenue": round(revenue, 2),
-            "sold": random.randint(50, 200),  # HIGH VELOCITY
+            "sold": random.randint(50, 200),  # HIGH VELOCITY (must be > 10)
             "last_sale": datetime.now().strftime("%Y-%m-%d"),
         }
 
@@ -447,7 +451,7 @@ class TestSyntheticDataGenerator:
         assert gt1 == gt2
 
     def test_low_stock_items_have_low_quantity(self):
-        """Test that low stock items actually have low quantity."""
+        """Test that low stock items actually have low quantity with velocity."""
         gen = SyntheticDataGenerator(seed=42)
         rows, ground_truth = gen.generate_dataset(n_normal=10, n_per_anomaly=5)
 
@@ -455,8 +459,11 @@ class TestSyntheticDataGenerator:
         for row in rows:
             if row["sku"].lower() in low_stock_skus:
                 assert (
-                    row["quantity"] < 5
+                    0 < row["quantity"] <= 5
                 ), f"Low stock item {row['sku']} has qty {row['quantity']}"
+                assert (
+                    row["sold"] > 10
+                ), f"Low stock item {row['sku']} needs velocity, has sold {row['sold']}"
 
     def test_negative_inventory_items_are_negative(self):
         """Test that negative inventory items have negative quantity."""
