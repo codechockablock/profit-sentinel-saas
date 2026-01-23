@@ -507,12 +507,13 @@ class AnalysisService:
         sold = self._safe_float(row.get("sold", row.get("Sold", 0)))
 
         if primitive == "high_margin_leak":
-            # Impact = margin shortfall * revenue
+            # Impact = margin shortfall * revenue (capped)
             if revenue > 0 and cost > 0:
                 actual_margin = (revenue - cost) / revenue
                 expected_margin = 0.30  # 30% expected
                 if actual_margin < expected_margin:
-                    return (expected_margin - actual_margin) * revenue * max(sold, 1)
+                    impact = (expected_margin - actual_margin) * revenue * max(sold, 1)
+                    return min(impact, MAX_MARGIN_IMPACT)
 
         elif primitive == "negative_inventory":
             # Negative inventory = data integrity issue, not direct loss
@@ -523,10 +524,11 @@ class AnalysisService:
             return 0
 
         elif primitive == "low_stock":
-            # Impact = potential lost sales (assume 50% lost)
+            # Impact = potential lost sales (capped)
             if 0 < quantity < 10:
                 margin_per_unit = (revenue - cost) if revenue > cost else revenue * 0.3
-                return margin_per_unit * 5  # Assume 5 lost sales
+                impact = margin_per_unit * 5  # Assume 5 lost sales
+                return min(impact, MAX_OTHER_IMPACT)
 
         elif primitive == "dead_item":
             # Impact = capital tied up (but we only recover ~20% via clearance)
@@ -553,19 +555,21 @@ class AnalysisService:
             return 0
 
         elif primitive == "margin_erosion":
-            # Impact = margin shortfall relative to average
+            # Impact = margin shortfall relative to average (capped)
             if revenue > 0 and cost > 0:
                 actual_margin = (revenue - cost) / revenue
                 if actual_margin < 0.25:  # Below 25%
-                    return (0.25 - actual_margin) * revenue
+                    impact = (0.25 - actual_margin) * revenue
+                    return min(impact, MAX_MARGIN_IMPACT)
 
         elif primitive == "price_discrepancy":
-            # Impact = revenue leakage
+            # Impact = revenue leakage (capped)
             sug_retail = self._safe_float(
                 row.get("sug. retail", row.get("Sug. Retail", row.get("msrp", 0)))
             )
             if sug_retail > 0 and revenue > 0 and revenue < sug_retail:
-                return (sug_retail - revenue) * max(sold, 1)
+                impact = (sug_retail - revenue) * max(sold, 1)
+                return min(impact, MAX_OTHER_IMPACT)
 
         return 0.0
 
