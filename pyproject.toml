@@ -50,7 +50,11 @@ ignore = [
     "E402",   # Module import not at top (needed for optional imports)
     "N801",   # Class name should use CapWords (intentional for DSL-like APIs)
     "N802",   # Function name should be lowercase (Prolog-like factories)
+    "N803",   # Argument name should be lowercase (math notation: X, B, L, etc.)
     "N806",   # Variable name should be lowercase (intentional patterns)
+    "N812",   # Lowercase imported as non-lowercase (torch.nn.functional as F)
+    "N815",   # Variable in class scope should not be mixedCase (test data)
+    "F401",   # Import unused (needed for optional dependency checks in try/except)
     "F402",   # Import shadowed by loop variable (intentional)
     "UP007",  # Use X | Y for type annotations (compatibility)
 ]

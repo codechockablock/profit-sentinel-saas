@@ -71,8 +71,8 @@ __version__ = "4.0.0"
 from .context import (
     DEFAULT_DIMENSIONS,
     DEFAULT_MAX_CODEBOOK_SIZE,
+    HIERARCHICAL_CODEBOOK_THRESHOLD,
     AnalysisContext,
-    analysis_context,
     create_analysis_context,
 )
 
@@ -310,9 +310,9 @@ __all__ = [
     # Context API (v2.1 - Recommended)
     "AnalysisContext",
     "create_analysis_context",
-    "analysis_context",
     "DEFAULT_DIMENSIONS",
     "DEFAULT_MAX_CODEBOOK_SIZE",
+    "HIERARCHICAL_CODEBOOK_THRESHOLD",
     # Core availability flag
     "_CORE_AVAILABLE",
     # Flagging (v4.1.0)
