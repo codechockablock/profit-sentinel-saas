@@ -25,6 +25,7 @@ from enum import Enum
 
 class FlagCategory(Enum):
     """Categories of flagged content for review"""
+
     INDIVIDUAL_SURVEILLANCE = "individual_surveillance"
     COMPETITIVE_INTELLIGENCE = "competitive_intelligence"
     PRICING_COORDINATION = "pricing_coordination"
@@ -35,15 +36,17 @@ class FlagCategory(Enum):
 
 class FlagSeverity(Enum):
     """Severity levels - all get logged, severity affects review priority"""
-    LOW = "low"          # Informational, batch review weekly
-    MEDIUM = "medium"    # Review within 48 hours
-    HIGH = "high"        # Review within 24 hours
+
+    LOW = "low"  # Informational, batch review weekly
+    MEDIUM = "medium"  # Review within 48 hours
+    HIGH = "high"  # Review within 24 hours
     CRITICAL = "critical"  # Immediate notification
 
 
 @dataclass
 class SemanticFlag:
     """A single flag raised on a query"""
+
     category: FlagCategory
     severity: FlagSeverity
     reason: str
@@ -53,14 +56,15 @@ class SemanticFlag:
 
     def to_dict(self) -> dict:
         d = asdict(self)
-        d['category'] = self.category.value
-        d['severity'] = self.severity.value
+        d["category"] = self.category.value
+        d["severity"] = self.severity.value
         return d
 
 
 @dataclass
 class FlaggedQuery:
     """Complete record of a flagged query for review"""
+
     query_id: str
     user_id: str
     session_id: str
@@ -77,7 +81,9 @@ class FlaggedQuery:
 
     def to_dict(self) -> dict:
         d = asdict(self)
-        d['flags'] = [f.to_dict() if isinstance(f, SemanticFlag) else f for f in self.flags]
+        d["flags"] = [
+            f.to_dict() if isinstance(f, SemanticFlag) else f for f in self.flags
+        ]
         return d
 
 
@@ -111,14 +117,25 @@ class SemanticFlagDetector:
                     r"CASHIER[_-]?\d+",
                 ],
                 "behavioral_keywords": [
-                    "movement", "location", "proximity", "association",
-                    "correlation", "pattern", "behavior", "activity",
-                    "transaction gap", "void rate", "break", "deviation",
-                    "anomaly", "relationship", "contact", "interaction"
+                    "movement",
+                    "location",
+                    "proximity",
+                    "association",
+                    "correlation",
+                    "pattern",
+                    "behavior",
+                    "activity",
+                    "transaction gap",
+                    "void rate",
+                    "break",
+                    "deviation",
+                    "anomaly",
+                    "relationship",
+                    "contact",
+                    "interaction",
                 ],
                 "threshold_mentions": 2,  # Flag if ID + N behavioral keywords
             },
-
             # Competitive intelligence detection
             "competitive_patterns": {
                 "enabled": True,
@@ -129,27 +146,48 @@ class SemanticFlagDetector:
                     r"competing\s+store",
                 ],
                 "sensitive_topics": [
-                    "supplier", "vendor", "contract", "renewal",
-                    "vulnerability", "weakness", "account", "customer",
-                    "poach", "target", "undercut", "steal",
-                    "reverse engineer", "infer", "source from"
+                    "supplier",
+                    "vendor",
+                    "contract",
+                    "renewal",
+                    "vulnerability",
+                    "weakness",
+                    "account",
+                    "customer",
+                    "poach",
+                    "target",
+                    "undercut",
+                    "steal",
+                    "reverse engineer",
+                    "infer",
+                    "source from",
                 ],
                 "threshold_matches": 2,
             },
-
             # Pricing coordination detection
             "pricing_patterns": {
                 "enabled": True,
                 "coordination_language": [
-                    "equilibrium", "stability", "floor price", "ceiling",
-                    "coordinate", "signal", "match", "follow",
-                    "defector", "retaliate", "punish", "pressure",
-                    "tacit", "implicit", "without direct",
-                    "market stability", "regional pricing"
+                    "equilibrium",
+                    "stability",
+                    "floor price",
+                    "ceiling",
+                    "coordinate",
+                    "signal",
+                    "match",
+                    "follow",
+                    "defector",
+                    "retaliate",
+                    "punish",
+                    "pressure",
+                    "tacit",
+                    "implicit",
+                    "without direct",
+                    "market stability",
+                    "regional pricing",
                 ],
                 "threshold_matches": 2,
             },
-
             # Accumulation detection (slow-burn patterns)
             "accumulation_patterns": {
                 "enabled": True,
@@ -157,22 +195,24 @@ class SemanticFlagDetector:
                 "related_query_threshold": 5,  # N similar queries in window
                 "similarity_threshold": 0.6,
             },
-
             # Unusual scope detection
             "scope_patterns": {
                 "enabled": True,
                 "bulk_indicators": [
-                    "all employees", "every associate", "full export",
-                    "complete list", "entire database", "bulk download"
+                    "all employees",
+                    "every associate",
+                    "full export",
+                    "complete list",
+                    "entire database",
+                    "bulk download",
                 ],
             },
-
             # Review settings
             "review": {
                 "immediate_notify_severities": ["critical", "high"],
                 "digest_frequency_hours": 24,
                 "retention_days": 90,
-            }
+            },
         }
 
     def analyze_query(
@@ -182,7 +222,7 @@ class SemanticFlagDetector:
         session_id: str,
         vsa_patterns: list[str] | None = None,
         llm_response: str | None = None,
-        context: dict | None = None
+        context: dict | None = None,
     ) -> tuple[list[SemanticFlag], FlaggedQuery | None]:
         """
         Analyze a query for sensitive patterns. Returns flags and optionally
@@ -236,16 +276,14 @@ class SemanticFlagDetector:
                 vsa_patterns_accessed=vsa_patterns,
                 llm_response_summary=self._summarize_response(llm_response),
                 flags=flags,
-                context=context
+                context=context,
             )
             self.flagged_queries.append(flagged_query)
 
         return flags, flagged_query
 
     def _check_individual_surveillance(
-        self,
-        query: str,
-        vsa_patterns: list[str]
+        self, query: str, vsa_patterns: list[str]
     ) -> SemanticFlag | None:
         """Detect queries that may constitute individual employee surveillance"""
         config = self.config["individual_patterns"]
@@ -280,15 +318,13 @@ class SemanticFlagDetector:
                 severity=severity,
                 reason=f"Query references specific individual(s) ({', '.join(id_matches[:3])}) with behavioral analysis keywords",
                 matched_patterns=id_matches[:5] + behavioral_matches[:5],
-                confidence=min(0.5 + (len(behavioral_matches) * 0.1), 0.95)
+                confidence=min(0.5 + (len(behavioral_matches) * 0.1), 0.95),
             )
 
         return None
 
     def _check_competitive_intelligence(
-        self,
-        query: str,
-        vsa_patterns: list[str]
+        self, query: str, vsa_patterns: list[str]
     ) -> SemanticFlag | None:
         """Detect queries that may constitute competitive espionage"""
         config = self.config["competitive_patterns"]
@@ -311,7 +347,13 @@ class SemanticFlagDetector:
 
         if len(topic_matches) >= config["threshold_matches"]:
             # High severity for account targeting or reverse engineering
-            high_severity_topics = {"poach", "target", "vulnerability", "reverse engineer", "steal"}
+            high_severity_topics = {
+                "poach",
+                "target",
+                "vulnerability",
+                "reverse engineer",
+                "steal",
+            }
             if any(t in high_severity_topics for t in topic_matches):
                 severity = FlagSeverity.HIGH
             else:
@@ -322,15 +364,13 @@ class SemanticFlagDetector:
                 severity=severity,
                 reason="Query combines competitor references with sensitive business intelligence topics",
                 matched_patterns=competitor_matches[:3] + topic_matches[:5],
-                confidence=min(0.4 + (len(topic_matches) * 0.15), 0.9)
+                confidence=min(0.4 + (len(topic_matches) * 0.15), 0.9),
             )
 
         return None
 
     def _check_pricing_coordination(
-        self,
-        query: str,
-        vsa_patterns: list[str]
+        self, query: str, vsa_patterns: list[str]
     ) -> SemanticFlag | None:
         """Detect queries that may indicate price fixing intent"""
         config = self.config["pricing_patterns"]
@@ -357,15 +397,13 @@ class SemanticFlagDetector:
                 severity=severity,
                 reason="Query contains language associated with pricing coordination",
                 matched_patterns=matches[:7],
-                confidence=min(0.5 + (len(matches) * 0.1), 0.95)
+                confidence=min(0.5 + (len(matches) * 0.1), 0.95),
             )
 
         return None
 
     def _check_accumulation_pattern(
-        self,
-        query: str,
-        user_id: str
+        self, query: str, user_id: str
     ) -> SemanticFlag | None:
         """Detect users building up sensitive analysis over multiple queries"""
         config = self.config["accumulation_patterns"]
@@ -374,7 +412,8 @@ class SemanticFlagDetector:
 
         # Get recent queries for this user
         recent = [
-            q for q in self.user_query_history[user_id]
+            q
+            for q in self.user_query_history[user_id]
             if datetime.fromisoformat(q["timestamp"]) > cutoff
         ]
 
@@ -389,7 +428,9 @@ class SemanticFlagDetector:
         for past in recent:
             past_words = set(self._extract_significant_words(past["query"]))
             if query_words and past_words:
-                overlap = len(query_words & past_words) / max(len(query_words), len(past_words))
+                overlap = len(query_words & past_words) / max(
+                    len(query_words), len(past_words)
+                )
                 if overlap >= config["similarity_threshold"]:
                     similar_count += 1
                     related_queries.append(past["query"][:50])
@@ -400,7 +441,7 @@ class SemanticFlagDetector:
                 severity=FlagSeverity.MEDIUM,
                 reason=f"User has made {similar_count} similar queries in the past {config['window_hours']} hours",
                 matched_patterns=related_queries[:5],
-                confidence=min(0.3 + (similar_count * 0.1), 0.8)
+                confidence=min(0.3 + (similar_count * 0.1), 0.8),
             )
 
         return None
@@ -421,7 +462,7 @@ class SemanticFlagDetector:
                 severity=FlagSeverity.LOW,
                 reason="Query requests broad data scope",
                 matched_patterns=matches,
-                confidence=0.6
+                confidence=0.6,
             )
 
         return None
@@ -430,38 +471,139 @@ class SemanticFlagDetector:
         """Extract significant words for similarity comparison"""
         # Remove common words, keep nouns/verbs that indicate intent
         stopwords = {
-            "the", "a", "an", "is", "are", "was", "were", "be", "been",
-            "have", "has", "had", "do", "does", "did", "will", "would",
-            "could", "should", "may", "might", "must", "shall", "can",
-            "this", "that", "these", "those", "i", "you", "he", "she",
-            "it", "we", "they", "what", "which", "who", "whom", "whose",
-            "where", "when", "why", "how", "all", "each", "every", "both",
-            "few", "more", "most", "other", "some", "such", "no", "nor",
-            "not", "only", "own", "same", "so", "than", "too", "very",
-            "just", "and", "but", "or", "if", "because", "as", "until",
-            "while", "of", "at", "by", "for", "with", "about", "against",
-            "between", "into", "through", "during", "before", "after",
-            "above", "below", "to", "from", "up", "down", "in", "out",
-            "on", "off", "over", "under", "again", "further", "then",
-            "once", "here", "there", "any", "please", "show", "me", "get",
-            "find", "tell", "give", "analyze", "analysis", "data", "report"
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "this",
+            "that",
+            "these",
+            "those",
+            "i",
+            "you",
+            "he",
+            "she",
+            "it",
+            "we",
+            "they",
+            "what",
+            "which",
+            "who",
+            "whom",
+            "whose",
+            "where",
+            "when",
+            "why",
+            "how",
+            "all",
+            "each",
+            "every",
+            "both",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "nor",
+            "not",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "just",
+            "and",
+            "but",
+            "or",
+            "if",
+            "because",
+            "as",
+            "until",
+            "while",
+            "of",
+            "at",
+            "by",
+            "for",
+            "with",
+            "about",
+            "against",
+            "between",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "to",
+            "from",
+            "up",
+            "down",
+            "in",
+            "out",
+            "on",
+            "off",
+            "over",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "here",
+            "there",
+            "any",
+            "please",
+            "show",
+            "me",
+            "get",
+            "find",
+            "tell",
+            "give",
+            "analyze",
+            "analysis",
+            "data",
+            "report",
         }
 
-        words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
+        words = re.findall(r"\b[a-zA-Z]{3,}\b", text.lower())
         return [w for w in words if w not in stopwords]
 
     def _record_query(self, query: str, user_id: str):
         """Record query for accumulation detection"""
-        self.user_query_history[user_id].append({
-            "query": query,
-            "timestamp": datetime.utcnow().isoformat()
-        })
+        self.user_query_history[user_id].append(
+            {"query": query, "timestamp": datetime.utcnow().isoformat()}
+        )
 
         # Prune old entries
         window = timedelta(hours=self.config["accumulation_patterns"]["window_hours"])
         cutoff = datetime.utcnow() - window
         self.user_query_history[user_id] = [
-            q for q in self.user_query_history[user_id]
+            q
+            for q in self.user_query_history[user_id]
             if datetime.fromisoformat(q["timestamp"]) > cutoff
         ]
 
@@ -484,20 +626,22 @@ class SemanticFlagDetector:
         self,
         severity_filter: list[FlagSeverity] | None = None,
         category_filter: list[FlagCategory] | None = None,
-        limit: int = 50
+        limit: int = 50,
     ) -> list[FlaggedQuery]:
         """Get flagged queries pending review"""
         pending = [q for q in self.flagged_queries if not q.reviewed]
 
         if severity_filter:
             pending = [
-                q for q in pending
+                q
+                for q in pending
                 if any(f.severity in severity_filter for f in q.flags)
             ]
 
         if category_filter:
             pending = [
-                q for q in pending
+                q
+                for q in pending
                 if any(f.category in category_filter for f in q.flags)
             ]
 
@@ -506,7 +650,7 @@ class SemanticFlagDetector:
             FlagSeverity.CRITICAL: 0,
             FlagSeverity.HIGH: 1,
             FlagSeverity.MEDIUM: 2,
-            FlagSeverity.LOW: 3
+            FlagSeverity.LOW: 3,
         }
 
         def max_severity(q):
@@ -520,7 +664,7 @@ class SemanticFlagDetector:
         query_id: str,
         reviewer_id: str,
         notes: str,
-        action_taken: str | None = None
+        action_taken: str | None = None,
     ):
         """Mark a flagged query as reviewed"""
         for q in self.flagged_queries:
@@ -533,16 +677,13 @@ class SemanticFlagDetector:
                     q.context["action_taken"] = action_taken
                 break
 
-    def generate_digest(
-        self,
-        hours: int = 24,
-        include_reviewed: bool = False
-    ) -> dict:
+    def generate_digest(self, hours: int = 24, include_reviewed: bool = False) -> dict:
         """Generate summary digest for employer review"""
         cutoff = datetime.utcnow() - timedelta(hours=hours)
 
         relevant = [
-            q for q in self.flagged_queries
+            q
+            for q in self.flagged_queries
             if datetime.fromisoformat(q.timestamp) > cutoff
             and (include_reviewed or not q.reviewed)
         ]
@@ -551,13 +692,15 @@ class SemanticFlagDetector:
         by_category = defaultdict(list)
         for q in relevant:
             for flag in q.flags:
-                by_category[flag.category.value].append({
-                    "query_id": q.query_id,
-                    "user_id": q.user_id,
-                    "severity": flag.severity.value,
-                    "reason": flag.reason,
-                    "timestamp": q.timestamp
-                })
+                by_category[flag.category.value].append(
+                    {
+                        "query_id": q.query_id,
+                        "user_id": q.user_id,
+                        "severity": flag.severity.value,
+                        "reason": flag.reason,
+                        "timestamp": q.timestamp,
+                    }
+                )
 
         # Count by severity
         severity_counts = defaultdict(int)
@@ -581,10 +724,14 @@ class SemanticFlagDetector:
             "repeat_flagged_users": repeat_users,
             "queries_by_category": dict(by_category),
             "immediate_attention": [
-                q.to_dict() for q in relevant
-                if any(f.severity in [FlagSeverity.CRITICAL, FlagSeverity.HIGH] for f in q.flags)
+                q.to_dict()
+                for q in relevant
+                if any(
+                    f.severity in [FlagSeverity.CRITICAL, FlagSeverity.HIGH]
+                    for f in q.flags
+                )
                 and not q.reviewed
-            ]
+            ],
         }
 
     def export_for_review(self, filepath: str):
@@ -592,13 +739,14 @@ class SemanticFlagDetector:
         export_data = {
             "exported_at": datetime.utcnow().isoformat(),
             "total_records": len(self.flagged_queries),
-            "flagged_queries": [q.to_dict() for q in self.flagged_queries]
+            "flagged_queries": [q.to_dict() for q in self.flagged_queries],
         }
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(export_data, f, indent=2)
 
 
 # === INTEGRATION HELPER ===
+
 
 class ProfitSentinelFlagIntegration:
     """
@@ -628,7 +776,7 @@ class ProfitSentinelFlagIntegration:
         session_id: str,
         vsa_patterns: list[str] | None = None,
         llm_response: str | None = None,
-        context: dict | None = None
+        context: dict | None = None,
     ) -> list[SemanticFlag]:
         """
         Check query for flags and log if needed.
@@ -640,14 +788,13 @@ class ProfitSentinelFlagIntegration:
             session_id=session_id,
             vsa_patterns=vsa_patterns,
             llm_response=llm_response,
-            context=context
+            context=context,
         )
 
         # Immediate notification for high severity
         if flagged_query:
             high_severity = any(
-                f.severity in [FlagSeverity.CRITICAL, FlagSeverity.HIGH]
-                for f in flags
+                f.severity in [FlagSeverity.CRITICAL, FlagSeverity.HIGH] for f in flags
             )
             if high_severity:
                 for callback in self.notification_callbacks:
@@ -664,10 +811,9 @@ class ProfitSentinelFlagIntegration:
             "digest_24h": self.detector.generate_digest(hours=24),
             "digest_7d": self.detector.generate_digest(hours=168),
             "pending_critical": self.detector.get_pending_reviews(
-                severity_filter=[FlagSeverity.CRITICAL, FlagSeverity.HIGH],
-                limit=10
+                severity_filter=[FlagSeverity.CRITICAL, FlagSeverity.HIGH], limit=10
             ),
-            "pending_all": self.detector.get_pending_reviews(limit=50)
+            "pending_all": self.detector.get_pending_reviews(limit=50),
         }
 
 
@@ -687,36 +833,36 @@ if __name__ == "__main__":
             "user_id": "manager_01",
             "session_id": "sess_001",
             "vsa_patterns": ["TEMPORAL_CLUSTERING", "BEHAVIORAL_CORRELATION"],
-            "expected_flag": "INDIVIDUAL_SURVEILLANCE"
+            "expected_flag": "INDIVIDUAL_SURVEILLANCE",
         },
         {
             "query": "Analyze COMPETITOR_A's supplier relationships and identify when their contracts renew so we can approach their vendors",
             "user_id": "buyer_02",
             "session_id": "sess_002",
             "vsa_patterns": ["SUPPLIER_INFERENCE", "CONTRACT_TIMING"],
-            "expected_flag": "COMPETITIVE_INTELLIGENCE"
+            "expected_flag": "COMPETITIVE_INTELLIGENCE",
         },
         {
             "query": "What's the regional price equilibrium for lumber and how can we signal to competitors to maintain floor pricing?",
             "user_id": "pricing_mgr",
             "session_id": "sess_003",
             "vsa_patterns": ["PRICE_EQUILIBRIUM", "MARKET_SIGNALING"],
-            "expected_flag": "PRICING_COORDINATION"
+            "expected_flag": "PRICING_COORDINATION",
         },
         {
             "query": "Show me the margin analysis for SKU 1234567",
             "user_id": "analyst_01",
             "session_id": "sess_004",
             "vsa_patterns": ["MARGIN_LEAK"],
-            "expected_flag": None  # Should NOT flag - normal query
+            "expected_flag": None,  # Should NOT flag - normal query
         },
         {
             "query": "What are our top short-ship vendors this quarter?",
             "user_id": "analyst_01",
             "session_id": "sess_005",
             "vsa_patterns": ["VENDOR_PERFORMANCE"],
-            "expected_flag": None  # Should NOT flag - normal query
-        }
+            "expected_flag": None,  # Should NOT flag - normal query
+        },
     ]
 
     print("\nRunning test queries...\n")
@@ -726,12 +872,14 @@ if __name__ == "__main__":
             query=test["query"],
             user_id=test["user_id"],
             session_id=test["session_id"],
-            vsa_patterns=test["vsa_patterns"]
+            vsa_patterns=test["vsa_patterns"],
         )
 
         print(f"Query: {test['query'][:60]}...")
         print(f"  Expected flag: {test['expected_flag']}")
-        print(f"  Actual flags: {[f.category.value for f in flags] if flags else 'None'}")
+        print(
+            f"  Actual flags: {[f.category.value for f in flags] if flags else 'None'}"
+        )
 
         if flags:
             for flag in flags:
@@ -742,7 +890,9 @@ if __name__ == "__main__":
         expected = test["expected_flag"]
         actual = [f.category.value for f in flags] if flags else []
 
-        if (expected is None and not actual) or (expected and expected.lower() in [a.lower() for a in actual]):
+        if (expected is None and not actual) or (
+            expected and expected.lower() in [a.lower() for a in actual]
+        ):
             print("  ✓ PASS")
         else:
             print("  ✗ FAIL")
