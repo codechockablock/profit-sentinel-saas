@@ -37,19 +37,12 @@ import logging
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 import torch
 
 logger = logging.getLogger(__name__)
 
-
-# =============================================================================
-# DEFAULT CONFIGURATION CONSTANTS
-# =============================================================================
-
-DEFAULT_DIMENSIONS = 16384  # Standard VSA dimensionality (2^14)
-DEFAULT_MAX_CODEBOOK_SIZE = 100000  # Maximum entities in codebook
-HIERARCHICAL_CODEBOOK_THRESHOLD = 10000  # Use hierarchical resonator above this
 
 # =============================================================================
 # VALIDATION THRESHOLDS (Geometric Language Model Constraints)
@@ -450,9 +443,9 @@ class SparseVSA:
             weights = [1.0] * len(vectors)
 
         # Collect all indices across all vectors
-        all_indices: dict[int, list[tuple[float, float]]] = (
-            {}
-        )  # idx -> [(phase, weight), ...]
+        all_indices: dict[
+            int, list[tuple[float, float]]
+        ] = {}  # idx -> [(phase, weight), ...]
 
         for vec, weight in zip(vectors, weights):
             for i, idx in enumerate(vec.indices.tolist()):
