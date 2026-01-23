@@ -35,8 +35,8 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
 
 import torch
 
@@ -133,7 +133,7 @@ class SparseVector:
         dense: torch.Tensor,
         top_k: int | None = None,
         threshold: float = 0.1,
-    ) -> "SparseVector":
+    ) -> SparseVector:
         """
         Create DiracVector from dense complex vector.
 
@@ -168,7 +168,7 @@ class SparseVector:
             density=density,
         )
 
-    def similarity(self, other: "SparseVector") -> float:
+    def similarity(self, other: SparseVector) -> float:
         """
         Compute sparse similarity with another SparseVector.
 
@@ -539,7 +539,7 @@ class DiracVector:
         phase_tensor = torch.tensor(self.phase, dtype=self.spatial.dtype, device=self.device)
         return self.spatial * phase_tensor + self.temporal
 
-    def negate(self) -> "DiracVector":
+    def negate(self) -> DiracVector:
         """
         Return negation via π phase rotation.
 
@@ -558,7 +558,7 @@ class DiracVector:
             entropy=self.entropy,  # Negation is reversible, no entropy increase
         )
 
-    def similarity(self, other: "DiracVector") -> float:
+    def similarity(self, other: DiracVector) -> float:
         """
         Compute similarity between DiracVectors.
 
@@ -607,7 +607,7 @@ class DiracVector:
         combined_sim = 0.7 * spatial_sim + 0.3 * temporal_sim
         return combined_sim
 
-    def clone(self) -> "DiracVector":
+    def clone(self) -> DiracVector:
         """Create a deep copy of this DiracVector."""
         return DiracVector(
             spatial=self.spatial.clone(),
