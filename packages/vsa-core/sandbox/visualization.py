@@ -12,7 +12,6 @@ Uses matplotlib for plotting (optional dependency).
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -21,8 +20,6 @@ import torch
 # Try to import matplotlib, provide fallback if not available
 try:
     import matplotlib.pyplot as plt
-    import matplotlib.colors as mcolors
-    from matplotlib.gridspec import GridSpec
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
@@ -311,7 +308,7 @@ def plot_phase_drift_sweep(
     # Add values
     for i in range(len(drift_types)):
         for j in range(len(drift_angles)):
-            text = axes[0].text(j, i, f'{binding_drop_matrix[i][j]:.2f}',
+            axes[0].text(j, i, f'{binding_drop_matrix[i][j]:.2f}',
                                ha='center', va='center', color='black', fontsize=9)
 
     # Detection drop heatmap
@@ -328,7 +325,7 @@ def plot_phase_drift_sweep(
     # Add values
     for i in range(len(drift_types)):
         for j in range(len(drift_angles)):
-            text = axes[1].text(j, i, f'{detection_drop_matrix[i][j]:.2f}',
+            axes[1].text(j, i, f'{detection_drop_matrix[i][j]:.2f}',
                                ha='center', va='center', color='black', fontsize=9)
 
     fig.suptitle('Phase Drift Sweep: Impact on System Health', fontsize=14, fontweight='bold')

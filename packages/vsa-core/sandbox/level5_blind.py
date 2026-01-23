@@ -21,7 +21,6 @@ import csv
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 import torch
 
@@ -83,7 +82,7 @@ class BlindVSAEncoder:
     - No interpretation whatsoever
     """
 
-    def __init__(self, dimensions: int = 2048, device: Optional[str] = None):
+    def __init__(self, dimensions: int = 2048, device: str | None = None):
         self.dimensions = dimensions
 
         if device is None:
@@ -254,7 +253,7 @@ def load_blind_data(
     encoder = BlindVSAEncoder(dimensions=2048)
     data_points = []
 
-    with open(csv_path, 'r', encoding='utf-8-sig') as f:
+    with open(csv_path, encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
 
         # Find column indices (then FORGET the names)
@@ -325,7 +324,7 @@ def analyze_blind_results(
         'Last Mar', 'Last Feb', 'Last Jan'
     ]
 
-    with open(original_csv_path, 'r', encoding='utf-8-sig') as f:
+    with open(original_csv_path, encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
         for row_id, row in enumerate(reader):
             if row_id >= len(result.data_points):

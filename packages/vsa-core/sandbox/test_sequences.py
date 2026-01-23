@@ -26,17 +26,13 @@ import json
 import logging
 import math
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 import torch
-
 from vsa_sandbox_harness import (
     VSASandboxHarness,
-    GeometricSnapshot,
-    HealthMetrics,
-    DriftMeasurement,
     create_harness,
 )
 
@@ -295,7 +291,7 @@ def run_controlled_drift_test(
     result.end_time = time.time()
 
     # Analyze pattern
-    binding_accs = [h.get("binding_accuracy", 1.0) for h in result.health_trajectory]
+    [h.get("binding_accuracy", 1.0) for h in result.health_trajectory]
     detection_accs = [h.get("detection_accuracy", 1.0) for h in result.health_trajectory if h.get("detection_accuracy")]
 
     # Determine degradation pattern
@@ -371,7 +367,7 @@ def run_self_evaluation_integrity_test(
     test_bundle, known_detections = create_controlled_test_data(harness)
 
     # Capture baseline
-    baseline = harness.capture_baseline("self_eval_baseline")
+    harness.capture_baseline("self_eval_baseline")
 
     # PHASE 1: Baseline detection
     logger.info("Phase 1: Measuring baseline detection capability...")

@@ -19,10 +19,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 import torch
-
 from vsa_sandbox_harness import VSASandboxHarness, create_harness
 
 logger = logging.getLogger(__name__)
@@ -61,8 +59,8 @@ class SplitCandidate:
     confidence: float
     reason: str
     # The two cluster centroids for the split
-    cluster_a_centroid: Optional[torch.Tensor] = None
-    cluster_b_centroid: Optional[torch.Tensor] = None
+    cluster_a_centroid: torch.Tensor | None = None
+    cluster_b_centroid: torch.Tensor | None = None
 
 
 @dataclass
@@ -350,7 +348,7 @@ class StructureCritic:
 
     def get_best_structure_change(
         self
-    ) -> tuple[StructureOperation, Optional[MergeCandidate | SplitCandidate | AddCandidate]]:
+    ) -> tuple[StructureOperation, MergeCandidate | SplitCandidate | AddCandidate | None]:
         """Get the highest-confidence structure change."""
         merge_candidates = self.find_merge_candidates()
         split_candidates = self.find_split_candidates()
@@ -486,7 +484,7 @@ class StructureLearningLoop:
         self.modifier = StructureModifier(harness)
 
         # State tracking
-        self.best_state: Optional[dict] = None
+        self.best_state: dict | None = None
         self.best_accuracy: float = 0.0
         self.steps_since_improvement: int = 0
         self.steps_since_structure_change: int = 0
@@ -516,7 +514,7 @@ class StructureLearningLoop:
             self.steps_since_structure_change += 1
 
             # Phase 1: Optimize primitive vectors
-            phase1_improved = self._optimize_primitives()
+            self._optimize_primitives()
             accuracy = self.evaluator.evaluate_and_record(self.critic)
             result.accuracy_trajectory.append(accuracy)
             result.primitive_count_trajectory.append(len(self.harness.primitives))
@@ -530,7 +528,7 @@ class StructureLearningLoop:
                 self.steps_since_improvement += 1
 
             # Phase 2: Optimize codebook vectors
-            phase2_improved = self._optimize_codebook()
+            self._optimize_codebook()
             accuracy = self.evaluator.evaluate_and_record(self.critic)
             result.accuracy_trajectory.append(accuracy)
             result.primitive_count_trajectory.append(len(self.harness.primitives))
@@ -805,7 +803,7 @@ class StructureEvaluator:
 
 def create_structure_learning_scenario(
     dimensions: int = 2048,
-    device: Optional[str] = None,
+    device: str | None = None,
 ) -> tuple[VSASandboxHarness, list[dict], dict]:
     """
     Create a synthetic scenario for structure learning testing.
@@ -950,7 +948,7 @@ def create_structure_learning_scenario(
 
 def run_structure_learning_test(
     dimensions: int = 2048,
-    device: Optional[str] = None,
+    device: str | None = None,
     max_iterations: int = 50,
 ) -> StructureLearningResult:
     """
@@ -988,16 +986,16 @@ def print_structure_learning_report(result: StructureLearningResult) -> None:
     print("STRUCTURE LEARNING REPORT")
     print("=" * 70)
 
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Max iterations: {result.max_iterations}")
     print(f"  Total iterations: {result.total_iterations}")
 
-    print(f"\nPrimitive Structure:")
+    print("\nPrimitive Structure:")
     print(f"  Initial: {result.initial_primitives}")
     print(f"  Final:   {result.final_primitives}")
     print(f"  Count:   {len(result.initial_primitives)} -> {len(result.final_primitives)}")
 
-    print(f"\nAccuracy:")
+    print("\nAccuracy:")
     print(f"  Initial: {result.accuracy_trajectory[0]:.3f}")
     print(f"  Final:   {result.final_accuracy:.3f}")
     print(f"  Best:    {result.best_accuracy:.3f}")
@@ -1010,17 +1008,17 @@ def print_structure_learning_report(result: StructureLearningResult) -> None:
         print(f"     Reason: {change.reason}")
         print(f"     Details: {change.details}")
 
-    print(f"\nCandidates Evaluated:")
+    print("\nCandidates Evaluated:")
     print(f"  Merges: {result.merge_candidates_evaluated}")
     print(f"  Splits: {result.split_candidates_evaluated}")
     print(f"  Adds:   {result.add_candidates_evaluated}")
 
-    print(f"\nConvergence:")
+    print("\nConvergence:")
     print(f"  Converged: {result.converged}")
     print(f"  Reason: {result.convergence_reason}")
 
     duration = result.end_time - result.start_time
-    print(f"\nTiming:")
+    print("\nTiming:")
     print(f"  Duration: {duration:.1f}s")
 
     print("\n" + "=" * 70)
@@ -1034,7 +1032,7 @@ def print_structure_learning_report(result: StructureLearningResult) -> None:
 def create_real_retail_scenario(
     csv_path: str,
     dimensions: int = 2048,
-    device: Optional[str] = None,
+    device: str | None = None,
     max_rows: int = 5000,
 ) -> tuple[VSASandboxHarness, list[dict], dict]:
     """
@@ -1093,7 +1091,7 @@ def create_real_retail_scenario(
     anomaly_counts = {name: 0 for name in primitive_names}
     normal_count = 0
 
-    with open(csv_path, "r", encoding="utf-8", errors="ignore") as f:
+    with open(csv_path, encoding="utf-8", errors="ignore") as f:
         reader = csv.DictReader(f)
 
         row_count = 0
@@ -1204,7 +1202,7 @@ def create_real_retail_scenario(
 def create_ytd_inventory_scenario(
     csv_path: str,
     dimensions: int = 2048,
-    device: Optional[str] = None,
+    device: str | None = None,
     max_rows: int = 50000,
 ) -> tuple[VSASandboxHarness, list[dict], dict]:
     """
@@ -1256,7 +1254,7 @@ def create_ytd_inventory_scenario(
     anomaly_counts = {name: 0 for name in primitive_names}
     normal_count = 0
 
-    with open(csv_path, "r", encoding="utf-8", errors="ignore") as f:
+    with open(csv_path, encoding="utf-8", errors="ignore") as f:
         reader = csv.DictReader(f)
 
         row_count = 0
@@ -1352,7 +1350,7 @@ def create_ytd_inventory_scenario(
 def create_flawed_retail_scenario(
     csv_path: str,
     dimensions: int = 2048,
-    device: Optional[str] = None,
+    device: str | None = None,
     max_rows: int = 5000,
 ) -> tuple[VSASandboxHarness, list[dict], dict]:
     """
@@ -1418,7 +1416,7 @@ def create_flawed_retail_scenario(
     anomaly_counts = {name: 0 for name in true_primitive_names}
     normal_count = 0
 
-    with open(csv_path, "r", encoding="utf-8", errors="ignore") as f:
+    with open(csv_path, encoding="utf-8", errors="ignore") as f:
         reader = csv.DictReader(f)
 
         row_count = 0
@@ -1520,7 +1518,7 @@ def create_flawed_retail_scenario(
 def run_real_retail_structure_learning(
     csv_path: str,
     dimensions: int = 2048,
-    device: Optional[str] = None,
+    device: str | None = None,
     max_iterations: int = 30,
     max_rows: int = 5000,
     flawed: bool = False,
@@ -1554,13 +1552,13 @@ def run_real_retail_structure_learning(
     print("=" * 70)
     print("REAL RETAIL STRUCTURE LEARNING")
     print("=" * 70)
-    print(f"\nData Summary:")
+    print("\nData Summary:")
     print(f"  CSV path: {csv_path}")
     print(f"  Rows processed: {scenario_info['total_rows_processed']}")
     print(f"  Test cases generated: {scenario_info['test_cases_generated']}")
     print(f"  Normal (non-anomaly) rows: {scenario_info['normal_count']}")
 
-    print(f"\nAnomaly Distribution:")
+    print("\nAnomaly Distribution:")
     for name, count in scenario_info['anomaly_counts'].items():
         print(f"  {name}: {count}")
 
@@ -1599,10 +1597,10 @@ def print_real_retail_report(result: StructureLearningResult) -> None:
     # Get scenario info if available
     scenario_info = getattr(result, 'scenario_info', None)
     if scenario_info:
-        print(f"\nData Summary:")
+        print("\nData Summary:")
         print(f"  Rows processed: {scenario_info['total_rows_processed']}")
         print(f"  Test cases: {scenario_info['test_cases_generated']}")
-        print(f"\nAnomaly Distribution:")
+        print("\nAnomaly Distribution:")
         for name, count in scenario_info['anomaly_counts'].items():
             print(f"  {name}: {count}")
 
@@ -1679,7 +1677,6 @@ def print_real_retail_report(result: StructureLearningResult) -> None:
 def save_report_to_file(result: StructureLearningResult, output_path: str) -> None:
     """Save the structure learning report to a file."""
     import io
-    import sys
     from contextlib import redirect_stdout
 
     # Capture printed output
@@ -1802,12 +1799,12 @@ if __name__ == "__main__":
             max_rows=max_rows,
         )
 
-        print(f"Data Summary:")
+        print("Data Summary:")
         print(f"  Rows processed: {scenario_info['total_rows_processed']:,}")
         print(f"  Test cases: {scenario_info['test_cases_generated']:,}")
         print(f"  Normal rows: {scenario_info['normal_count']:,}")
 
-        print(f"\nAnomaly Distribution:")
+        print("\nAnomaly Distribution:")
         for name, count in sorted(scenario_info['anomaly_counts'].items(), key=lambda x: -x[1]):
             if count > 0:
                 print(f"  {name}: {count:,}")
@@ -1894,7 +1891,7 @@ if __name__ == "__main__":
         }
         normal_count = 0
 
-        with open(csv_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(csv_path, encoding="utf-8", errors="ignore") as f:
             reader = csv.DictReader(f)
 
             row_count = 0
@@ -2012,17 +2009,17 @@ if __name__ == "__main__":
             "data_type": "YTD_vs_original_primitives",
         }
 
-        print(f"Data Summary:")
+        print("Data Summary:")
         print(f"  Rows processed: {scenario_info['total_rows_processed']:,}")
         print(f"  Test cases: {scenario_info['test_cases_generated']:,}")
         print(f"  Normal rows: {scenario_info['normal_count']:,}")
 
-        print(f"\nMAPPED to Original Primitives:")
+        print("\nMAPPED to Original Primitives:")
         for name, count in sorted(anomaly_counts.items(), key=lambda x: -x[1]):
             if count > 0:
                 print(f"  {name}: {count:,}")
 
-        print(f"\nUNMAPPED Anomalies (potential coverage gaps):")
+        print("\nUNMAPPED Anomalies (potential coverage gaps):")
         for name, count in sorted(unmapped_anomalies.items(), key=lambda x: -x[1]):
             if count > 0:
                 print(f"  {name}: {count:,} <-- No primitive for this!")

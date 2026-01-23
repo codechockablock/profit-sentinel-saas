@@ -35,16 +35,16 @@ import torch
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from vsa_sandbox_harness import create_harness
 from test_sequences import (
-    run_controlled_drift_test,
+    hunt_for_invariants,
     run_aggressive_modification_test,
+    run_all_tests,
+    run_controlled_drift_test,
+    run_phase_drift_sweep,
     run_recovery_test,
     run_self_evaluation_integrity_test,
-    run_phase_drift_sweep,
-    hunt_for_invariants,
-    run_all_tests,
 )
+from vsa_sandbox_harness import create_harness
 
 
 def main():
@@ -158,7 +158,7 @@ Examples:
     # Handle load/report mode
     if args.load_results:
         print(f"Loading results from {args.load_results}...")
-        with open(args.load_results, "r") as f:
+        with open(args.load_results) as f:
             results = json.load(f)
 
         if args.report_only:
@@ -271,7 +271,10 @@ Examples:
     elif args.test == "metacog":
         print("\n*** RUNNING METACOGNITIVE LOOP TEST ***\n")
         print(f"Scenario: {args.metacog_scenario}")
-        from metacognitive_loop import run_metacognitive_test, print_metacognitive_report
+        from metacognitive_loop import (
+            print_metacognitive_report,
+            run_metacognitive_test,
+        )
         result = run_metacognitive_test(
             dimensions=args.dimensions,
             device=device,
@@ -285,7 +288,10 @@ Examples:
 
     elif args.test == "metacog-compare":
         print("\n*** COMPARING BASELINE VS METACOGNITIVE AGENTS ***\n")
-        from metacognitive_loop import compare_agent_behaviors, print_metacognitive_report
+        from metacognitive_loop import (
+            compare_agent_behaviors,
+            print_metacognitive_report,
+        )
         comparison = compare_agent_behaviors(
             dimensions=args.dimensions,
             device=device,
@@ -316,7 +322,10 @@ Examples:
 
     elif args.test == "structure":
         print("\n*** RUNNING STRUCTURE LEARNING TEST ***\n")
-        from structure_learning import run_structure_learning_test, print_structure_learning_report
+        from structure_learning import (
+            print_structure_learning_report,
+            run_structure_learning_test,
+        )
         result = run_structure_learning_test(
             dimensions=args.dimensions,
             device=device,
