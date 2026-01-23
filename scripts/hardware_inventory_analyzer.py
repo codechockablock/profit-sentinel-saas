@@ -1252,7 +1252,7 @@ class AnalysisConfig:
     high_value_threshold: float = 1000.0  # For high-value dead stock
 
     @classmethod
-    def from_yaml(cls, path: Path) -> "AnalysisConfig":
+    def from_yaml(cls, path: Path) -> AnalysisConfig:
         """Load configuration from YAML file."""
         if not YAML_AVAILABLE:
             logger.warning("PyYAML not installed. Using default configuration.")
@@ -2262,8 +2262,6 @@ class ReportGenerator:
 
     def generate_html(self, output_path: Path) -> None:
         """Generate comprehensive HTML report."""
-        r = self.report
-
         # Build the HTML content
         html = self._build_html_report()
 
@@ -2526,7 +2524,6 @@ class ReportGenerator:
         ):
             if finding.total_items == 0:
                 continue
-            severity = finding.definition.severity.value
             breakdown_html += f"""
             <div style="display: flex; justify-content: space-between; padding: 10px; background: #0f172a; border-radius: 8px; border-left: 4px solid {finding.definition.color}; margin-bottom: 8px;">
                 <span>{finding.definition.name}</span>

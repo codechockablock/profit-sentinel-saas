@@ -68,7 +68,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -1056,7 +1055,7 @@ class AnalysisConfig:
     include_zero_quantity: bool = True
 
     @classmethod
-    def from_yaml(cls, path: Path) -> "AnalysisConfig":
+    def from_yaml(cls, path: Path) -> AnalysisConfig:
         """Load configuration from YAML file."""
         if not YAML_AVAILABLE:
             logger.warning("PyYAML not installed. Using default configuration.")
