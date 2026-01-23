@@ -141,3 +141,154 @@ async def require_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user_id
+
+
+async def get_user_tier(user_id: str | None) -> str:
+    """
+    Get subscription tier for a user from Supabase.
+
+    Returns:
+        'free', 'pro', or 'enterprise'. Defaults to 'free' for anonymous users.
+    """
+    if not user_id:
+        return "free"
+
+    supabase = get_supabase_client()
+    if not supabase:
+        logger.warning("Supabase not configured, defaulting to free tier")
+        return "free"
+
+    try:
+        result = (
+            supabase.table("user_profiles")
+            .select("subscription_tier")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+        if result.data and result.data.get("subscription_tier"):
+            return result.data["subscription_tier"]
+        return "free"
+    except Exception as e:
+        logger.warning(f"Failed to fetch user tier: {e}, defaulting to free")
+        return "free"
+
+
+async def require_pro_tier(
+    authorization: str | None = Header(None),
+) -> str:
+    """
+    Require Pro or Enterprise tier. Raises 403 if not subscribed.
+
+    Returns:
+        User ID if Pro/Enterprise tier
+    """
+    user_id = await require_user(authorization)
+    tier = await get_user_tier(user_id)
+
+    if tier not in ("pro", "enterprise"):
+        raise HTTPException(
+            status_code=403,
+            detail="Pro subscription required for this feature",
+        )
+    return user_id
+
+
+async def check_subscription_access(user_id: str) -> dict:
+    """
+    Check if user has active subscription access (trialing or active).
+
+    Uses the database check_user_access function which handles:
+    - Active subscriptions
+    - Trial periods (within 14 days)
+    - Trial expiration
+    - Past due grace period
+
+    Returns:
+        Dict with:
+        - has_access: bool - whether user can access paid features
+        - access_reason: str - why access is granted/denied
+        - subscription_status: str - current status
+        - trial_days_left: int | None - days remaining in trial
+        - current_period_end: datetime | None - subscription period end
+    """
+    supabase = get_supabase_client()
+    if not supabase:
+        logger.warning("Supabase not configured, denying access")
+        return {
+            "has_access": False,
+            "access_reason": "service_unavailable",
+            "subscription_status": "none",
+            "trial_days_left": None,
+            "current_period_end": None,
+        }
+
+    try:
+        # Call the database function to check access
+        result = supabase.rpc("check_user_access", {"p_user_id": user_id}).execute()
+
+        if not result.data or len(result.data) == 0:
+            return {
+                "has_access": False,
+                "access_reason": "user_not_found",
+                "subscription_status": "none",
+                "trial_days_left": None,
+                "current_period_end": None,
+            }
+
+        return result.data[0]
+
+    except Exception as e:
+        logger.error(f"Failed to check subscription access: {e}")
+        # Fail open for now - if we can't check, allow access
+        # This prevents billing issues from blocking paying customers
+        return {
+            "has_access": True,
+            "access_reason": "check_failed_allowed",
+            "subscription_status": "unknown",
+            "trial_days_left": None,
+            "current_period_end": None,
+        }
+
+
+async def require_active_subscription(
+    authorization: str | None = Header(None),
+) -> str:
+    """
+    Require active subscription (trialing or paid). Raises 403 if expired.
+
+    This checks both:
+    - Active paid subscriptions
+    - Active trial periods (within 14 days)
+
+    Returns:
+        User ID if subscription is active
+
+    Raises:
+        HTTPException 401: Not authenticated
+        HTTPException 403: Subscription expired or canceled
+    """
+    user_id = await require_user(authorization)
+    access = await check_subscription_access(user_id)
+
+    if not access.get("has_access", False):
+        reason = access.get("access_reason", "subscription_required")
+
+        # Provide helpful error messages based on reason
+        if reason == "trial_expired":
+            raise HTTPException(
+                status_code=403,
+                detail="Your trial has expired. Upgrade to continue using Profit Sentinel.",
+            )
+        elif reason in ("subscription_canceled", "subscription_expired"):
+            raise HTTPException(
+                status_code=403,
+                detail="Your subscription has ended. Please resubscribe to continue.",
+            )
+        else:
+            raise HTTPException(
+                status_code=403,
+                detail="Active subscription required for this feature.",
+            )
+
+    return user_id

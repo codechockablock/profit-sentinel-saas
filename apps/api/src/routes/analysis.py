@@ -19,7 +19,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..config import SUPPORTED_POS_SYSTEMS, get_settings
-from ..dependencies import get_current_user, get_s3_client
+from ..dependencies import get_current_user, get_s3_client, require_pro_tier
 from ..services.analysis import AnalysisService
 from ..services.anonymization import get_anonymization_service
 from ..services.s3 import S3Service
@@ -508,3 +508,228 @@ async def list_supported_pos() -> dict:
         "count": len(SUPPORTED_POS_SYSTEMS),
         "notes": "Column mapping auto-detects formats from these systems",
     }
+
+
+@router.post("/analyze-multi")
+@limiter.limit("5/minute")
+async def analyze_multi_reports(
+    request: Request,
+    keys: list[str] = Form(...),
+    mappings: list[str] = Form(...),  # JSON strings, one per file
+    source_types: list[str] = Form(
+        None
+    ),  # Optional: inventory, catalog, invoice, pos, vendor
+    background_tasks: BackgroundTasks = None,
+    user_id: str = Depends(require_pro_tier),  # Pro tier required
+) -> dict:
+    """
+    Analyze multiple reports for cross-report correlation (Pro feature).
+
+    Supports data from any major POS system. Normalizes SKUs across reports
+    to find cross-source discrepancies and correlated findings.
+
+    Args:
+        keys: List of S3 object keys (one per report)
+        mappings: List of JSON column mapping strings (one per report)
+        source_types: Optional list of source types (inventory, catalog, invoice, pos, vendor)
+                      If not provided, auto-detects from column names.
+        user_id: Current user ID (Pro/Enterprise tier required)
+
+    Returns:
+        Multi-report analysis with:
+        - per_report: Individual analysis results per report
+        - cross_reference: SKUs appearing in multiple sources
+        - unified_findings: Consolidated findings across all reports
+        - tracked_skus: All canonical SKUs found
+    """
+    # Validate input lengths match
+    if len(keys) != len(mappings):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Number of keys ({len(keys)}) must match mappings ({len(mappings)})",
+        )
+
+    if len(keys) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Multi-report analysis requires at least 2 files",
+        )
+
+    if len(keys) > 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 5 files per multi-report analysis",
+        )
+
+    # Parse mappings
+    mapping_dicts = []
+    for i, mapping_json in enumerate(mappings):
+        try:
+            mapping_dict = json.loads(mapping_json)
+            if not isinstance(mapping_dict, dict):
+                raise ValueError("not a dict")
+            mapping_dicts.append(mapping_dict)
+        except (json.JSONDecodeError, ValueError) as e:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid mapping JSON at index {i}: {e}",
+            )
+
+    # Handle source types
+    if source_types and len(source_types) != len(keys):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Number of source_types ({len(source_types)}) must match keys ({len(keys)})",
+        )
+
+    # Validate S3 key ownership (all keys must belong to user)
+    expected_prefix = f"{user_id}/"
+    for key in keys:
+        if not key.startswith(expected_prefix):
+            logger.warning(
+                f"User {user_id} attempted to access unauthorized S3 key: {key}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: you can only analyze your own uploaded files",
+            )
+
+    try:
+        overall_start = time.time()
+        logger.info(f"Starting multi-report analysis for {len(keys)} files")
+
+        settings = get_settings()
+        s3_client = get_s3_client()
+        s3_service = S3Service(s3_client, settings.s3_bucket_name)
+
+        # Load and prepare all reports
+        reports = []
+        all_warnings = []
+
+        for i, (key, mapping_dict) in enumerate(zip(keys, mapping_dicts)):
+            load_start = time.time()
+            df = s3_service.load_dataframe(key)
+            original_columns = df.columns.tolist()
+
+            logger.info(
+                f"Loaded report {i+1}/{len(keys)} ({len(df)} rows, {len(df.columns)} cols) "
+                f"from {key} in {time.time() - load_start:.2f}s"
+            )
+
+            # Apply column mapping
+            df, warnings = _validate_and_apply_mapping(df, mapping_dict)
+            if warnings:
+                all_warnings.extend([f"Report {i+1}: {w}" for w in warnings])
+
+            # Clean numeric columns
+            df = _clean_numeric_columns(df)
+
+            # Drop duplicate columns
+            if df.columns.duplicated().any():
+                dup_cols = df.columns[df.columns.duplicated()].tolist()
+                logger.warning(f"Report {i+1}: dropping duplicate columns: {dup_cols}")
+                df = df.loc[:, ~df.columns.duplicated(keep="first")]
+
+            # Convert to records
+            rows = df.to_dict(orient="records")
+
+            # Determine source type
+            if source_types and i < len(source_types):
+                src_type = source_types[i]
+            else:
+                # Auto-detect from columns
+                src_type = _detect_source_type(original_columns)
+
+            reports.append(
+                {
+                    "rows": rows,
+                    "source_type": src_type,
+                    "columns": original_columns,
+                    "key": key,
+                }
+            )
+
+        # Run multi-report analysis
+        analysis_service = AnalysisService()
+        result = analysis_service.analyze_multi(reports)
+
+        total_time = time.time() - overall_start
+        logger.info(f"Multi-report analysis complete in {total_time:.2f}s")
+
+        # Add status and warnings
+        result["warnings"] = all_warnings if all_warnings else None
+        result["supported_pos_systems"] = SUPPORTED_POS_SYSTEMS
+
+        # Schedule file cleanup
+        if background_tasks:
+            anon_service = get_anonymization_service()
+            for key in keys:
+                background_tasks.add_task(
+                    anon_service.cleanup_s3_file,
+                    s3_client,
+                    settings.s3_bucket_name,
+                    key,
+                    delay_seconds=60,
+                )
+            logger.info(f"Scheduled S3 cleanup for {len(keys)} files")
+
+        return result
+
+    except HTTPException:
+        raise
+    except pd.errors.EmptyDataError:
+        raise HTTPException(
+            status_code=400,
+            detail="One or more uploaded files is empty or has no valid data",
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if "too large" in error_msg.lower() or "size" in error_msg.lower():
+            raise HTTPException(status_code=413, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
+    except Exception as e:
+        logger.error(f"Multi-report analysis failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Multi-report analysis failed: {str(e)}",
+        )
+
+
+def _detect_source_type(columns: list[str]) -> str:
+    """
+    Auto-detect report source type from column names.
+
+    Returns one of: inventory, catalog, invoice, pos, vendor, unknown
+    """
+    cols_lower = [c.lower() for c in columns]
+    cols_text = " ".join(cols_lower)
+
+    # Invoice indicators
+    if any(
+        kw in cols_text for kw in ["invoice", "bill", "po_number", "purchase_order"]
+    ):
+        return "invoice"
+
+    # POS/Sales indicators
+    if any(
+        kw in cols_text for kw in ["transaction", "sale_date", "register", "tender"]
+    ):
+        return "pos"
+
+    # Vendor/Supplier indicators
+    if any(
+        kw in cols_text for kw in ["vendor", "supplier", "manufacturer", "lead_time"]
+    ):
+        return "vendor"
+
+    # Catalog indicators
+    if any(kw in cols_text for kw in ["msrp", "list_price", "catalog", "upc", "ean"]):
+        return "catalog"
+
+    # Inventory (default for stock-heavy reports)
+    if any(
+        kw in cols_text for kw in ["qty", "quantity", "stock", "on_hand", "inventory"]
+    ):
+        return "inventory"
+
+    return "unknown"

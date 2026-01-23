@@ -109,6 +109,16 @@ LEAK_DISPLAY = {
     },
 }
 
+# Impact calculation caps - prevent data anomalies from inflating totals
+# These are module-level constants to avoid N806 lint warnings
+MAX_IMPACTABLE_UNITS = 100  # Don't treat massive negatives as massive losses
+MAX_PER_ITEM_IMPACT = 1000  # $1K max per SKU for negative inventory
+MAX_DEAD_ITEM_IMPACT = 5000  # $5K max per SKU
+MAX_OVERSTOCK_IMPACT = 2000  # $2K max per SKU
+MAX_SHRINKAGE_IMPACT = 2000  # $2K max per SKU
+MAX_MARGIN_IMPACT = 5000  # $5K max per SKU
+MAX_OTHER_IMPACT = 2000  # $2K max per SKU
+
 
 class AnalysisService:
     """Service for VSA-based profit leak analysis with 8 detection primitives."""
@@ -390,8 +400,11 @@ class AnalysisService:
         negative_inv_count = negative_inv_data.get("count", 0)
 
         if negative_inv_count > 0:
-            # Calculate potential untracked COGS for ALL negative inventory items
+            # Calculate potential untracked COGS for negative inventory items
+            # Apply per-item caps since massive negatives are data issues, not losses
             untracked_cogs = 0.0
+            raw_untracked_cogs = 0.0  # For reporting actual data anomaly
+
             for item in negative_inv_items:
                 row = row_lookup.get(item.lower())
                 if row:
@@ -402,20 +415,32 @@ class AnalysisService:
                     )
                     cost = self._safe_float(row.get("cost", row.get("Cost", 0)))
                     if quantity < 0:
-                        untracked_cogs += abs(quantity) * cost
+                        # Raw value for anomaly detection
+                        raw_untracked_cogs += abs(quantity) * cost
+                        # Capped value for realistic impact estimate
+                        capped_qty = min(abs(quantity), MAX_IMPACTABLE_UNITS)
+                        untracked_cogs += min(capped_qty * cost, MAX_PER_ITEM_IMPACT)
 
-            # Apply sanity cap - flag as anomalous if exceeds threshold
-            # Hard cap at $1M for single store, or flag for audit
-            anomaly_threshold = 1_000_000  # $1M hard cap
-            is_anomalous = untracked_cogs > anomaly_threshold
+            # Flag as anomalous if raw value way exceeds capped value
+            # This indicates data integrity issues, not actual losses
+            anomaly_threshold = 100_000  # Flag if raw > $100K (indicates data issues)
+            is_anomalous = raw_untracked_cogs > anomaly_threshold
 
             impact["negative_inventory_alert"] = {
                 "items_found": negative_inv_count,
-                "potential_untracked_cogs": round(untracked_cogs, 2),
+                "potential_untracked_cogs": round(untracked_cogs, 2),  # Capped estimate
+                "raw_data_anomaly_value": (
+                    round(raw_untracked_cogs, 2) if is_anomalous else None
+                ),
                 "is_anomalous": is_anomalous,
                 "threshold_exceeded": is_anomalous,
                 "requires_audit": True,
                 "excluded_from_annual_estimate": True,
+                "note": (
+                    "Capped estimate - actual data suggests system sync issues"
+                    if is_anomalous
+                    else None
+                ),
             }
 
         for primitive, data in leaks.items():
@@ -479,8 +504,12 @@ class AnalysisService:
                     return (expected_margin - actual_margin) * revenue * max(sold, 1)
 
         elif primitive == "negative_inventory":
-            # Impact = lost inventory value
-            return abs(quantity) * cost if quantity < 0 else 0
+            # Negative inventory = data integrity issue, not direct loss
+            # Cap at reasonable estimate of untracked COGS per item
+            if quantity < 0:
+                capped_quantity = min(abs(quantity), MAX_IMPACTABLE_UNITS)
+                return min(capped_quantity * cost, MAX_PER_ITEM_IMPACT)
+            return 0
 
         elif primitive == "low_stock":
             # Impact = potential lost sales (assume 50% lost)
@@ -489,20 +518,28 @@ class AnalysisService:
                 return margin_per_unit * 5  # Assume 5 lost sales
 
         elif primitive == "dead_item":
-            # Impact = capital tied up
-            return quantity * cost if quantity > 0 else 0
+            # Impact = capital tied up (but we only recover ~20% via clearance)
+            # Cap to avoid unrealistic totals from high-qty dead items
+            if quantity > 0:
+                tied_up_capital = quantity * cost * 0.20  # Recovery rate ~20%
+                return min(tied_up_capital, MAX_DEAD_ITEM_IMPACT)
+            return 0
 
         elif primitive == "overstock":
             # Impact = carrying cost (assume 20% annual, monthly = 1.67%)
+            # Cap to avoid unrealistic totals
             excess = max(0, quantity - 30)  # Assume 30 is optimal
-            return excess * cost * 0.0167
+            carrying_cost = excess * cost * 0.0167
+            return min(carrying_cost, MAX_OVERSTOCK_IMPACT)
 
         elif primitive == "shrinkage_pattern":
-            # Impact = shrinkage value
+            # Impact = shrinkage value, capped to avoid data anomaly inflation
             diff = self._safe_float(
                 row.get("qty_difference", row.get("Qty. Difference", 0))
             )
-            return abs(diff) * cost if diff < 0 else 0
+            if diff < 0:
+                return min(abs(diff) * cost, MAX_SHRINKAGE_IMPACT)
+            return 0
 
         elif primitive == "margin_erosion":
             # Impact = margin shortfall relative to average
@@ -1024,24 +1061,40 @@ class AnalysisService:
         negative_inv_count = negative_inv_data.get("count", 0)
 
         if negative_inv_count > 0:
-            # Calculate potential untracked COGS
+            # Calculate potential untracked COGS with per-item caps
+            # Massive negatives are data issues, not actual losses
             untracked_cogs = 0.0
+            raw_untracked_cogs = 0.0
+
             for sku in negative_inv_items:
                 item = item_lookup.get(sku)
                 if item and item["quantity"] < 0:
-                    untracked_cogs += abs(item["quantity"]) * item["cost"]
+                    raw_value = abs(item["quantity"]) * item["cost"]
+                    raw_untracked_cogs += raw_value
+                    capped_qty = min(abs(item["quantity"]), MAX_IMPACTABLE_UNITS)
+                    untracked_cogs += min(
+                        capped_qty * item["cost"], MAX_PER_ITEM_IMPACT
+                    )
 
-            # Apply sanity cap
-            anomaly_threshold = 1_000_000  # $1M hard cap
-            is_anomalous = untracked_cogs > anomaly_threshold
+            # Flag as anomalous if raw value indicates data integrity issues
+            anomaly_threshold = 100_000  # $100K threshold
+            is_anomalous = raw_untracked_cogs > anomaly_threshold
 
             impact["negative_inventory_alert"] = {
                 "items_found": negative_inv_count,
                 "potential_untracked_cogs": round(untracked_cogs, 2),
+                "raw_data_anomaly_value": (
+                    round(raw_untracked_cogs, 2) if is_anomalous else None
+                ),
                 "is_anomalous": is_anomalous,
                 "threshold_exceeded": is_anomalous,
                 "requires_audit": True,
                 "excluded_from_annual_estimate": True,
+                "note": (
+                    "Capped estimate - actual data suggests system sync issues"
+                    if is_anomalous
+                    else None
+                ),
             }
 
         for primitive, data in leaks.items():
@@ -1058,20 +1111,25 @@ class AnalysisService:
                 impact["breakdown"][primitive] = 0.0
                 continue
 
-            # Calculate impact for sampled items
+            # Calculate impact for sampled items with per-item caps
+            # to avoid data anomalies inflating totals
             sample_impact = 0.0
             for sku in top_items[:sample_size]:
                 item = item_lookup.get(sku)
                 if item:
-                    # Simple impact estimation
+                    # Simple impact estimation with caps
                     if primitive in ["high_margin_leak", "margin_erosion"]:
-                        sample_impact += item["revenue"] * 0.1 * max(item["sold"], 1)
+                        item_impact = item["revenue"] * 0.1 * max(item["sold"], 1)
+                        sample_impact += min(item_impact, MAX_MARGIN_IMPACT)
                     elif primitive == "dead_item":
-                        sample_impact += item["quantity"] * item["cost"] * 0.2
+                        item_impact = item["quantity"] * item["cost"] * 0.2
+                        sample_impact += min(item_impact, MAX_DEAD_ITEM_IMPACT)
                     elif primitive == "overstock":
-                        sample_impact += item["sub_total"] * 0.05
+                        item_impact = item["sub_total"] * 0.05
+                        sample_impact += min(item_impact, MAX_OVERSTOCK_IMPACT)
                     else:
-                        sample_impact += item["sub_total"] * 0.02
+                        item_impact = item["sub_total"] * 0.02
+                        sample_impact += min(item_impact, MAX_OTHER_IMPACT)
 
             # Extrapolate to full count with conservative scaling
             if sample_impact > 0:
@@ -1112,4 +1170,246 @@ class AnalysisService:
             "recommendations": metadata.get("recommendations", []),
             "icon": display.get("icon", "alert"),
             "color": display.get("color", "#6b7280"),
+        }
+
+    def analyze_multi(self, reports: list[dict]) -> dict:
+        """
+        Analyze multiple reports for cross-report correlation (Pro feature).
+
+        Uses VSA multi-report bundling with source provenance vectors to:
+        - Normalize SKUs across reports for matching
+        - Tag findings with source attribution
+        - Find cross-source correlations (e.g., inventory vs invoice discrepancies)
+
+        Args:
+            reports: List of dicts with 'rows', 'source_type', and optional 'columns'
+                     Example: [
+                         {"rows": [...], "source_type": "inventory", "columns": [...]},
+                         {"rows": [...], "source_type": "invoice", "columns": [...]}
+                     ]
+
+        Returns:
+            Multi-report analysis with:
+            - per_report: Individual analysis results per report
+            - cross_reference: SKUs appearing in multiple sources with discrepancies
+            - unified_findings: Consolidated findings across all reports
+            - tracked_skus: All canonical SKUs found across reports
+        """
+        if not self._engine_available:
+            return self._mock_multi_analysis(reports)
+
+        start_time = time.time()
+
+        # Import multi-report functions
+        try:
+            from sentinel_engine import (
+                bundle_multi_reports,
+                query_cross_reference,
+            )
+        except ImportError as e:
+            logger.warning(f"Multi-report functions not available: {e}")
+            return self._mock_multi_analysis(reports)
+
+        # Create fresh context
+        ctx = self._create_context()
+        logger.debug(f"Created multi-report context: {ctx.get_summary()}")
+
+        try:
+            # Bundle all reports with source provenance
+            bundle_start = time.time()
+            bundle, tracked_skus = bundle_multi_reports(
+                ctx,
+                reports,
+                normalize_skus=True,
+                strip_variants=False,  # Preserve variant suffixes by default
+            )
+            bundle_time = time.time() - bundle_start
+
+            total_rows = sum(len(r.get("rows", [])) for r in reports)
+            logger.info(
+                f"Bundled {len(reports)} reports ({total_rows} total rows) "
+                f"in {bundle_time:.2f}s - tracked {len(tracked_skus)} SKUs"
+            )
+
+            # Query cross-references
+            cross_ref_start = time.time()
+            cross_refs = query_cross_reference(
+                ctx,
+                bundle,
+                tracked_skus,
+                normalize=True,
+                strip_variants=False,
+            )
+            cross_ref_time = time.time() - cross_ref_start
+            logger.info(
+                f"Cross-reference query found {len(cross_refs)} SKUs "
+                f"in {cross_ref_time:.2f}s"
+            )
+
+            # Filter to SKUs with findings in multiple sources
+            multi_source_findings = [
+                ref for ref in cross_refs if len(ref.get("sources", [])) > 1
+            ]
+
+            # Run individual analysis on each report for detailed findings
+            per_report_results = []
+            for i, report in enumerate(reports):
+                rows = report.get("rows", [])
+                source_type = report.get("source_type", "unknown")
+                if rows:
+                    single_result = self.analyze(rows)
+                    single_result["source_type"] = source_type
+                    single_result["report_index"] = i
+                    per_report_results.append(single_result)
+
+            # Consolidate unified findings
+            unified_findings = self._consolidate_findings(
+                per_report_results, multi_source_findings
+            )
+
+            total_time = time.time() - start_time
+            logger.info(f"Multi-report analysis complete in {total_time:.2f}s")
+
+            return {
+                "status": "success",
+                "per_report": per_report_results,
+                "cross_reference": multi_source_findings,
+                "unified_findings": unified_findings,
+                "tracked_skus": list(tracked_skus),
+                "summary": {
+                    "reports_analyzed": len(reports),
+                    "total_rows": total_rows,
+                    "unique_skus": len(tracked_skus),
+                    "cross_source_items": len(multi_source_findings),
+                    "analysis_time_seconds": round(total_time, 2),
+                },
+                "pro_feature": True,
+            }
+
+        finally:
+            if ctx is not None:
+                ctx.reset()
+                logger.debug("Multi-report context cleaned up")
+
+    def _consolidate_findings(
+        self,
+        per_report: list[dict],
+        cross_refs: list[dict],
+    ) -> dict:
+        """
+        Consolidate findings from multiple reports into unified view.
+
+        Prioritizes:
+        1. Cross-source discrepancies (highest priority)
+        2. Critical issues from any source
+        3. High-severity issues
+        """
+        unified = {
+            "critical_items": [],
+            "cross_source_discrepancies": [],
+            "high_priority_items": [],
+            "total_impact_estimate": {
+                "low": 0.0,
+                "high": 0.0,
+                "currency": "USD",
+            },
+        }
+
+        # Add cross-source discrepancies as highest priority
+        for ref in cross_refs:
+            if len(ref.get("sources", [])) > 1:
+                unified["cross_source_discrepancies"].append(
+                    {
+                        "sku": ref.get("sku"),
+                        "sources": ref.get("sources", []),
+                        "findings": ref.get("findings", []),
+                        "similarity": ref.get("similarity", 0),
+                    }
+                )
+
+        # Aggregate findings from each report
+        seen_skus = set()
+        for report in per_report:
+            source_type = report.get("source_type", "unknown")
+            leaks = report.get("leaks", {})
+            summary = report.get("summary", {})
+
+            # Aggregate impact estimates
+            impact = summary.get("estimated_impact", {})
+            unified["total_impact_estimate"]["low"] += impact.get("low_estimate", 0)
+            unified["total_impact_estimate"]["high"] += impact.get("high_estimate", 0)
+
+            # Collect critical items
+            for primitive in ["high_margin_leak", "negative_inventory"]:
+                if primitive in leaks:
+                    for item in leaks[primitive].get("item_details", [])[:5]:
+                        sku = item.get("sku", "")
+                        if sku and sku not in seen_skus:
+                            unified["critical_items"].append(
+                                {
+                                    **item,
+                                    "source": source_type,
+                                    "primitive": primitive,
+                                }
+                            )
+                            seen_skus.add(sku)
+
+            # Collect high priority items
+            for primitive in ["low_stock", "shrinkage_pattern"]:
+                if primitive in leaks:
+                    for item in leaks[primitive].get("item_details", [])[:5]:
+                        sku = item.get("sku", "")
+                        if sku and sku not in seen_skus:
+                            unified["high_priority_items"].append(
+                                {
+                                    **item,
+                                    "source": source_type,
+                                    "primitive": primitive,
+                                }
+                            )
+                            seen_skus.add(sku)
+
+        # Round impact estimates
+        unified["total_impact_estimate"]["low"] = round(
+            unified["total_impact_estimate"]["low"], 2
+        )
+        unified["total_impact_estimate"]["high"] = round(
+            unified["total_impact_estimate"]["high"], 2
+        )
+
+        return unified
+
+    def _mock_multi_analysis(self, reports: list[dict]) -> dict:
+        """Fallback analysis when VSA engine is unavailable."""
+        logger.warning("Using mock multi-report analysis - VSA engine not available")
+
+        per_report = []
+        for i, report in enumerate(reports):
+            rows = report.get("rows", [])
+            source_type = report.get("source_type", "unknown")
+            result = self._mock_analysis(rows)
+            result["source_type"] = source_type
+            result["report_index"] = i
+            per_report.append(result)
+
+        return {
+            "status": "success",
+            "per_report": per_report,
+            "cross_reference": [],
+            "unified_findings": {
+                "critical_items": [],
+                "cross_source_discrepancies": [],
+                "high_priority_items": [],
+                "total_impact_estimate": {"low": 0.0, "high": 0.0, "currency": "USD"},
+            },
+            "tracked_skus": [],
+            "summary": {
+                "reports_analyzed": len(reports),
+                "total_rows": sum(len(r.get("rows", [])) for r in reports),
+                "unique_skus": 0,
+                "cross_source_items": 0,
+                "analysis_time_seconds": 0.1,
+            },
+            "pro_feature": True,
+            "mock": True,
         }
