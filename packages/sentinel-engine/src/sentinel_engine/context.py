@@ -48,12 +48,12 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 VALIDATION_THRESHOLDS = {
-    "noise_floor": 0.01,           # ~1/√d for d=16384
-    "rejection_threshold": 0.10,    # Below this = reject claim
-    "low_confidence": 0.25,         # Flag for review
-    "moderate_confidence": 0.40,    # Acceptable for suggestions
-    "high_confidence": 0.60,        # Strong claims allowed
-    "very_high_confidence": 0.80,   # Definitive statements
+    "noise_floor": 0.01,  # ~1/√d for d=16384
+    "rejection_threshold": 0.10,  # Below this = reject claim
+    "low_confidence": 0.25,  # Flag for review
+    "moderate_confidence": 0.40,  # Acceptable for suggestions
+    "high_confidence": 0.60,  # Strong claims allowed
+    "very_high_confidence": 0.80,  # Definitive statements
 }
 
 
@@ -85,9 +85,10 @@ class SparseVector:
         dimensions: Total dimensionality D of the full vector
         density: Sparsity level K/D (fraction of non-zero elements)
     """
+
     indices: torch.Tensor  # Shape: (K,) - indices of non-zero elements
-    phases: torch.Tensor   # Shape: (K,) - phases at those indices
-    dimensions: int        # Total dimensionality D
+    phases: torch.Tensor  # Shape: (K,) - phases at those indices
+    dimensions: int  # Total dimensionality D
     density: float = field(default=0.1)  # K/D ratio
 
     def __post_init__(self):
@@ -104,7 +105,9 @@ class SparseVector:
         """Return K, the number of non-zero elements."""
         return len(self.indices)
 
-    def to_dense(self, device: torch.device | None = None, dtype: torch.dtype = torch.complex64) -> torch.Tensor:
+    def to_dense(
+        self, device: torch.device | None = None, dtype: torch.dtype = torch.complex64
+    ) -> torch.Tensor:
         """
         Convert sparse vector to dense complex vector.
 
@@ -120,10 +123,9 @@ class SparseVector:
 
         dense = torch.zeros(self.dimensions, dtype=dtype, device=device)
         # e^(i*phase) = cos(phase) + i*sin(phase)
-        values = torch.complex(
-            torch.cos(self.phases),
-            torch.sin(self.phases)
-        ).to(dtype=dtype, device=device)
+        values = torch.complex(torch.cos(self.phases), torch.sin(self.phases)).to(
+            dtype=dtype, device=device
+        )
         dense[self.indices.long()] = values
         return dense
 
@@ -267,7 +269,9 @@ class SparseVSA:
             density=k / self.dimensions,
         )
 
-    def seed_hash(self, string: str, device: torch.device = torch.device("cpu")) -> SparseVector:
+    def seed_hash(
+        self, string: str, device: torch.device = torch.device("cpu")
+    ) -> SparseVector:
         """
         Generate deterministic SparseVector from string.
 
@@ -282,10 +286,10 @@ class SparseVSA:
         """
         # Create deterministic seed from string
         hash_bytes = hashlib.sha256(string.encode()).digest()
-        seed = int.from_bytes(hash_bytes[:8], byteorder='big')
+        seed = int.from_bytes(hash_bytes[:8], byteorder="big")
 
         # Use generator for reproducibility
-        gen = torch.Generator(device='cpu').manual_seed(seed)
+        gen = torch.Generator(device="cpu").manual_seed(seed)
 
         k = self.default_sparsity
         indices = torch.randperm(self.dimensions, generator=gen)[:k].to(device)
@@ -337,7 +341,9 @@ class SparseVSA:
 
         # Compute bound phases at common indices
         result_indices = torch.tensor(common, dtype=torch.long, device=a.indices.device)
-        result_phases = torch.zeros(len(common), dtype=torch.float32, device=a.phases.device)
+        result_phases = torch.zeros(
+            len(common), dtype=torch.float32, device=a.phases.device
+        )
 
         for i, idx in enumerate(common):
             phase_a = a.phases[a_idx_to_pos[idx]]
@@ -367,7 +373,9 @@ class SparseVSA:
             Unbound SparseVector (approximate original)
         """
         if bound.dimensions != key.dimensions:
-            raise ValueError(f"Dimension mismatch: {bound.dimensions} vs {key.dimensions}")
+            raise ValueError(
+                f"Dimension mismatch: {bound.dimensions} vs {key.dimensions}"
+            )
 
         # Find common indices
         bound_idx_set = set(bound.indices.tolist())
@@ -377,7 +385,9 @@ class SparseVSA:
         if not common:
             return SparseVector(
                 indices=torch.tensor([], dtype=torch.long, device=bound.indices.device),
-                phases=torch.tensor([], dtype=torch.float32, device=bound.phases.device),
+                phases=torch.tensor(
+                    [], dtype=torch.float32, device=bound.phases.device
+                ),
                 dimensions=bound.dimensions,
                 density=0.0,
             )
@@ -385,8 +395,12 @@ class SparseVSA:
         bound_idx_to_pos = {idx: pos for pos, idx in enumerate(bound.indices.tolist())}
         key_idx_to_pos = {idx: pos for pos, idx in enumerate(key.indices.tolist())}
 
-        result_indices = torch.tensor(common, dtype=torch.long, device=bound.indices.device)
-        result_phases = torch.zeros(len(common), dtype=torch.float32, device=bound.phases.device)
+        result_indices = torch.tensor(
+            common, dtype=torch.long, device=bound.indices.device
+        )
+        result_phases = torch.zeros(
+            len(common), dtype=torch.float32, device=bound.phases.device
+        )
 
         for i, idx in enumerate(common):
             phase_bound = bound.phases[bound_idx_to_pos[idx]]
@@ -401,7 +415,9 @@ class SparseVSA:
             density=len(common) / bound.dimensions,
         )
 
-    def bundle(self, vectors: Sequence[SparseVector], weights: Sequence[float] | None = None) -> SparseVector:
+    def bundle(
+        self, vectors: Sequence[SparseVector], weights: Sequence[float] | None = None
+    ) -> SparseVector:
         """
         Bundle multiple SparseVectors into a superposition.
 
@@ -426,7 +442,9 @@ class SparseVSA:
             weights = [1.0] * len(vectors)
 
         # Collect all indices across all vectors
-        all_indices: dict[int, list[tuple[float, float]]] = {}  # idx -> [(phase, weight), ...]
+        all_indices: dict[int, list[tuple[float, float]]] = (
+            {}
+        )  # idx -> [(phase, weight), ...]
 
         for vec, weight in zip(vectors, weights):
             for i, idx in enumerate(vec.indices.tolist()):
@@ -498,10 +516,11 @@ class DiracVector:
         phase: Single complex number - oscillation/negation state
         entropy: Non-negative float - information loss tracking
     """
-    spatial: torch.Tensor    # Shape: (d,), dtype: complex64
-    temporal: torch.Tensor   # Shape: (d,), dtype: complex64
-    phase: complex           # Single complex number (oscillation tracking)
-    entropy: float           # Non-negative scalar (information loss)
+
+    spatial: torch.Tensor  # Shape: (d,), dtype: complex64
+    temporal: torch.Tensor  # Shape: (d,), dtype: complex64
+    phase: complex  # Single complex number (oscillation tracking)
+    entropy: float  # Non-negative scalar (information loss)
 
     def __post_init__(self):
         """Validate tensor shapes and types."""
@@ -536,7 +555,9 @@ class DiracVector:
             Complex tensor of shape (d,) combining both components
         """
         # Weighted combination with phase rotation applied
-        phase_tensor = torch.tensor(self.phase, dtype=self.spatial.dtype, device=self.device)
+        phase_tensor = torch.tensor(
+            self.phase, dtype=self.spatial.dtype, device=self.device
+        )
         return self.spatial * phase_tensor + self.temporal
 
     def negate(self) -> DiracVector:
@@ -550,6 +571,7 @@ class DiracVector:
             Negated DiracVector with phase rotated by π
         """
         import cmath
+
         new_phase = self.phase * cmath.exp(1j * math.pi)  # Rotate by π
         return DiracVector(
             spatial=self.spatial.clone(),
@@ -681,15 +703,13 @@ class DiracVSA:
         # Random phases for spatial component
         spatial_phases = torch.rand(self.dimensions, device=self.device) * 2 * math.pi
         spatial = torch.complex(
-            torch.cos(spatial_phases),
-            torch.sin(spatial_phases)
+            torch.cos(spatial_phases), torch.sin(spatial_phases)
         ).to(self.dtype)
 
         # Random phases for temporal component
         temporal_phases = torch.rand(self.dimensions, device=self.device) * 2 * math.pi
         temporal = torch.complex(
-            torch.cos(temporal_phases),
-            torch.sin(temporal_phases)
+            torch.cos(temporal_phases), torch.sin(temporal_phases)
         ).to(self.dtype)
 
         # Initial phase = 1+0j (no rotation)
@@ -716,24 +736,22 @@ class DiracVSA:
 
         # Create deterministic seed from string
         hash_bytes = hashlib.sha256(string.encode()).digest()
-        seed = int.from_bytes(hash_bytes[:8], byteorder='big')
+        seed = int.from_bytes(hash_bytes[:8], byteorder="big")
 
         # Use generator for reproducibility
-        gen = torch.Generator(device='cpu').manual_seed(seed)
+        gen = torch.Generator(device="cpu").manual_seed(seed)
 
         # Generate spatial phases
         spatial_phases = torch.rand(self.dimensions, generator=gen) * 2 * math.pi
         spatial = torch.complex(
-            torch.cos(spatial_phases),
-            torch.sin(spatial_phases)
+            torch.cos(spatial_phases), torch.sin(spatial_phases)
         ).to(dtype=self.dtype, device=self.device)
 
         # Generate temporal phases (different seed)
-        gen2 = torch.Generator(device='cpu').manual_seed(seed ^ 0xDEADBEEF)
+        gen2 = torch.Generator(device="cpu").manual_seed(seed ^ 0xDEADBEEF)
         temporal_phases = torch.rand(self.dimensions, generator=gen2) * 2 * math.pi
         temporal = torch.complex(
-            torch.cos(temporal_phases),
-            torch.sin(temporal_phases)
+            torch.cos(temporal_phases), torch.sin(temporal_phases)
         ).to(dtype=self.dtype, device=self.device)
 
         return DiracVector(
@@ -839,7 +857,9 @@ class DiracVSA:
         )
 
         # Unbind phases
-        recovered_phase = bound.phase / cause.phase if abs(cause.phase) > 1e-8 else bound.phase
+        recovered_phase = (
+            bound.phase / cause.phase if abs(cause.phase) > 1e-8 else bound.phase
+        )
 
         # Entropy doesn't decrease (second law)
         recovered_entropy = bound.entropy
@@ -882,7 +902,9 @@ class DiracVSA:
         # No inverse permutation - this creates the asymmetry degradation
 
         # Unbind phases
-        recovered_phase = bound.phase / effect.phase if abs(effect.phase) > 1e-8 else bound.phase
+        recovered_phase = (
+            bound.phase / effect.phase if abs(effect.phase) > 1e-8 else bound.phase
+        )
 
         # Entropy further increases due to noisy recovery
         recovered_entropy = bound.entropy + self.ENTROPY_INCREMENT
@@ -926,20 +948,18 @@ class DiracVSA:
             weights = [w / total for w in weights]
 
         # Weighted sum of spatial components
-        spatial_sum = sum(
-            v.spatial * w for v, w in zip(vectors, weights)
-        )
+        spatial_sum = sum(v.spatial * w for v, w in zip(vectors, weights))
         bundled_spatial = self.normalize(spatial_sum)
 
         # Weighted sum of temporal components
-        temporal_sum = sum(
-            v.temporal * w for v, w in zip(vectors, weights)
-        )
+        temporal_sum = sum(v.temporal * w for v, w in zip(vectors, weights))
         bundled_temporal = self.normalize(temporal_sum)
 
         # Average phase (circular mean)
         phase_sum = sum(v.phase * w for v, w in zip(vectors, weights))
-        bundled_phase = phase_sum / abs(phase_sum) if abs(phase_sum) > 1e-8 else complex(1.0, 0.0)
+        bundled_phase = (
+            phase_sum / abs(phase_sum) if abs(phase_sum) > 1e-8 else complex(1.0, 0.0)
+        )
 
         # Entropy is max of inputs (superposition doesn't lose info)
         bundled_entropy = max(v.entropy for v in vectors)
@@ -1101,9 +1121,7 @@ class AnalysisContext:
         # Convert bytes to phases in [0, 2π)
         # Each byte gives us one element (0-255 → 0-2π)
         byte_values = torch.tensor(
-            [b for b in expanded],
-            dtype=torch.float32,
-            device=self.device
+            [b for b in expanded], dtype=torch.float32, device=self.device
         )
         phases = byte_values / 255.0 * 2 * torch.pi
 
@@ -1313,22 +1331,22 @@ class AnalysisContext:
 
         # Logical primitives (symbolic reasoning)
         logical_primitives = [
-            "and",        # Conjunction: bind(and, bind(A, B))
-            "or",         # Disjunction: bundle(bind(or, A), bind(or, B))
-            "implies",    # Implication: bind(implies, bind(antecedent, consequent))
-            "not",        # Negation: bind(not, A) - approximate
-            "forall",     # Universal: bind(forall, bind(variable, predicate))
-            "exists",     # Existential: bind(exists, bind(variable, predicate))
-            "equals",     # Identity: bind(equals, bind(A, B))
+            "and",  # Conjunction: bind(and, bind(A, B))
+            "or",  # Disjunction: bundle(bind(or, A), bind(or, B))
+            "implies",  # Implication: bind(implies, bind(antecedent, consequent))
+            "not",  # Negation: bind(not, A) - approximate
+            "forall",  # Universal: bind(forall, bind(variable, predicate))
+            "exists",  # Existential: bind(exists, bind(variable, predicate))
+            "equals",  # Identity: bind(equals, bind(A, B))
         ]
 
         # Temporal/Causal primitives
         temporal_primitives = [
-            "causes",      # Causal (asymmetric): permute(bind(causes, A)) ⊗ B
-            "before",      # Temporal precedence
-            "after",       # Temporal succession
-            "during",      # Temporal overlap
-            "trend_up",    # Directional change
+            "causes",  # Causal (asymmetric): permute(bind(causes, A)) ⊗ B
+            "before",  # Temporal precedence
+            "after",  # Temporal succession
+            "during",  # Temporal overlap
+            "trend_up",  # Directional change
             "trend_down",  # Directional change
         ]
 
@@ -1481,11 +1499,13 @@ class AnalysisContext:
                 bundle, entity_vec, min_confidence
             )
             if is_valid:
-                grounded_results.append({
-                    "entity": entity,
-                    "similarity": sim,
-                    "confidence_level": confidence,
-                })
+                grounded_results.append(
+                    {
+                        "entity": entity,
+                        "similarity": sim,
+                        "confidence_level": confidence,
+                    }
+                )
 
             if len(grounded_results) >= top_k:
                 break
@@ -1519,9 +1539,7 @@ class AnalysisContext:
         target_norm = self.normalize(target)
 
         # Batch dot product: (N, D) @ (D,) -> (N,)
-        similarities = torch.real(
-            torch.sum(vectors_norm * target_norm.conj(), dim=-1)
-        )
+        similarities = torch.real(torch.sum(vectors_norm * target_norm.conj(), dim=-1))
         return similarities
 
     def batch_validate_claims(
