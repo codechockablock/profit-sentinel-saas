@@ -26,16 +26,18 @@ Author: Claude Opus 4.5 (Principal Systems Engineer)
 Version: 2.1.0
 """
 
+import hashlib
 import json
-import os
 import random
 import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
-import hashlib
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import torch
 
 # Add packages to path
 SCRIPT_DIR = Path(__file__).parent
@@ -48,7 +50,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "packages" / "vsa-core" / "src"))
 # ENVIRONMENT VERIFICATION
 # =============================================================================
 
-def verify_environment() -> Dict[str, Any]:
+def verify_environment() -> dict[str, Any]:
     """Verify torch installation and GPU availability."""
     env_info = {
         "torch_available": False,
@@ -87,7 +89,7 @@ def verify_environment() -> Dict[str, Any]:
 class DetectionResult:
     """Results from a detector for a single primitive."""
     primitive: str
-    detected_skus: Set[str] = field(default_factory=set)
+    detected_skus: set[str] = field(default_factory=set)
     true_positives: int = 0
     false_positives: int = 0
     false_negatives: int = 0
@@ -95,7 +97,7 @@ class DetectionResult:
     recall: float = 0.0
     f1: float = 0.0
 
-    def calculate(self, ground_truth: Set[str]):
+    def calculate(self, ground_truth: set[str]):
         """Calculate metrics against ground truth."""
         truth_lower = {s.lower() for s in ground_truth}
         detected_lower = {s.lower() for s in self.detected_skus}
@@ -111,7 +113,7 @@ class DetectionResult:
         if self.precision + self.recall > 0:
             self.f1 = 2 * (self.precision * self.recall) / (self.precision + self.recall)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "precision": self.precision,
             "recall": self.recall,
@@ -130,9 +132,9 @@ class ResonatorValidation:
     converged: bool
     iterations: int
     final_similarity: float
-    top_k_matches: List[Tuple[str, float]]
+    top_k_matches: list[tuple[str, float]]
     status: str  # "consistent", "non_convergent", "contradictory"
-    flags: List[str] = field(default_factory=list)
+    flags: list[str] = field(default_factory=list)
 
 
 # =============================================================================
@@ -161,7 +163,7 @@ class SyntheticDataGenerator:
         self,
         n_total: int = 10000,
         anomaly_rate: float = 0.05
-    ) -> Tuple[List[Dict], Dict[str, Set[str]]]:
+    ) -> tuple[list[dict], dict[str, set[str]]]:
         """Generate dataset with specified anomaly rate per primitive."""
         n_per_primitive = int(n_total * anomaly_rate)
         n_normal = n_total - (n_per_primitive * len(self.PRIMITIVES))
@@ -185,7 +187,7 @@ class SyntheticDataGenerator:
         random.shuffle(rows)
         return rows, ground_truth
 
-    def _normal_item(self, sku: str) -> Dict:
+    def _normal_item(self, sku: str) -> dict:
         cost = random.uniform(5, 100)
         margin = random.uniform(0.25, 0.50)
         revenue = cost / (1 - margin)
@@ -207,7 +209,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_low_stock(self, sku: str) -> Dict:
+    def _gen_low_stock(self, sku: str) -> dict:
         cost = random.uniform(10, 80)
         margin = random.uniform(0.30, 0.45)
         revenue = cost / (1 - margin)
@@ -225,7 +227,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_high_margin_leak(self, sku: str) -> Dict:
+    def _gen_high_margin_leak(self, sku: str) -> dict:
         cost = random.uniform(20, 100)
         if random.random() < 0.5:
             revenue = cost * random.uniform(0.75, 0.98)
@@ -245,7 +247,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_dead_item(self, sku: str) -> Dict:
+    def _gen_dead_item(self, sku: str) -> dict:
         cost = random.uniform(10, 60)
         margin = random.uniform(0.30, 0.40)
         revenue = cost / (1 - margin)
@@ -263,7 +265,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_negative_inventory(self, sku: str) -> Dict:
+    def _gen_negative_inventory(self, sku: str) -> dict:
         cost = random.uniform(15, 120)
         margin = random.uniform(0.30, 0.40)
         revenue = cost / (1 - margin)
@@ -281,7 +283,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_overstock(self, sku: str) -> Dict:
+    def _gen_overstock(self, sku: str) -> dict:
         cost = random.uniform(10, 50)
         margin = random.uniform(0.30, 0.40)
         revenue = cost / (1 - margin)
@@ -301,7 +303,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_price_discrepancy(self, sku: str) -> Dict:
+    def _gen_price_discrepancy(self, sku: str) -> dict:
         cost = random.uniform(20, 80)
         sug_retail = cost * random.uniform(1.8, 2.5)
         actual_price = sug_retail * random.uniform(0.5, 0.75)
@@ -319,7 +321,7 @@ class SyntheticDataGenerator:
             "qty_difference": 0,
         }
 
-    def _gen_shrinkage_pattern(self, sku: str) -> Dict:
+    def _gen_shrinkage_pattern(self, sku: str) -> dict:
         cost = random.uniform(20, 100)
         margin = random.uniform(0.30, 0.40)
         revenue = cost / (1 - margin)
@@ -337,7 +339,7 @@ class SyntheticDataGenerator:
             "qty_difference": random.randint(-30, -5),
         }
 
-    def _gen_margin_erosion(self, sku: str) -> Dict:
+    def _gen_margin_erosion(self, sku: str) -> dict:
         cost = random.uniform(30, 100)
         margin = random.uniform(0.05, 0.18)
         revenue = cost / (1 - margin)
@@ -398,7 +400,7 @@ class BaselineDetector:
             "margin_erosion_threshold": 0.20,
         }
 
-    def detect(self, rows: List[Dict]) -> Tuple[Dict[str, Set[str]], Dict[str, List[Dict]]]:
+    def detect(self, rows: list[dict]) -> tuple[dict[str, set[str]], dict[str, list[dict]]]:
         """
         Run all detection rules on dataset.
 
@@ -411,13 +413,11 @@ class BaselineDetector:
         candidates = {p: [] for p in SyntheticDataGenerator.PRIMITIVES}
 
         # Calculate dataset statistics
-        quantities = [self._safe_float(r.get("quantity", 0)) for r in rows]
         sold_vals = [self._safe_float(r.get("sold", 0)) for r in rows]
-        avg_qty = sum(quantities) / len(quantities) if quantities else 0
         avg_sold = sum(sold_vals) / len(sold_vals) if sold_vals else 0
 
         # Category margins
-        category_margins: Dict[str, List[float]] = {}
+        category_margins: dict[str, list[float]] = {}
         all_margins = []
         for row in rows:
             category = str(row.get("category", "unknown")).lower()
@@ -630,7 +630,7 @@ class VSAResonator:
         self,
         sku: str,
         primitive: str,
-        codebook: Dict[str, "torch.Tensor"]
+        codebook: dict[str, "torch.Tensor"]
     ) -> ResonatorValidation:
         """
         Validate a single detection using resonator.
@@ -690,7 +690,7 @@ class VSAResonator:
         x = query.clone()
         x_prev = x.clone()
         converged = False
-        final_delta = float('inf')
+        float('inf')
         iterations = 0
 
         for i in range(self.max_iterations):
@@ -718,11 +718,9 @@ class VSAResonator:
             if delta < self.convergence_threshold:
                 converged = True
                 iterations = i + 1
-                final_delta = delta
                 break
 
             x_prev = x.clone()
-            final_delta = delta
         else:
             iterations = self.max_iterations
 
@@ -771,8 +769,8 @@ class VSAResonator:
 
     def detect_contradictions(
         self,
-        detections: Dict[str, Set[str]]
-    ) -> List[Dict[str, Any]]:
+        detections: dict[str, set[str]]
+    ) -> list[dict[str, Any]]:
         """
         Detect contradictory detections (e.g., low_stock AND overstock for same SKU).
         """
@@ -793,9 +791,9 @@ class VSAResonator:
 
     def validate_batch(
         self,
-        candidates: Dict[str, List[Dict]],
-        rows: List[Dict]
-    ) -> Dict[str, Dict[str, Any]]:
+        candidates: dict[str, list[dict]],
+        rows: list[dict]
+    ) -> dict[str, dict[str, Any]]:
         """
         Validate all candidates from baseline detector using BATCH processing.
 
@@ -949,9 +947,9 @@ class VSAResonator:
 # =============================================================================
 
 def benchmark_gpu_performance(
-    rows: List[Dict],
+    rows: list[dict],
     n_iterations: int = 100
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Benchmark CPU vs GPU performance for resonator operations."""
 
     try:
@@ -1030,12 +1028,12 @@ def benchmark_gpu_performance(
 # =============================================================================
 
 def generate_markdown_report(
-    env_info: Dict,
-    dataset_stats: Dict,
-    baseline_metrics: Dict[str, DetectionResult],
-    resonator_results: Dict[str, Dict],
-    contradictions: List[Dict],
-    benchmark_results: Dict,
+    env_info: dict,
+    dataset_stats: dict,
+    baseline_metrics: dict[str, DetectionResult],
+    resonator_results: dict[str, dict],
+    contradictions: list[dict],
+    benchmark_results: dict,
     output_path: Path
 ) -> str:
     """Generate comprehensive markdown report."""
@@ -1115,7 +1113,7 @@ def generate_markdown_report(
     for primitive, count in dataset_stats.get("ground_truth_counts", {}).items():
         report += f"| {primitive} | {count} |\n"
 
-    report += f"""
+    report += """
 ---
 
 ## BASELINE DETECTOR RESULTS (SOURCE OF TRUTH)
@@ -1147,7 +1145,7 @@ def generate_markdown_report(
         bar = "█" * bar_len + "░" * (40 - bar_len)
         report += f"{primitive:25s} |{bar}| {metrics.f1:.1%}\n"
 
-    report += f"""```
+    report += """```
 
 ### Primitives Below Target (F1 < 70%)
 
@@ -1161,7 +1159,7 @@ def generate_markdown_report(
     else:
         report += "All primitives meet target threshold.\n"
 
-    report += f"""
+    report += """
 ---
 
 ## VSA RESONATOR INFRASTRUCTURE RESULTS
@@ -1176,7 +1174,7 @@ def generate_markdown_report(
         status_icon = "✅" if result.get("status") == "PASS" else "⚠️" if result.get("status") == "REVIEW" else "❌"
         report += f"| {primitive} | {status_icon} {result.get('status', 'N/A')} | {result.get('candidates_checked', 0)} | {result.get('convergence_passed', 0)} | {result.get('hallucinations_flagged', 0)} | {result.get('avg_confidence', 0):.4f} |\n"
 
-    report += f"""
+    report += """
 ### Convergence Analysis
 
 The resonator validates symbolic consistency of baseline detections:
@@ -1371,7 +1369,7 @@ def run_hybrid_pipeline(
     anomaly_rate: float = 0.05,
     seed: int = 42,
     output_dir: Path = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Execute the full hybrid validation pipeline.
 
@@ -1472,7 +1470,7 @@ def run_hybrid_pipeline(
 
     # Markdown report
     md_path = output_dir / "docs" / "PROFIT_SENTINEL_HYBRID_VALIDATION.md"
-    report = generate_markdown_report(
+    generate_markdown_report(
         env_info=env_info,
         dataset_stats=dataset_stats,
         baseline_metrics=baseline_metrics,
@@ -1534,7 +1532,7 @@ def run_hybrid_pipeline(
     print("=" * 70)
     baseline_avg_f1 = sum(m.f1 for m in baseline_metrics.values()) / len(baseline_metrics)
     print(f"\n  ✅ Baseline Detector: DEPLOY (Avg F1: {baseline_avg_f1:.1%})")
-    print(f"  ⚠️ VSA Resonator: INFRASTRUCTURE MODE (validates, does not override)")
+    print("  ⚠️ VSA Resonator: INFRASTRUCTURE MODE (validates, does not override)")
     print(f"  {'✅' if env_info.get('cuda_available') else '⚠️'} GPU: {'ENABLED' if env_info.get('cuda_available') else 'CPU FALLBACK'}")
     print()
     print(f"  Reports written to: {output_dir}")
