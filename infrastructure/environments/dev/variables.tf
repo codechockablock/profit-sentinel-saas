@@ -21,3 +21,9 @@ variable "supabase_service_key_secret_arn" {
   type        = string
   default     = ""
 }
+
+variable "resend_api_key_secret_arn" {
+  description = "ARN of the Secrets Manager secret containing RESEND_API_KEY for email delivery"
+  type        = string
+  default     = ""
+}
