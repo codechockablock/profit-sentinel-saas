@@ -280,6 +280,30 @@ except ImportError as e:
     extract_evidence_facts = None
     get_cause_metadata = None
 
+# Semantic Flagging (v4.1.0) - Employer review system
+try:
+    from .flagging import (
+        FlagCategory,
+        FlaggedQuery,
+        FlagSeverity,
+        ProfitSentinelFlagIntegration,
+        SemanticFlag,
+        SemanticFlagDetector,
+    )
+
+    _FLAGGING_AVAILABLE = True
+except ImportError as e:
+    import logging
+
+    logging.getLogger(__name__).debug(f"Flagging module not available: {e}")
+    _FLAGGING_AVAILABLE = False
+    FlagCategory = None
+    FlaggedQuery = None
+    FlagSeverity = None
+    ProfitSentinelFlagIntegration = None
+    SemanticFlag = None
+    SemanticFlagDetector = None
+
 __all__ = [
     # Version
     "__version__",
@@ -291,6 +315,14 @@ __all__ = [
     "DEFAULT_MAX_CODEBOOK_SIZE",
     # Core availability flag
     "_CORE_AVAILABLE",
+    # Flagging (v4.1.0)
+    "_FLAGGING_AVAILABLE",
+    "FlagCategory",
+    "FlaggedQuery",
+    "FlagSeverity",
+    "ProfitSentinelFlagIntegration",
+    "SemanticFlag",
+    "SemanticFlagDetector",
     # Core functions
     "bundle_pos_facts",
     "query_bundle",
