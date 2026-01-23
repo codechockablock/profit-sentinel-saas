@@ -87,11 +87,17 @@ class TestCauseVectors:
         assert torch.allclose(vec1, vec2)
 
     def test_cause_vectors_normalized(self, cause_vectors):
-        """Test that all cause vectors are normalized."""
+        """Test that all cause vectors have correct phasor norm (sqrt(d) for unit elements)."""
+        import math
+
         for cause_key in CAUSE_KEYS:
             vec = cause_vectors.get(cause_key)
             norm = torch.norm(vec).item()
-            assert abs(norm - 1.0) < 0.01, f"Cause {cause_key} not normalized: {norm}"
+            # For phasor vectors with unit magnitude elements, norm = sqrt(d)
+            expected_norm = math.sqrt(vec.shape[0])  # sqrt(16384) ≈ 128
+            assert (
+                abs(norm - expected_norm) < 1.0
+            ), f"Cause {cause_key} has wrong norm: {norm}, expected ~{expected_norm}"
 
     def test_similarity_computation(self, cause_vectors):
         """Test similarity computation between evidence and causes."""

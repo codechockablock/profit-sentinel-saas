@@ -57,6 +57,15 @@ VALIDATION_THRESHOLDS = {
     "very_high_confidence": 0.80,  # Definitive statements
 }
 
+# Default VSA dimensions (2^14 = 16384)
+DEFAULT_DIMENSIONS = 16384
+
+# Default codebook size limit before hierarchical encoding kicks in
+DEFAULT_MAX_CODEBOOK_SIZE = 100_000
+
+# Threshold at which hierarchical codebook structure is used
+HIERARCHICAL_CODEBOOK_THRESHOLD = 50_000
+
 
 # =============================================================================
 # SPARSE VSA - SPARSE VECTOR REPRESENTATION (Optimization)
@@ -1767,6 +1776,63 @@ class AnalysisContext:
             Similarity score in [-1, 1]
         """
         return a.similarity(b)
+
+    # =========================================================================
+    # STATE MANAGEMENT
+    # =========================================================================
+
+    @property
+    def dataset_stats(self) -> dict[str, float]:
+        """
+        Get current dataset statistics.
+
+        Returns:
+            Dict with avg_margin, avg_quantity, avg_sold
+        """
+        return {
+            "avg_margin": self.avg_margin,
+            "avg_quantity": self.avg_qty,
+            "avg_sold": self.avg_sold,
+        }
+
+    def reset(self) -> None:
+        """
+        Reset context state for reuse.
+
+        Clears codebook, leak counts, and statistics.
+        Primitives are kept (they are deterministic).
+        """
+        self.codebook.clear()
+        self.sku_set.clear()
+        self._codebook_tensor = None
+        self._codebook_keys = None
+        self._codebook_dirty = True
+
+        self.avg_qty = 20.0
+        self.avg_margin = 0.3
+        self.avg_sold = 10.0
+        self.rows_processed = 0
+        self.leak_counts.clear()
+
+    def get_summary(self) -> dict[str, Any]:
+        """
+        Get a summary of the context state for debugging/logging.
+
+        Returns:
+            Dict with codebook_size, sku_count, leak_counts, stats
+        """
+        return {
+            "codebook_size": len(self.codebook),
+            "sku_count": len(self.sku_set),
+            "leak_counts": dict(self.leak_counts),
+            "rows_processed": self.rows_processed,
+            "stats": {
+                "avg_qty": self.avg_qty,
+                "avg_margin": self.avg_margin,
+                "avg_sold": self.avg_sold,
+            },
+            "dimensions": self.dimensions,
+        }
 
 
 # =============================================================================
