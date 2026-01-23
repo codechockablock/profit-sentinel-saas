@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ControlledDriftResult:
     """Results from controlled drift test."""
+
     test_name: str = "controlled_drift"
     start_time: float = 0.0
     end_time: float = 0.0
@@ -58,14 +59,20 @@ class ControlledDriftResult:
     primitives_modified: list[str] = field(default_factory=list)
 
     # Trajectories
-    health_trajectory: list[dict] = field(default_factory=list)  # Simplified health per step
-    drift_trajectory: list[dict] = field(default_factory=list)  # Drift from baseline per step
+    health_trajectory: list[dict] = field(
+        default_factory=list
+    )  # Simplified health per step
+    drift_trajectory: list[dict] = field(
+        default_factory=list
+    )  # Drift from baseline per step
     modification_log: list[dict] = field(default_factory=list)
 
     # Summary statistics
     final_health: dict = field(default_factory=dict)
     final_drift: dict = field(default_factory=dict)
-    degradation_pattern: str = ""  # "stable", "monotonic_decline", "oscillating", "catastrophic"
+    degradation_pattern: str = (
+        ""  # "stable", "monotonic_decline", "oscillating", "catastrophic"
+    )
 
     # Observations
     observations: list[str] = field(default_factory=list)
@@ -74,12 +81,19 @@ class ControlledDriftResult:
 @dataclass
 class AggressiveModificationResult:
     """Results from aggressive modification test."""
+
     test_name: str = "aggressive_modification"
 
     # Point of no return analysis
-    degradation_threshold_step: int | None = None  # Step where health drops below threshold
-    recovery_possible_after: list[int] = field(default_factory=list)  # Steps where recovery worked
-    recovery_failed_after: list[int] = field(default_factory=list)  # Steps where recovery failed
+    degradation_threshold_step: int | None = (
+        None  # Step where health drops below threshold
+    )
+    recovery_possible_after: list[int] = field(
+        default_factory=list
+    )  # Steps where recovery worked
+    recovery_failed_after: list[int] = field(
+        default_factory=list
+    )  # Steps where recovery failed
 
     # Trajectories
     health_trajectory: list[dict] = field(default_factory=list)
@@ -96,6 +110,7 @@ class SelfEvaluationIntegrityResult:
     This tests whether the system can detect its own degradation, or whether
     modification corrupts the self-assessment mechanism.
     """
+
     test_name: str = "self_evaluation_integrity"
 
     # Baseline detection performance
@@ -130,6 +145,7 @@ class SelfEvaluationIntegrityResult:
 @dataclass
 class RecoveryTestResult:
     """Results from recovery/checkpoint testing."""
+
     test_name: str = "recovery_test"
 
     # Restoration accuracy
@@ -154,7 +170,9 @@ class RecoveryTestResult:
 # =============================================================================
 
 
-def create_controlled_test_data(harness: VSASandboxHarness) -> tuple[torch.Tensor, dict]:
+def create_controlled_test_data(
+    harness: VSASandboxHarness,
+) -> tuple[torch.Tensor, dict]:
     """Create minimal controlled test case with known ground truth.
 
     Returns:
@@ -175,7 +193,9 @@ def create_controlled_test_data(harness: VSASandboxHarness) -> tuple[torch.Tenso
         harness.add_to_codebook(entity)
 
     # Build bundle with known facts
-    bundle = harness._normalize(torch.zeros(harness.dimensions, dtype=harness.dtype, device=harness.device))
+    bundle = harness._normalize(
+        torch.zeros(harness.dimensions, dtype=harness.dtype, device=harness.device)
+    )
 
     # Bind known anomalies to entities
     known_detections = {
@@ -257,12 +277,14 @@ def run_controlled_drift_test(
                 magnitude=magnitude_per_step,
                 perturbation_type=modification_type,
             )
-            result.modification_log.append({
-                "step": step,
-                "primitive": prim_name,
-                "pre_sim": record.pre_similarity_to_original,
-                "post_sim": record.post_similarity_to_original,
-            })
+            result.modification_log.append(
+                {
+                    "step": step,
+                    "primitive": prim_name,
+                    "pre_sim": record.pre_similarity_to_original,
+                    "post_sim": record.post_similarity_to_original,
+                }
+            )
 
         # Measure health after this step
         health = harness.measure_health(
@@ -273,14 +295,20 @@ def run_controlled_drift_test(
 
         # Measure drift
         drift = harness.compute_drift_from_baseline(baseline)
-        result.drift_trajectory.append({
-            "step": step,
-            "mean_drift": drift.mean_primitive_drift,
-            "max_drift": drift.max_primitive_drift,
-            "frobenius_dist": drift.similarity_matrix_frobenius_distance,
-        })
+        result.drift_trajectory.append(
+            {
+                "step": step,
+                "mean_drift": drift.mean_primitive_drift,
+                "max_drift": drift.max_primitive_drift,
+                "frobenius_dist": drift.similarity_matrix_frobenius_distance,
+            }
+        )
 
-        det_acc_str = f"{health.detection_accuracy:.3f}" if health.detection_accuracy is not None else "N/A"
+        det_acc_str = (
+            f"{health.detection_accuracy:.3f}"
+            if health.detection_accuracy is not None
+            else "N/A"
+        )
         logger.info(
             f"Step {step + 1}/{n_steps}: "
             f"binding_acc={health.binding_accuracy:.3f}, "
@@ -292,7 +320,11 @@ def run_controlled_drift_test(
 
     # Analyze pattern
     [h.get("binding_accuracy", 1.0) for h in result.health_trajectory]
-    detection_accs = [h.get("detection_accuracy", 1.0) for h in result.health_trajectory if h.get("detection_accuracy")]
+    detection_accs = [
+        h.get("detection_accuracy", 1.0)
+        for h in result.health_trajectory
+        if h.get("detection_accuracy")
+    ]
 
     # Determine degradation pattern
     if len(detection_accs) > 1:
@@ -301,12 +333,18 @@ def run_controlled_drift_test(
         acc_drop = initial_acc - final_acc
 
         # Check for monotonic decline
-        is_monotonic = all(detection_accs[i] >= detection_accs[i+1] - 0.05 for i in range(len(detection_accs)-1))
+        is_monotonic = all(
+            detection_accs[i] >= detection_accs[i + 1] - 0.05
+            for i in range(len(detection_accs) - 1)
+        )
 
         # Check for oscillation
         direction_changes = sum(
-            1 for i in range(1, len(detection_accs) - 1)
-            if (detection_accs[i] - detection_accs[i-1]) * (detection_accs[i+1] - detection_accs[i]) < 0
+            1
+            for i in range(1, len(detection_accs) - 1)
+            if (detection_accs[i] - detection_accs[i - 1])
+            * (detection_accs[i + 1] - detection_accs[i])
+            < 0
         )
 
         if acc_drop > 0.5:
@@ -320,7 +358,9 @@ def run_controlled_drift_test(
         else:
             result.degradation_pattern = "gradual_decline"
 
-    result.final_health = result.health_trajectory[-1] if result.health_trajectory else {}
+    result.final_health = (
+        result.health_trajectory[-1] if result.health_trajectory else {}
+    )
     result.final_drift = result.drift_trajectory[-1] if result.drift_trajectory else {}
 
     # Observations
@@ -329,7 +369,9 @@ def run_controlled_drift_test(
     elif result.degradation_pattern == "catastrophic":
         result.observations.append("CRITICAL: Catastrophic degradation observed")
     elif result.degradation_pattern == "monotonic_decline":
-        result.observations.append("Monotonic decline suggests cumulative damage without self-repair")
+        result.observations.append(
+            "Monotonic decline suggests cumulative damage without self-repair"
+        )
 
     logger.info(f"Test complete. Pattern: {result.degradation_pattern}")
     return result
@@ -387,7 +429,9 @@ def run_self_evaluation_integrity_test(
     )
 
     # PHASE 2: Corrupt the detection primitives
-    logger.info(f"Phase 2: Applying {modification_type} corruption (magnitude={modification_magnitude})...")
+    logger.info(
+        f"Phase 2: Applying {modification_type} corruption (magnitude={modification_magnitude})..."
+    )
 
     # Corrupt the primitives that are used for detection
     detection_primitives = list(known_detections.keys())
@@ -415,8 +459,12 @@ def run_self_evaluation_integrity_test(
     )
 
     result.post_modification_detection_accuracy = post_health.detection_accuracy or 0.0
-    result.post_modification_detection_confidence = post_health.detection_confidence or 0.0
-    result.post_modification_false_negative_rate = post_health.false_negative_rate or 0.0
+    result.post_modification_detection_confidence = (
+        post_health.detection_confidence or 0.0
+    )
+    result.post_modification_false_negative_rate = (
+        post_health.false_negative_rate or 0.0
+    )
 
     logger.info(
         f"Post-modification: accuracy={result.post_modification_detection_accuracy:.3f}, "
@@ -425,8 +473,13 @@ def run_self_evaluation_integrity_test(
     )
 
     # PHASE 4: THE CRITICAL ANALYSIS
-    result.accuracy_drop = result.baseline_detection_accuracy - result.post_modification_detection_accuracy
-    result.confidence_drop = result.baseline_detection_confidence - result.post_modification_detection_confidence
+    result.accuracy_drop = (
+        result.baseline_detection_accuracy - result.post_modification_detection_accuracy
+    )
+    result.confidence_drop = (
+        result.baseline_detection_confidence
+        - result.post_modification_detection_confidence
+    )
 
     # The gap tells us if the system knows it's getting worse
     # Positive gap = confidence dropped more than accuracy (conservative, good)
@@ -442,10 +495,14 @@ def run_self_evaluation_integrity_test(
     # Classify the corruption type
     if result.accuracy_drop < 0.1:
         result.corruption_type = "benign"
-        result.observations.append("Modification had minimal impact on detection accuracy")
+        result.observations.append(
+            "Modification had minimal impact on detection accuracy"
+        )
     elif result.confidence_accuracy_gap > -0.1:
         result.corruption_type = "detectable"
-        result.observations.append("System's confidence appropriately reflects degraded accuracy")
+        result.observations.append(
+            "System's confidence appropriately reflects degraded accuracy"
+        )
     else:
         result.corruption_type = "silent_failure"
         result.observations.append(
@@ -512,7 +569,9 @@ def run_recovery_test(
     baseline = harness.capture_baseline("recovery_test_baseline")
 
     # PHASE 2: Apply significant modification
-    logger.info(f"Phase 2: Applying modifications (magnitude={modification_magnitude})...")
+    logger.info(
+        f"Phase 2: Applying modifications (magnitude={modification_magnitude})..."
+    )
     for prim_name in harness.primitives.keys():
         harness.apply_primitive_perturbation(
             prim_name,
@@ -586,7 +645,9 @@ def run_recovery_test(
             "Some subtle state may not be captured in checkpoint."
         )
 
-    logger.info(f"Recovery test complete. Behavioral equivalence: {result.behavioral_equivalence}")
+    logger.info(
+        f"Recovery test complete. Behavioral equivalence: {result.behavioral_equivalence}"
+    )
     return result
 
 
@@ -641,9 +702,14 @@ def run_aggressive_modification_test(
 
         # Check if we've crossed the threshold
         detection_acc = health.detection_accuracy or health.binding_accuracy
-        if detection_acc < health_threshold and result.degradation_threshold_step is None:
+        if (
+            detection_acc < health_threshold
+            and result.degradation_threshold_step is None
+        ):
             result.degradation_threshold_step = step
-            logger.warning(f"Step {step}: Crossed degradation threshold (acc={detection_acc:.3f})")
+            logger.warning(
+                f"Step {step}: Crossed degradation threshold (acc={detection_acc:.3f})"
+            )
 
         # Try recovery at certain points
         if step in [10, 20, 30, 40]:
@@ -659,7 +725,9 @@ def run_aggressive_modification_test(
                 test_bundle=test_bundle,
                 known_detections=known_detections,
             )
-            restored_acc = restored_health.detection_accuracy or restored_health.binding_accuracy
+            restored_acc = (
+                restored_health.detection_accuracy or restored_health.binding_accuracy
+            )
             baseline_acc = result.health_trajectory[0].get("detection_accuracy", 1.0)
 
             if abs(restored_acc - baseline_acc) < 0.1:
@@ -670,7 +738,11 @@ def run_aggressive_modification_test(
             # Put back the degraded state to continue test
             harness.primitives = current_primitives
 
-        det_acc_str = f"{health.detection_accuracy:.3f}" if health.detection_accuracy is not None else "N/A"
+        det_acc_str = (
+            f"{health.detection_accuracy:.3f}"
+            if health.detection_accuracy is not None
+            else "N/A"
+        )
         logger.info(
             f"Step {step + 1}/{max_steps}: "
             f"mean_sim_to_orig={mean_sim:.3f}, "
@@ -762,8 +834,10 @@ def run_phase_drift_sweep(
                 "post_binding_acc": post_health.binding_accuracy,
                 "baseline_detection_acc": baseline_health.detection_accuracy,
                 "post_detection_acc": post_health.detection_accuracy,
-                "binding_drop": baseline_health.binding_accuracy - post_health.binding_accuracy,
-                "detection_drop": (baseline_health.detection_accuracy or 0) - (post_health.detection_accuracy or 0),
+                "binding_drop": baseline_health.binding_accuracy
+                - post_health.binding_accuracy,
+                "detection_drop": (baseline_health.detection_accuracy or 0)
+                - (post_health.detection_accuracy or 0),
             }
             results["results"].append(entry)
 
@@ -821,6 +895,7 @@ def hunt_for_invariants(
 
         # Apply random modification
         import random
+
         mod_type = random.choice(["phase_noise", "directional"])
         magnitude = random.uniform(0.01, 0.5)
         prim = random.choice(list(harness.primitives.keys()))
@@ -828,9 +903,13 @@ def hunt_for_invariants(
         harness.apply_primitive_perturbation(prim, magnitude, mod_type)
 
         # Measure all candidate invariants
-        health = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+        health = harness.measure_health(
+            test_bundle=test_bundle, known_detections=known_detections
+        )
 
-        invariants["primitive_orthogonality"].append(health.primitive_mean_orthogonality)
+        invariants["primitive_orthogonality"].append(
+            health.primitive_mean_orthogonality
+        )
         invariants["binding_invertibility"].append(health.binding_accuracy)
 
         # Check normalization
@@ -875,21 +954,31 @@ def hunt_for_invariants(
             for k, v in invariants.items()
         },
         "correlations": {
-            "orthogonality_vs_detection": compute_correlation(correlations["orthogonality_vs_detection"]),
-            "normalization_vs_binding": compute_correlation(correlations["normalization_vs_binding"]),
+            "orthogonality_vs_detection": compute_correlation(
+                correlations["orthogonality_vs_detection"]
+            ),
+            "normalization_vs_binding": compute_correlation(
+                correlations["normalization_vs_binding"]
+            ),
         },
         "candidate_invariants": [],
     }
 
     # Identify strong invariant candidates (high correlation with functionality)
     if abs(results["correlations"]["orthogonality_vs_detection"]) > 0.5:
-        results["candidate_invariants"].append({
-            "name": "primitive_orthogonality",
-            "correlation_with_detection": results["correlations"]["orthogonality_vs_detection"],
-            "hypothesis": "Primitives must remain approximately orthogonal for reliable detection",
-        })
+        results["candidate_invariants"].append(
+            {
+                "name": "primitive_orthogonality",
+                "correlation_with_detection": results["correlations"][
+                    "orthogonality_vs_detection"
+                ],
+                "hypothesis": "Primitives must remain approximately orthogonal for reliable detection",
+            }
+        )
 
-    logger.info(f"Invariant hunting complete. Candidates found: {len(results['candidate_invariants'])}")
+    logger.info(
+        f"Invariant hunting complete. Candidates found: {len(results['candidate_invariants'])}"
+    )
     for inv in results["candidate_invariants"]:
         logger.info(f"  - {inv['name']}: {inv['hypothesis']}")
 
@@ -931,7 +1020,9 @@ def run_all_tests(
     # Test 2: Aggressive modification
     logger.info("\n" + "=" * 80)
     logger.info("Running aggressive modification test...")
-    aggressive_result = run_aggressive_modification_test(harness=create_harness(dimensions, device))
+    aggressive_result = run_aggressive_modification_test(
+        harness=create_harness(dimensions, device)
+    )
     all_results["tests"]["aggressive_modification"] = asdict(aggressive_result)
 
     # Test 3: Recovery
@@ -943,7 +1034,9 @@ def run_all_tests(
     # Test 4: Self-evaluation integrity (THE CRITICAL ONE)
     logger.info("\n" + "=" * 80)
     logger.info("Running self-evaluation integrity test (CRITICAL)...")
-    integrity_result = run_self_evaluation_integrity_test(harness=create_harness(dimensions, device))
+    integrity_result = run_self_evaluation_integrity_test(
+        harness=create_harness(dimensions, device)
+    )
     all_results["tests"]["self_evaluation_integrity"] = asdict(integrity_result)
 
     # Test 5: Phase drift sweep
@@ -983,10 +1076,18 @@ def run_all_tests(
     logger.info("=" * 80)
 
     logger.info(f"Controlled drift pattern: {drift_result.degradation_pattern}")
-    logger.info(f"Aggressive test - degradation threshold: step {aggressive_result.degradation_threshold_step}")
-    logger.info(f"Recovery test - behavioral equivalence: {recovery_result.behavioral_equivalence}")
-    logger.info(f"Self-evaluation integrity - corruption type: {integrity_result.corruption_type}")
-    logger.info(f"Invariant candidates found: {len(invariant_result['candidate_invariants'])}")
+    logger.info(
+        f"Aggressive test - degradation threshold: step {aggressive_result.degradation_threshold_step}"
+    )
+    logger.info(
+        f"Recovery test - behavioral equivalence: {recovery_result.behavioral_equivalence}"
+    )
+    logger.info(
+        f"Self-evaluation integrity - corruption type: {integrity_result.corruption_type}"
+    )
+    logger.info(
+        f"Invariant candidates found: {len(invariant_result['candidate_invariants'])}"
+    )
 
     if integrity_result.corruption_type == "silent_failure":
         logger.warning("\n*** CRITICAL: SILENT FAILURE DETECTED ***")

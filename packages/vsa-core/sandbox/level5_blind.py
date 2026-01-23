@@ -25,8 +25,7 @@ from dataclasses import dataclass, field
 import torch
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -39,6 +38,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BlindDataPoint:
     """A single row - NO identifying information."""
+
     row_id: int  # Just a number, not SKU
     features: torch.Tensor
     raw_values: list[float]  # Just numbers, no column names
@@ -47,6 +47,7 @@ class BlindDataPoint:
 @dataclass
 class BlindCluster:
     """A discovered cluster - no semantic labels."""
+
     id: int
     centroid: torch.Tensor
     members: list[int]
@@ -60,6 +61,7 @@ class BlindCluster:
 @dataclass
 class BlindDiscoveryResult:
     """Results with zero semantic information."""
+
     clusters: list[BlindCluster]
     outliers: list[int]
     num_columns: int
@@ -101,7 +103,7 @@ class BlindVSAEncoder:
     def _get_basis(self, col_idx: int) -> torch.Tensor:
         """Get random basis vector for column index."""
         if col_idx not in self._basis_cache:
-            gen = torch.Generator(device='cpu')
+            gen = torch.Generator(device="cpu")
             gen.manual_seed(42 + col_idx * 1000)
 
             angles = torch.rand(self.dimensions, generator=gen) * 2 * torch.pi
@@ -121,7 +123,9 @@ class BlindVSAEncoder:
         bundle = torch.zeros(self.dimensions, dtype=self.dtype, device=self.device)
 
         for idx, val in enumerate(values):
-            if val is not None and not (isinstance(val, float) and torch.isnan(torch.tensor(val))):
+            if val is not None and not (
+                isinstance(val, float) and torch.isnan(torch.tensor(val))
+            ):
                 bundle = bundle + self.encode_value(val, idx)
 
         norm = torch.sqrt(torch.sum(torch.abs(bundle) ** 2))
@@ -174,18 +178,14 @@ class BlindClusterer:
 
             unassigned_encodings = encodings[unassigned_idx]
 
-            sims = torch.real(
-                torch.conj(unassigned_encodings) @ unassigned_encodings.T
-            )
+            sims = torch.real(torch.conj(unassigned_encodings) @ unassigned_encodings.T)
             avg_sims = sims.mean(dim=1)
 
             seed_local_idx = avg_sims.argmax().item()
             seed_global_idx = unassigned_idx[seed_local_idx]
             seed_encoding = encodings[seed_global_idx]
 
-            all_sims = torch.real(
-                torch.conj(seed_encoding) @ encodings.T
-            )
+            all_sims = torch.real(torch.conj(seed_encoding) @ encodings.T)
 
             members = []
             for i in range(n):
@@ -202,9 +202,7 @@ class BlindClusterer:
             centroid = member_encodings.mean(dim=0)
             centroid = centroid / torch.sqrt(torch.sum(torch.abs(centroid) ** 2))
 
-            distances = 1 - torch.real(
-                torch.conj(centroid) @ member_encodings.T
-            )
+            distances = 1 - torch.real(torch.conj(centroid) @ member_encodings.T)
             radius = distances.mean().item()
 
             cluster = BlindCluster(
@@ -215,7 +213,9 @@ class BlindClusterer:
             )
 
             clusters.append(cluster)
-            logger.info(f"  Cluster {cluster_id}: {len(members)} members, radius={radius:.3f}")
+            logger.info(
+                f"  Cluster {cluster_id}: {len(members)} members, radius={radius:.3f}"
+            )
 
         outliers = [i for i in range(n) if not assigned[i]]
         logger.info(f"Found {len(clusters)} clusters, {len(outliers)} outliers")
@@ -243,17 +243,33 @@ def load_blind_data(
 
     # Numerical columns we extract (by position after we find them)
     target_columns = [
-        'Gross Sales', 'Gross Cost', 'Gross Profit', 'Profit Margin%',
-        'Avg. Cost', 'Stock', 'Year Total', 'Report Total',
-        'Jan', 'Last Dec', 'Last Nov', 'Last Oct', 'Last Sep',
-        'Last Aug', 'Last Jul', 'Last Jun', 'Last May', 'Last Apr',
-        'Last Mar', 'Last Feb', 'Last Jan'
+        "Gross Sales",
+        "Gross Cost",
+        "Gross Profit",
+        "Profit Margin%",
+        "Avg. Cost",
+        "Stock",
+        "Year Total",
+        "Report Total",
+        "Jan",
+        "Last Dec",
+        "Last Nov",
+        "Last Oct",
+        "Last Sep",
+        "Last Aug",
+        "Last Jul",
+        "Last Jun",
+        "Last May",
+        "Last Apr",
+        "Last Mar",
+        "Last Feb",
+        "Last Jan",
     ]
 
     encoder = BlindVSAEncoder(dimensions=2048)
     data_points = []
 
-    with open(csv_path, encoding='utf-8-sig') as f:
+    with open(csv_path, encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
 
         # Find column indices (then FORGET the names)
@@ -273,7 +289,13 @@ def load_blind_data(
             values = []
             for col in target_columns:
                 if col in row:
-                    val_str = row[col].replace(',', '').replace('$', '').replace('%', '').strip()
+                    val_str = (
+                        row[col]
+                        .replace(",", "")
+                        .replace("$", "")
+                        .replace("%", "")
+                        .strip()
+                    )
                     try:
                         values.append(float(val_str) if val_str else 0.0)
                     except ValueError:
@@ -295,7 +317,9 @@ def load_blind_data(
             if len(data_points) % 10000 == 0:
                 logger.info(f"  Loaded {len(data_points)} rows...")
 
-    logger.info(f"Loaded {len(data_points)} data points with {num_columns} columns (unnamed)")
+    logger.info(
+        f"Loaded {len(data_points)} data points with {num_columns} columns (unnamed)"
+    )
     return data_points, num_columns
 
 
@@ -317,47 +341,70 @@ def analyze_blind_results(
     # Load original data WITH names for comparison
     sku_map = {}
     column_names = [
-        'Gross Sales', 'Gross Cost', 'Gross Profit', 'Profit Margin%',
-        'Avg. Cost', 'Stock', 'Year Total', 'Report Total',
-        'Jan', 'Last Dec', 'Last Nov', 'Last Oct', 'Last Sep',
-        'Last Aug', 'Last Jul', 'Last Jun', 'Last May', 'Last Apr',
-        'Last Mar', 'Last Feb', 'Last Jan'
+        "Gross Sales",
+        "Gross Cost",
+        "Gross Profit",
+        "Profit Margin%",
+        "Avg. Cost",
+        "Stock",
+        "Year Total",
+        "Report Total",
+        "Jan",
+        "Last Dec",
+        "Last Nov",
+        "Last Oct",
+        "Last Sep",
+        "Last Aug",
+        "Last Jul",
+        "Last Jun",
+        "Last May",
+        "Last Apr",
+        "Last Mar",
+        "Last Feb",
+        "Last Jan",
     ]
 
-    with open(original_csv_path, encoding='utf-8-sig') as f:
+    with open(original_csv_path, encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         for row_id, row in enumerate(reader):
             if row_id >= len(result.data_points):
                 break
-            sku_map[row_id] = row.get('SKU #', row.get('SKU', f'Row_{row_id}'))
+            sku_map[row_id] = row.get("SKU #", row.get("SKU", f"Row_{row_id}"))
 
     analysis = {
-        'clusters': [],
-        'outliers': [],
+        "clusters": [],
+        "outliers": [],
     }
 
     # Analyze each cluster
     for cluster in result.clusters:
         cluster_analysis = {
-            'id': cluster.id,
-            'size': len(cluster.members),
-            'radius': cluster.radius,
-            'column_stats': {},
-            'anomaly_counts': {},
-            'sample_skus': [],
+            "id": cluster.id,
+            "size": len(cluster.members),
+            "radius": cluster.radius,
+            "column_stats": {},
+            "anomaly_counts": {},
+            "sample_skus": [],
         }
 
         # Compute stats per column
         for col_idx in range(result.num_columns):
-            values = [result.data_points[m].raw_values[col_idx] for m in cluster.members]
-            col_name = column_names[col_idx] if col_idx < len(column_names) else f'Col_{col_idx}'
+            values = [
+                result.data_points[m].raw_values[col_idx] for m in cluster.members
+            ]
+            col_name = (
+                column_names[col_idx]
+                if col_idx < len(column_names)
+                else f"Col_{col_idx}"
+            )
 
             import statistics
-            cluster_analysis['column_stats'][col_name] = {
-                'min': min(values),
-                'max': max(values),
-                'mean': statistics.mean(values),
-                'std': statistics.stdev(values) if len(values) > 1 else 0,
+
+            cluster_analysis["column_stats"][col_name] = {
+                "min": min(values),
+                "max": max(values),
+                "mean": statistics.mean(values),
+                "std": statistics.stdev(values) if len(values) > 1 else 0,
             }
 
         # Count anomalies (using column positions, not names)
@@ -367,29 +414,35 @@ def analyze_blind_results(
         sales = [result.data_points[m].raw_values[0] for m in cluster.members]
         profits = [result.data_points[m].raw_values[2] for m in cluster.members]
 
-        cluster_analysis['anomaly_counts'] = {
-            'negative_col5': sum(1 for s in stocks if s < 0),
-            'zero_col1_with_col0': sum(1 for i, c in enumerate(costs) if c == 0 and sales[i] > 0),
-            'negative_col2': sum(1 for p in profits if p < 0),
+        cluster_analysis["anomaly_counts"] = {
+            "negative_col5": sum(1 for s in stocks if s < 0),
+            "zero_col1_with_col0": sum(
+                1 for i, c in enumerate(costs) if c == 0 and sales[i] > 0
+            ),
+            "negative_col2": sum(1 for p in profits if p < 0),
         }
 
         # Sample SKUs
         for m in cluster.members[:10]:
-            cluster_analysis['sample_skus'].append({
-                'row_id': m,
-                'sku': sku_map.get(m, f'Row_{m}'),
-                'values': result.data_points[m].raw_values[:6],  # First 6 columns
-            })
+            cluster_analysis["sample_skus"].append(
+                {
+                    "row_id": m,
+                    "sku": sku_map.get(m, f"Row_{m}"),
+                    "values": result.data_points[m].raw_values[:6],  # First 6 columns
+                }
+            )
 
-        analysis['clusters'].append(cluster_analysis)
+        analysis["clusters"].append(cluster_analysis)
 
     # Analyze outliers
     for m in result.outliers[:20]:
-        analysis['outliers'].append({
-            'row_id': m,
-            'sku': sku_map.get(m, f'Row_{m}'),
-            'values': result.data_points[m].raw_values[:6],
-        })
+        analysis["outliers"].append(
+            {
+                "row_id": m,
+                "sku": sku_map.get(m, f"Row_{m}"),
+                "values": result.data_points[m].raw_values[:6],
+            }
+        )
 
     return analysis
 
@@ -468,11 +521,15 @@ def print_blind_report(result: BlindDiscoveryResult, analysis: dict):
     print()
 
     column_names = [
-        'Gross Sales', 'Gross Cost', 'Gross Profit', 'Profit Margin%',
-        'Avg. Cost', 'Stock'
+        "Gross Sales",
+        "Gross Cost",
+        "Gross Profit",
+        "Profit Margin%",
+        "Avg. Cost",
+        "Stock",
     ]
 
-    for ca in analysis['clusters']:
+    for ca in analysis["clusters"]:
         print("-" * 70)
         print(f"CLUSTER {ca['id']}")
         print("-" * 70)
@@ -482,31 +539,43 @@ def print_blind_report(result: BlindDiscoveryResult, analysis: dict):
 
         print("  COLUMN STATISTICS (revealed post-hoc):")
         for col_name in column_names:
-            if col_name in ca['column_stats']:
-                stats = ca['column_stats'][col_name]
-                print(f"    {col_name:20s}: min={stats['min']:>10.2f}, max={stats['max']:>10.2f}, mean={stats['mean']:>10.2f}")
+            if col_name in ca["column_stats"]:
+                stats = ca["column_stats"][col_name]
+                print(
+                    f"    {col_name:20s}: min={stats['min']:>10.2f}, max={stats['max']:>10.2f}, mean={stats['mean']:>10.2f}"
+                )
         print()
 
         print("  ANOMALY COUNTS (revealed post-hoc):")
-        print(f"    negative_stock:     {ca['anomaly_counts']['negative_col5']} ({100*ca['anomaly_counts']['negative_col5']/ca['size']:.1f}%)")
-        print(f"    zero_cost_w_sales:  {ca['anomaly_counts']['zero_col1_with_col0']} ({100*ca['anomaly_counts']['zero_col1_with_col0']/ca['size']:.1f}%)")
-        print(f"    negative_profit:    {ca['anomaly_counts']['negative_col2']} ({100*ca['anomaly_counts']['negative_col2']/ca['size']:.1f}%)")
+        print(
+            f"    negative_stock:     {ca['anomaly_counts']['negative_col5']} ({100*ca['anomaly_counts']['negative_col5']/ca['size']:.1f}%)"
+        )
+        print(
+            f"    zero_cost_w_sales:  {ca['anomaly_counts']['zero_col1_with_col0']} ({100*ca['anomaly_counts']['zero_col1_with_col0']/ca['size']:.1f}%)"
+        )
+        print(
+            f"    negative_profit:    {ca['anomaly_counts']['negative_col2']} ({100*ca['anomaly_counts']['negative_col2']/ca['size']:.1f}%)"
+        )
         print()
 
         print("  SAMPLE ROWS (revealed post-hoc):")
-        for sample in ca['sample_skus'][:5]:
-            sku = sample['sku'][:25].ljust(25)
-            vals = sample['values']
-            print(f"    {sku} | Col0=${vals[0]:>10.2f} | Col1=${vals[1]:>10.2f} | Col2=${vals[2]:>8.2f} | Col5={vals[5]:>7.0f}")
+        for sample in ca["sample_skus"][:5]:
+            sku = sample["sku"][:25].ljust(25)
+            vals = sample["values"]
+            print(
+                f"    {sku} | Col0=${vals[0]:>10.2f} | Col1=${vals[1]:>10.2f} | Col2=${vals[2]:>8.2f} | Col5={vals[5]:>7.0f}"
+            )
         print()
 
     print("-" * 70)
     print(f"OUTLIERS ({len(result.outliers)} total, showing first 10)")
     print("-" * 70)
-    for out in analysis['outliers'][:10]:
-        sku = out['sku'][:25].ljust(25)
-        vals = out['values']
-        print(f"  {sku} | Col0=${vals[0]:>10.2f} | Col1=${vals[1]:>10.2f} | Col2=${vals[2]:>8.2f} | Col5={vals[5]:>7.0f}")
+    for out in analysis["outliers"][:10]:
+        sku = out["sku"][:25].ljust(25)
+        vals = out["values"]
+        print(
+            f"  {sku} | Col0=${vals[0]:>10.2f} | Col1=${vals[1]:>10.2f} | Col2=${vals[2]:>8.2f} | Col5={vals[5]:>7.0f}"
+        )
     print()
 
     print("=" * 70)
@@ -524,7 +593,11 @@ def print_blind_report(result: BlindDiscoveryResult, analysis: dict):
 if __name__ == "__main__":
     import sys
 
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+    csv_path = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+    )
     max_rows = int(sys.argv[2]) if len(sys.argv) > 2 else 10000
 
     result = run_blind_experiment(csv_path, max_rows)

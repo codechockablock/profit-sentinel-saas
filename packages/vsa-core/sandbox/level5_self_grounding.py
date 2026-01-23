@@ -32,8 +32,7 @@ from dataclasses import dataclass, field
 import torch
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -46,6 +45,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DataPoint:
     """A single row of raw numerical data."""
+
     sku: str
     features: torch.Tensor  # Raw numerical vector
     raw_values: dict  # Original values for interpretation
@@ -54,6 +54,7 @@ class DataPoint:
 @dataclass
 class Cluster:
     """A discovered cluster."""
+
     id: int
     centroid: torch.Tensor
     members: list[int]  # Indices into data points
@@ -68,6 +69,7 @@ class Cluster:
 @dataclass
 class DiscoveryResult:
     """Results of unsupervised structure discovery."""
+
     clusters: list[Cluster]
     outliers: list[int]  # Indices of points not in any cluster
     feature_names: list[str]
@@ -114,7 +116,7 @@ class NumericalVSAEncoder:
         """Get or create basis vector for a feature dimension."""
         if feature_idx not in self._basis_cache:
             # Deterministic generation from index
-            gen = torch.Generator(device='cpu')
+            gen = torch.Generator(device="cpu")
             gen.manual_seed(42 + feature_idx * 1000)
 
             angles = torch.rand(self.dimensions, generator=gen) * 2 * torch.pi
@@ -147,7 +149,9 @@ class NumericalVSAEncoder:
         bundle = torch.zeros(self.dimensions, dtype=self.dtype, device=self.device)
 
         for idx, val in enumerate(values):
-            if val is not None and not (isinstance(val, float) and torch.isnan(torch.tensor(val))):
+            if val is not None and not (
+                isinstance(val, float) and torch.isnan(torch.tensor(val))
+            ):
                 bundle = bundle + self.encode_value(val, idx)
 
         # Normalize
@@ -219,9 +223,7 @@ class GeometricClusterer:
             unassigned_encodings = encodings[unassigned_idx]
 
             # Find densest point (highest average similarity to others)
-            sims = torch.real(
-                torch.conj(unassigned_encodings) @ unassigned_encodings.T
-            )
+            sims = torch.real(torch.conj(unassigned_encodings) @ unassigned_encodings.T)
             avg_sims = sims.mean(dim=1)
 
             # The densest point becomes the seed
@@ -230,9 +232,7 @@ class GeometricClusterer:
             seed_encoding = encodings[seed_global_idx]
 
             # Find all points similar to seed
-            all_sims = torch.real(
-                torch.conj(seed_encoding) @ encodings.T
-            )
+            all_sims = torch.real(torch.conj(seed_encoding) @ encodings.T)
 
             # Assign points above threshold that aren't already assigned
             members = []
@@ -253,9 +253,7 @@ class GeometricClusterer:
             centroid = centroid / torch.sqrt(torch.sum(torch.abs(centroid) ** 2))
 
             # Compute radius (average distance from centroid)
-            centroid_sims = torch.real(
-                torch.conj(centroid) @ member_encodings.T
-            )
+            centroid_sims = torch.real(torch.conj(centroid) @ member_encodings.T)
             radius = 1 - centroid_sims.mean().item()
 
             cluster = Cluster(
@@ -273,9 +271,7 @@ class GeometricClusterer:
         # Remaining unassigned points are outliers
         outliers = [i for i in range(n) if not assigned[i]]
 
-        logger.info(
-            f"Found {len(clusters)} clusters, {len(outliers)} outliers"
-        )
+        logger.info(f"Found {len(clusters)} clusters, {len(outliers)} outliers")
 
         return clusters, outliers
 
@@ -305,7 +301,11 @@ class GeometricClusterer:
             for name, vals in all_values.items()
         }
         global_stds = {
-            name: (sum((v - global_means[name])**2 for v in vals) / len(vals))**0.5 if vals else 1
+            name: (
+                (sum((v - global_means[name]) ** 2 for v in vals) / len(vals)) ** 0.5
+                if vals
+                else 1
+            )
             for name, vals in all_values.items()
         }
 
@@ -324,7 +324,15 @@ class GeometricClusterer:
                 for name, vals in cluster_values.items()
             }
             cluster.feature_stds = {
-                name: (sum((v - cluster.feature_means[name])**2 for v in vals) / len(vals))**0.5 if vals else 0
+                name: (
+                    (
+                        sum((v - cluster.feature_means[name]) ** 2 for v in vals)
+                        / len(vals)
+                    )
+                    ** 0.5
+                    if vals
+                    else 0
+                )
                 for name, vals in cluster_values.items()
             }
 
@@ -332,15 +340,16 @@ class GeometricClusterer:
             deviations = []
             for name in feature_names:
                 if global_stds[name] > 0.01:  # Avoid division by tiny numbers
-                    z_score = (cluster.feature_means[name] - global_means[name]) / global_stds[name]
+                    z_score = (
+                        cluster.feature_means[name] - global_means[name]
+                    ) / global_stds[name]
                     deviations.append((name, z_score, cluster.feature_means[name]))
 
             # Sort by absolute z-score
             deviations.sort(key=lambda x: abs(x[1]), reverse=True)
 
             cluster.distinguishing_features = [
-                f"{name}: {mean:.2f} (z={z:.2f})"
-                for name, z, mean in deviations[:5]
+                f"{name}: {mean:.2f} (z={z:.2f})" for name, z, mean in deviations[:5]
             ]
 
 
@@ -370,9 +379,19 @@ def load_ytd_numerical_data(
         "Stock",
         "Year Total",
         "Report Total",
-        "Jan", "Last Dec", "Last Nov", "Last Oct", "Last Sep",
-        "Last Aug", "Last Jul", "Last Jun", "Last May", "Last Apr",
-        "Last Mar", "Last Feb", "Last Jan",
+        "Jan",
+        "Last Dec",
+        "Last Nov",
+        "Last Oct",
+        "Last Sep",
+        "Last Aug",
+        "Last Jul",
+        "Last Jun",
+        "Last May",
+        "Last Apr",
+        "Last Mar",
+        "Last Feb",
+        "Last Jan",
     ]
 
     encoder = NumericalVSAEncoder()
@@ -408,7 +427,11 @@ def load_ytd_numerical_data(
                     val_str = row.get(col, "")
                     if val_str and val_str.strip():
                         try:
-                            val = float(val_str.replace(",", "").replace("$", "").replace("%", ""))
+                            val = float(
+                                val_str.replace(",", "")
+                                .replace("$", "")
+                                .replace("%", "")
+                            )
                             values.append(val)
                             raw_values[col] = val
                         except ValueError:
@@ -421,11 +444,13 @@ def load_ytd_numerical_data(
                 # Encode into VSA space
                 encoding = encoder.encode_vector(values)
 
-                data_points.append(DataPoint(
-                    sku=sku,
-                    features=encoding,
-                    raw_values=raw_values,
-                ))
+                data_points.append(
+                    DataPoint(
+                        sku=sku,
+                        features=encoding,
+                        raw_values=raw_values,
+                    )
+                )
 
             except Exception:
                 continue
@@ -433,7 +458,9 @@ def load_ytd_numerical_data(
         if i > 0 and i % 2000 == 0:
             logger.info(f"  Loaded {i} rows...")
 
-    logger.info(f"Loaded {len(data_points)} data points with {len(available_columns)} features")
+    logger.info(
+        f"Loaded {len(data_points)} data points with {len(available_columns)} features"
+    )
 
     return data_points, available_columns
 
@@ -539,7 +566,9 @@ def print_discovery_report(result: DiscoveryResult) -> None:
             margin = dp.raw_values.get("Profit Margin%", 0)
             cost = dp.raw_values.get("Gross Cost", 0)
 
-            print(f"    {i+1}. {dp.sku[:25]:<25} | Stock={stock:>8.0f} | Sales=${sales:>10.2f} | Profit=${profit:>10.2f} | Margin={margin:>6.1f}% | Cost=${cost:>10.2f}")
+            print(
+                f"    {i+1}. {dp.sku[:25]:<25} | Stock={stock:>8.0f} | Sales=${sales:>10.2f} | Profit=${profit:>10.2f} | Margin={margin:>6.1f}% | Cost=${cost:>10.2f}"
+            )
 
     if result.outliers:
         print("\n" + "-" * 70)
@@ -553,7 +582,9 @@ def print_discovery_report(result: DiscoveryResult) -> None:
             profit = dp.raw_values.get("Gross Profit", 0)
             margin = dp.raw_values.get("Profit Margin%", 0)
 
-            print(f"    {i+1}. {dp.sku[:25]:<25} | Stock={stock:>8.0f} | Sales=${sales:>10.2f} | Profit=${profit:>10.2f} | Margin={margin:>6.1f}%")
+            print(
+                f"    {i+1}. {dp.sku[:25]:<25} | Stock={stock:>8.0f} | Sales=${sales:>10.2f} | Profit=${profit:>10.2f} | Margin={margin:>6.1f}%"
+            )
 
     print("\n" + "=" * 70)
     print("INTERPRETATION GUIDE (for human analysis)")
@@ -620,7 +651,11 @@ if __name__ == "__main__":
     import sys
     from datetime import datetime
 
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+    csv_path = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else "/Users/joseph/Downloads/Reports/Inventory_Report_SKU_SHLP_YTD.csv"
+    )
     max_rows = int(sys.argv[2]) if len(sys.argv) > 2 else 10000
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -21,7 +21,7 @@ import torch
 from test_sequences import create_controlled_test_data
 from vsa_sandbox_harness import create_harness
 
-logging.basicConfig(level=logging.INFO, format='%(message)s')
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -33,13 +33,16 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BreakingPointResult:
     """Results from breaking point probe."""
+
     corruption_magnitudes: list[float] = field(default_factory=list)
     accuracy_values: list[float] = field(default_factory=list)
     confidence_values: list[float] = field(default_factory=list)
     gaps: list[float] = field(default_factory=list)  # confidence_drop - accuracy_drop
 
     # The critical findings
-    confidence_tracking_lost_at: float | None = None  # Where confidence stops tracking accuracy
+    confidence_tracking_lost_at: float | None = (
+        None  # Where confidence stops tracking accuracy
+    )
     system_broken_at: float | None = None  # Where system completely fails
     silent_failure_detected: bool = False
 
@@ -77,11 +80,14 @@ def probe_breaking_point(
     baseline_acc = baseline_health.detection_accuracy or 1.0
     baseline_conf = baseline_health.detection_confidence or 0.0
 
-    logger.info(f"\nBaseline: accuracy={baseline_acc:.3f}, confidence={baseline_conf:.3f}")
+    logger.info(
+        f"\nBaseline: accuracy={baseline_acc:.3f}, confidence={baseline_conf:.3f}"
+    )
     logger.info("\n" + "-" * 70)
-    logger.info(f"{'Magnitude':>10} {'Accuracy':>10} {'Confidence':>12} {'Acc Drop':>10} {'Conf Drop':>11} {'Gap':>8} {'Status'}")
+    logger.info(
+        f"{'Magnitude':>10} {'Accuracy':>10} {'Confidence':>12} {'Acc Drop':>10} {'Conf Drop':>11} {'Gap':>8} {'Status'}"
+    )
     logger.info("-" * 70)
-
 
     for mag in magnitudes:
         # Fresh harness for each test
@@ -102,12 +108,20 @@ def probe_breaking_point(
             known_detections=known_detections,
         )
 
-        acc = health.detection_accuracy if health.detection_accuracy is not None else 0.0
-        conf = health.detection_confidence if health.detection_confidence is not None else 0.0
+        acc = (
+            health.detection_accuracy if health.detection_accuracy is not None else 0.0
+        )
+        conf = (
+            health.detection_confidence
+            if health.detection_confidence is not None
+            else 0.0
+        )
 
         acc_drop = baseline_acc - acc
         conf_drop = baseline_conf - conf
-        gap = conf_drop - acc_drop  # Positive = confidence dropped more (good), Negative = overconfident (BAD)
+        gap = (
+            conf_drop - acc_drop
+        )  # Positive = confidence dropped more (good), Negative = overconfident (BAD)
 
         result.corruption_magnitudes.append(mag)
         result.accuracy_values.append(acc)
@@ -129,8 +143,9 @@ def probe_breaking_point(
         else:
             status = "OK"
 
-        logger.info(f"{mag:10.2f} {acc:10.3f} {conf:12.3f} {acc_drop:+10.3f} {conf_drop:+11.3f} {gap:+8.3f} {status}")
-
+        logger.info(
+            f"{mag:10.2f} {acc:10.3f} {conf:12.3f} {acc_drop:+10.3f} {conf_drop:+11.3f} {gap:+8.3f} {status}"
+        )
 
     logger.info("-" * 70)
 
@@ -143,13 +158,19 @@ def probe_breaking_point(
         result.observations.append(
             f"CRITICAL: Silent failure detected at magnitude {result.confidence_tracking_lost_at}"
         )
-        logger.info(f"CRITICAL: Silent failure detected at magnitude {result.confidence_tracking_lost_at}")
+        logger.info(
+            f"CRITICAL: Silent failure detected at magnitude {result.confidence_tracking_lost_at}"
+        )
     else:
-        result.observations.append("No silent failure detected - degradation was always detectable")
+        result.observations.append(
+            "No silent failure detected - degradation was always detectable"
+        )
         logger.info("No silent failure detected in this probe")
 
     if result.system_broken_at:
-        result.observations.append(f"System completely broken at magnitude {result.system_broken_at}")
+        result.observations.append(
+            f"System completely broken at magnitude {result.system_broken_at}"
+        )
         logger.info(f"System broke at magnitude {result.system_broken_at}")
 
     return result
@@ -163,6 +184,7 @@ def probe_breaking_point(
 @dataclass
 class SilentFailureHuntResult:
     """Results from silent failure hunt."""
+
     strategies_tested: list[str] = field(default_factory=list)
     results_per_strategy: dict[str, dict] = field(default_factory=dict)
     silent_failure_found: bool = False
@@ -185,7 +207,9 @@ def probe_silent_failure(dimensions: int = 2048) -> SilentFailureHuntResult:
     logger.info("\n" + "=" * 70)
     logger.info("PROBE 2: HUNTING FOR SILENT FAILURE")
     logger.info("=" * 70)
-    logger.info("\nTrying strategies designed to maintain confidence while degrading accuracy...")
+    logger.info(
+        "\nTrying strategies designed to maintain confidence while degrading accuracy..."
+    )
 
     result = SilentFailureHuntResult()
 
@@ -197,7 +221,7 @@ def probe_silent_failure(dimensions: int = 2048) -> SilentFailureHuntResult:
         ("gradual_primitive_swap", _strategy_gradual_primitive_swap),
     ]
 
-    worst_gap = float('inf')  # Looking for most negative gap
+    worst_gap = float("inf")  # Looking for most negative gap
 
     for strategy_name, strategy_fn in strategies:
         logger.info(f"\n--- Strategy: {strategy_name} ---")
@@ -235,12 +259,16 @@ def probe_silent_failure(dimensions: int = 2048) -> SilentFailureHuntResult:
         result.observations.append(
             f"CRITICAL: Silent failure found! Most dangerous strategy: {result.most_dangerous_strategy}"
         )
-        logger.info(f"CRITICAL: Silent failure found with strategy: {result.most_dangerous_strategy}")
+        logger.info(
+            f"CRITICAL: Silent failure found with strategy: {result.most_dangerous_strategy}"
+        )
     else:
         result.observations.append(
             f"No silent failure found. Closest to silent failure: {result.most_dangerous_strategy} (gap={worst_gap:+.3f})"
         )
-        logger.info(f"No silent failure found. Closest: {result.most_dangerous_strategy} (gap={worst_gap:+.3f})")
+        logger.info(
+            f"No silent failure found. Closest: {result.most_dangerous_strategy} (gap={worst_gap:+.3f})"
+        )
 
     return result
 
@@ -251,7 +279,9 @@ def _strategy_correlated_perturbation(dimensions: int) -> dict:
     test_bundle, known_detections = create_controlled_test_data(harness)
 
     # Baseline
-    baseline = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    baseline = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     baseline_acc = baseline.detection_accuracy or 1.0
     baseline_conf = baseline.detection_confidence or 0.0
 
@@ -274,9 +304,13 @@ def _strategy_correlated_perturbation(dimensions: int) -> dict:
         )
 
     # Measure
-    post = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    post = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     post_acc = post.detection_accuracy if post.detection_accuracy is not None else 0.0
-    post_conf = post.detection_confidence if post.detection_confidence is not None else 0.0
+    post_conf = (
+        post.detection_confidence if post.detection_confidence is not None else 0.0
+    )
 
     acc_drop = baseline_acc - post_acc
     conf_drop = baseline_conf - post_conf
@@ -297,7 +331,9 @@ def _strategy_uniform_scaling(dimensions: int) -> dict:
     harness = create_harness(dimensions=dimensions)
     test_bundle, known_detections = create_controlled_test_data(harness)
 
-    baseline = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    baseline = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     baseline_acc = baseline.detection_accuracy or 1.0
     baseline_conf = baseline.detection_confidence or 0.0
 
@@ -308,12 +344,17 @@ def _strategy_uniform_scaling(dimensions: int) -> dict:
         current = harness.primitives[prim_name]
         # Blend toward zero (reduce energy)
         harness.primitives[prim_name] = harness._normalize(
-            current * scale_factor + harness._seed_hash(f"noise_{prim_name}") * (1 - scale_factor) * 0.1
+            current * scale_factor
+            + harness._seed_hash(f"noise_{prim_name}") * (1 - scale_factor) * 0.1
         )
 
-    post = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    post = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     post_acc = post.detection_accuracy if post.detection_accuracy is not None else 0.0
-    post_conf = post.detection_confidence if post.detection_confidence is not None else 0.0
+    post_conf = (
+        post.detection_confidence if post.detection_confidence is not None else 0.0
+    )
 
     return {
         "baseline_accuracy": baseline_acc,
@@ -331,7 +372,9 @@ def _strategy_codebook_matching(dimensions: int) -> dict:
     harness = create_harness(dimensions=dimensions)
     test_bundle, known_detections = create_controlled_test_data(harness)
 
-    baseline = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    baseline = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     baseline_acc = baseline.detection_accuracy or 1.0
     baseline_conf = baseline.detection_confidence or 0.0
 
@@ -345,7 +388,8 @@ def _strategy_codebook_matching(dimensions: int) -> dict:
     for prim_name in known_detections.keys():
         current = harness.primitives[prim_name]
         harness.primitives[prim_name] = harness._normalize(
-            (1 - corruption_magnitude) * current + corruption_magnitude * corruption_direction
+            (1 - corruption_magnitude) * current
+            + corruption_magnitude * corruption_direction
         )
 
     # Now "match" the codebook to the corrupted primitives
@@ -360,7 +404,9 @@ def _strategy_codebook_matching(dimensions: int) -> dict:
                 )
 
     # Rebuild test bundle with corrupted geometry (simulating system that adapted)
-    new_bundle = torch.zeros(harness.dimensions, dtype=harness.dtype, device=harness.device)
+    new_bundle = torch.zeros(
+        harness.dimensions, dtype=harness.dtype, device=harness.device
+    )
     for primitive_name, entity_list in known_detections.items():
         primitive = harness.primitives[primitive_name]
         for entity in entity_list:
@@ -369,9 +415,13 @@ def _strategy_codebook_matching(dimensions: int) -> dict:
             new_bundle = new_bundle + fact
     new_bundle = harness._normalize(new_bundle)
 
-    post = harness.measure_health(test_bundle=new_bundle, known_detections=known_detections)
+    post = harness.measure_health(
+        test_bundle=new_bundle, known_detections=known_detections
+    )
     post_acc = post.detection_accuracy if post.detection_accuracy is not None else 0.0
-    post_conf = post.detection_confidence if post.detection_confidence is not None else 0.0
+    post_conf = (
+        post.detection_confidence if post.detection_confidence is not None else 0.0
+    )
 
     # But the REAL accuracy against ground truth has dropped
     # Let's also measure against the ORIGINAL bundle
@@ -379,7 +429,11 @@ def _strategy_codebook_matching(dimensions: int) -> dict:
         test_bundle=test_bundle,  # Original bundle
         known_detections=known_detections,
     )
-    real_acc = original_accuracy.detection_accuracy if original_accuracy.detection_accuracy is not None else 0.0
+    real_acc = (
+        original_accuracy.detection_accuracy
+        if original_accuracy.detection_accuracy is not None
+        else 0.0
+    )
 
     return {
         "baseline_accuracy": baseline_acc,
@@ -399,13 +453,17 @@ def _strategy_similarity_preserving_rotation(dimensions: int) -> dict:
     harness = create_harness(dimensions=dimensions)
     test_bundle, known_detections = create_controlled_test_data(harness)
 
-    baseline = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    baseline = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     baseline_acc = baseline.detection_accuracy or 1.0
     baseline_conf = baseline.detection_confidence or 0.0
 
     # Apply a global phase rotation (should preserve all similarities)
     rotation_angle = 1.5  # radians
-    rotation = torch.exp(torch.tensor(1j * rotation_angle, dtype=harness.dtype, device=harness.device))
+    rotation = torch.exp(
+        torch.tensor(1j * rotation_angle, dtype=harness.dtype, device=harness.device)
+    )
 
     # Rotate ALL primitives
     for prim_name in harness.primitives.keys():
@@ -414,9 +472,13 @@ def _strategy_similarity_preserving_rotation(dimensions: int) -> dict:
     # But DON'T rotate the codebook - this creates mismatch
     # The primitives and codebook are now misaligned
 
-    post = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    post = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     post_acc = post.detection_accuracy if post.detection_accuracy is not None else 0.0
-    post_conf = post.detection_confidence if post.detection_confidence is not None else 0.0
+    post_conf = (
+        post.detection_confidence if post.detection_confidence is not None else 0.0
+    )
 
     return {
         "baseline_accuracy": baseline_acc,
@@ -434,7 +496,9 @@ def _strategy_gradual_primitive_swap(dimensions: int) -> dict:
     harness = create_harness(dimensions=dimensions)
     test_bundle, known_detections = create_controlled_test_data(harness)
 
-    baseline = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    baseline = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     baseline_acc = baseline.detection_accuracy or 1.0
     baseline_conf = baseline.detection_confidence or 0.0
 
@@ -452,9 +516,13 @@ def _strategy_gradual_primitive_swap(dimensions: int) -> dict:
         (1 - swap_amount) * margin_leak + swap_amount * low_stock
     )
 
-    post = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    post = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     post_acc = post.detection_accuracy if post.detection_accuracy is not None else 0.0
-    post_conf = post.detection_confidence if post.detection_confidence is not None else 0.0
+    post_conf = (
+        post.detection_confidence if post.detection_confidence is not None else 0.0
+    )
 
     return {
         "baseline_accuracy": baseline_acc,
@@ -475,6 +543,7 @@ def _strategy_gradual_primitive_swap(dimensions: int) -> dict:
 @dataclass
 class CompoundDriftResult:
     """Results from compound drift probe."""
+
     steps: list[int] = field(default_factory=list)
     health_pass: list[bool] = field(default_factory=list)
     accuracy_values: list[float] = field(default_factory=list)
@@ -507,8 +576,12 @@ def probe_compound_drift(
     logger.info("\n" + "=" * 70)
     logger.info("PROBE 3: COMPOUND DRIFT (BOILING FROG)")
     logger.info("=" * 70)
-    logger.info(f"\nApplying {n_steps} small modifications (magnitude={magnitude_per_step} each)")
-    logger.info(f"Health threshold: {health_threshold}, Alarm threshold: {alarm_threshold}")
+    logger.info(
+        f"\nApplying {n_steps} small modifications (magnitude={magnitude_per_step} each)"
+    )
+    logger.info(
+        f"Health threshold: {health_threshold}, Alarm threshold: {alarm_threshold}"
+    )
 
     result = CompoundDriftResult()
 
@@ -519,14 +592,20 @@ def probe_compound_drift(
     original_primitives = {k: v.clone() for k, v in harness.primitives.items()}
 
     # Baseline
-    baseline = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
+    baseline = harness.measure_health(
+        test_bundle=test_bundle, known_detections=known_detections
+    )
     baseline_acc = baseline.detection_accuracy or 1.0
     baseline_conf = baseline.detection_confidence or 0.0
     prev_acc = baseline_acc
 
-    logger.info(f"\nBaseline: accuracy={baseline_acc:.3f}, confidence={baseline_conf:.3f}")
+    logger.info(
+        f"\nBaseline: accuracy={baseline_acc:.3f}, confidence={baseline_conf:.3f}"
+    )
     logger.info("\n" + "-" * 90)
-    logger.info(f"{'Step':>4} {'Accuracy':>10} {'Confidence':>12} {'Sim to Orig':>12} {'Health':>8} {'Alarm':>8}")
+    logger.info(
+        f"{'Step':>4} {'Accuracy':>10} {'Confidence':>12} {'Sim to Orig':>12} {'Health':>8} {'Alarm':>8}"
+    )
     logger.info("-" * 90)
 
     all_primitives = list(harness.primitives.keys())
@@ -542,9 +621,17 @@ def probe_compound_drift(
         )
 
         # Measure health
-        health = harness.measure_health(test_bundle=test_bundle, known_detections=known_detections)
-        acc = health.detection_accuracy if health.detection_accuracy is not None else 0.0
-        conf = health.detection_confidence if health.detection_confidence is not None else 0.0
+        health = harness.measure_health(
+            test_bundle=test_bundle, known_detections=known_detections
+        )
+        acc = (
+            health.detection_accuracy if health.detection_accuracy is not None else 0.0
+        )
+        conf = (
+            health.detection_confidence
+            if health.detection_confidence is not None
+            else 0.0
+        )
 
         # Calculate similarity to original
         mean_sim = sum(
@@ -565,22 +652,26 @@ def probe_compound_drift(
         result.similarity_to_original.append(mean_sim)
         result.health_pass.append(health_pass)
 
-        result.trajectory_log.append({
-            "step": step,
-            "accuracy": acc,
-            "confidence": conf,
-            "similarity_to_original": mean_sim,
-            "health_pass": health_pass,
-            "accuracy_drop_from_prev": acc_drop,
-            "alarm_triggered": alarm_triggered,
-            "primitive_modified": prim_to_modify,
-        })
+        result.trajectory_log.append(
+            {
+                "step": step,
+                "accuracy": acc,
+                "confidence": conf,
+                "similarity_to_original": mean_sim,
+                "health_pass": health_pass,
+                "accuracy_drop_from_prev": acc_drop,
+                "alarm_triggered": alarm_triggered,
+                "primitive_modified": prim_to_modify,
+            }
+        )
 
         health_str = "PASS" if health_pass else "FAIL"
         alarm_str = "ALARM!" if alarm_triggered else "-"
 
         if step % 5 == 0 or not health_pass or alarm_triggered:
-            logger.info(f"{step:4d} {acc:10.3f} {conf:12.3f} {mean_sim:12.3f} {health_str:>8} {alarm_str:>8}")
+            logger.info(
+                f"{step:4d} {acc:10.3f} {conf:12.3f} {mean_sim:12.3f} {health_str:>8} {alarm_str:>8}"
+            )
 
         # Track transitions
         if health_pass and result.last_healthy_step is None:
@@ -606,12 +697,17 @@ def probe_compound_drift(
     if result.first_failed_step is not None:
         logger.info(f"System failed at step {result.first_failed_step}")
 
-        if result.alarm_raised_at is not None and result.alarm_raised_at < result.first_failed_step:
+        if (
+            result.alarm_raised_at is not None
+            and result.alarm_raised_at < result.first_failed_step
+        ):
             result.observations.append(
                 f"DETECTABLE: Alarm raised at step {result.alarm_raised_at}, "
                 f"before failure at step {result.first_failed_step}"
             )
-            logger.info(f"DETECTABLE: Alarm raised at step {result.alarm_raised_at} (before failure)")
+            logger.info(
+                f"DETECTABLE: Alarm raised at step {result.alarm_raised_at} (before failure)"
+            )
         else:
             result.slid_into_failure = True
             result.observations.append(
@@ -620,17 +716,25 @@ def probe_compound_drift(
             )
             logger.info("CRITICAL: System slid into failure WITHOUT WARNING!")
     else:
-        result.observations.append(f"System remained healthy through all {n_steps} steps")
+        result.observations.append(
+            f"System remained healthy through all {n_steps} steps"
+        )
         logger.info(f"System remained healthy through all {n_steps} steps")
 
     # Check for gradual confidence erosion
     if result.confidence_values:
-        conf_start = result.confidence_values[0] if result.confidence_values[0] else baseline_conf
+        conf_start = (
+            result.confidence_values[0]
+            if result.confidence_values[0]
+            else baseline_conf
+        )
         conf_end = result.confidence_values[-1]
         conf_erosion = conf_start - conf_end
 
         if conf_erosion > 0.2:
-            result.observations.append(f"Confidence eroded by {conf_erosion:.3f} over the trajectory")
+            result.observations.append(
+                f"Confidence eroded by {conf_erosion:.3f} over the trajectory"
+            )
             logger.info(f"Confidence eroded by {conf_erosion:.3f}")
 
     return result
@@ -692,14 +796,18 @@ def run_all_probes(dimensions: int = 2048) -> dict[str, Any]:
         )
 
     if results["compound_drift"].slid_into_failure:
-        critical_findings.append("System slid into failure without warning (boiling frog)")
+        critical_findings.append(
+            "System slid into failure without warning (boiling frog)"
+        )
 
     if critical_findings:
         logger.info("\nCRITICAL FINDINGS:")
         for finding in critical_findings:
             logger.info(f"  *** {finding} ***")
     else:
-        logger.info("\nNo critical failures found - system appears robust to tested attacks")
+        logger.info(
+            "\nNo critical failures found - system appears robust to tested attacks"
+        )
 
     return results
 

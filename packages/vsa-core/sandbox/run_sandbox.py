@@ -62,7 +62,18 @@ Examples:
 
     parser.add_argument(
         "--test",
-        choices=["all", "drift", "aggressive", "recovery", "self-eval", "sweep", "invariants", "metacog", "metacog-compare", "structure"],
+        choices=[
+            "all",
+            "drift",
+            "aggressive",
+            "recovery",
+            "self-eval",
+            "sweep",
+            "invariants",
+            "metacog",
+            "metacog-compare",
+            "structure",
+        ],
         default="all",
         help="Which test to run (default: all)",
     )
@@ -164,6 +175,7 @@ Examples:
         if args.report_only:
             try:
                 from visualization import print_summary_report
+
                 print_summary_report(results)
             except ImportError:
                 print("Could not import visualization module")
@@ -172,6 +184,7 @@ Examples:
         if args.visualize:
             try:
                 from visualization import plot_all_results, print_summary_report
+
                 print_summary_report(results)
                 plot_all_results(results, output_dir=args.output_dir)
             except ImportError as e:
@@ -243,7 +256,9 @@ Examples:
         print("SELF-EVALUATION INTEGRITY RESULTS")
         print("=" * 60)
         print(f"Baseline detection accuracy: {result.baseline_detection_accuracy:.3f}")
-        print(f"Post-modification accuracy:  {result.post_modification_detection_accuracy:.3f}")
+        print(
+            f"Post-modification accuracy:  {result.post_modification_detection_accuracy:.3f}"
+        )
         print(f"Accuracy drop:              {result.accuracy_drop:+.3f}")
         print(f"Confidence drop:            {result.confidence_drop:+.3f}")
         print(f"Gap (confidence - accuracy): {result.confidence_accuracy_gap:+.3f}")
@@ -275,6 +290,7 @@ Examples:
             print_metacognitive_report,
             run_metacognitive_test,
         )
+
         result = run_metacognitive_test(
             dimensions=args.dimensions,
             device=device,
@@ -292,6 +308,7 @@ Examples:
             compare_agent_behaviors,
             print_metacognitive_report,
         )
+
         comparison = compare_agent_behaviors(
             dimensions=args.dimensions,
             device=device,
@@ -308,8 +325,12 @@ Examples:
         print("COMPARISON SUMMARY")
         print("=" * 70)
         comp = comparison["comparison"]
-        print(f"Baseline: {comp['baseline_steps']} steps, final accuracy {comp['baseline_final_accuracy']:.3f}")
-        print(f"Metacog:  {comp['metacog_steps']} steps, final accuracy {comp['metacog_final_accuracy']:.3f}")
+        print(
+            f"Baseline: {comp['baseline_steps']} steps, final accuracy {comp['baseline_final_accuracy']:.3f}"
+        )
+        print(
+            f"Metacog:  {comp['metacog_steps']} steps, final accuracy {comp['metacog_final_accuracy']:.3f}"
+        )
         print(f"Metacog stopped self: {comp['metacog_stopped_self']}")
         print(f"Metacog switched strategy: {comp['metacog_switched_strategy']}")
         print(f"Metacog success level: {comp['metacog_success_level']}")
@@ -326,6 +347,7 @@ Examples:
             print_structure_learning_report,
             run_structure_learning_test,
         )
+
         result = run_structure_learning_test(
             dimensions=args.dimensions,
             device=device,
@@ -344,6 +366,7 @@ Examples:
     if args.visualize:
         try:
             from visualization import plot_all_results, print_summary_report
+
             print_summary_report(results)
             plot_all_results(results, output_dir=output_dir)
         except ImportError as e:
@@ -354,6 +377,7 @@ Examples:
 def _to_dict(obj):
     """Convert dataclass or object to dict."""
     from dataclasses import asdict, is_dataclass
+
     if is_dataclass(obj):
         return asdict(obj)
     elif hasattr(obj, "__dict__"):
