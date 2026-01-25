@@ -22,6 +22,17 @@ const nextConfig: NextConfig = {
     domains: ["profitsentinel.com"],
   },
 
+  // Redirects for legacy URLs
+  async redirects() {
+    return [
+      {
+        source: "/upload",
+        destination: "/diagnostic",
+        permanent: true,
+      },
+    ];
+  },
+
   // API rewrites to proxy backend requests
   async rewrites() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
