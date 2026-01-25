@@ -21,17 +21,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY apps/api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install PyTorch CPU-only (required by vsa-core and sentinel-engine)
+# Install PyTorch CPU-only (required by sentinel-engine Dorian)
 # Using CPU-only to reduce image size; use cuda version if GPU needed
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-# Copy local packages and install them
-COPY packages/reasoning /packages/reasoning
-RUN pip install --no-cache-dir /packages/reasoning
-
-COPY packages/vsa-core /packages/vsa-core
-RUN pip install --no-cache-dir /packages/vsa-core
-
+# Copy and install sentinel-engine (v5.0.0 - Dorian, self-contained)
 COPY packages/sentinel-engine /packages/sentinel-engine
 RUN pip install --no-cache-dir /packages/sentinel-engine
 
