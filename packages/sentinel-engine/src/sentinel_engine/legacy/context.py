@@ -452,9 +452,9 @@ class SparseVSA:
             weights = [1.0] * len(vectors)
 
         # Collect all indices across all vectors
-        all_indices: dict[int, list[tuple[float, float]]] = (
-            {}
-        )  # idx -> [(phase, weight), ...]
+        all_indices: dict[
+            int, list[tuple[float, float]]
+        ] = {}  # idx -> [(phase, weight), ...]
 
         for vec, weight in zip(vectors, weights):
             for i, idx in enumerate(vec.indices.tolist()):

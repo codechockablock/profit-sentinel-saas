@@ -1,80 +1,66 @@
 """
-sentinel_engine - Aggressive VSA-based Profit Leak Detection Engine
+sentinel_engine - Dorian Knowledge Engine for Retail Analytics
 
-This module provides the scalable infrastructure for VSA inference:
-- Core analysis functions (bundle_pos_facts, query_bundle)
-- 8 detection primitives for comprehensive leak detection
-- Universal POS column support (Paladin, Square, Lightspeed, etc.)
-- $ impact estimation and recommendations
+v5.0.0 - Complete Dorian Integration
+======================================
+This module provides production-grade VSA inference with FAISS indexing:
+- Dorian Knowledge Engine (10K dimensions, 10M+ facts)
+- Conversational diagnostic engine for shrinkage analysis
+- PDF report generation
+- Knowledge loaders (Wikidata, arXiv, ConceptNet)
 
-v4.0 Features (VSA Evidence Grounding):
-- Evidence-based encoding: facts encoded by what causes they support
-- Hot/cold path routing: 5,059x speedup (0.003ms vs 500ms)
-- 0% quantitative hallucination (vs 39.6% ungrounded)
-- 100% multi-hop reasoning accuracy
-- Validated across 16 hypotheses with 23K+ SKUs
+Example (v5.0 - Dorian):
+    from sentinel_engine import DorianCore, _DORIAN_AVAILABLE
 
-v2.1 Features (Request Isolation):
-- AnalysisContext for per-request state isolation
-- No global mutable state - thread-safe for concurrent requests
-- Backward compatibility with deprecation warnings
+    if _DORIAN_AVAILABLE:
+        dorian = DorianCore(dimensions=10000)
+        dorian.add_fact("product", "has_category", "electronics")
+        results = dorian.query("product")
 
-v2.0 Features:
-- 8 leak detection primitives (was 4)
-- Aggressive thresholds tuned for real retail data
-- Universal column synonym handling
-- Metadata with recommendations per leak type
+Example (v5.0 - Diagnostic):
+    from sentinel_engine import ConversationalDiagnostic, _DIAGNOSTIC_AVAILABLE
 
-Example (v4.0 - VSA Grounded):
-    from sentinel_engine import bundle_pos_facts, query_bundle, LEAK_METADATA
-    from sentinel_engine.context import create_analysis_context
-    from sentinel_engine.vsa_evidence import create_cause_scorer
-    from sentinel_engine.routing import create_smart_router
+    if _DIAGNOSTIC_AVAILABLE:
+        diagnostic = ConversationalDiagnostic()
+        session = diagnostic.start_session(csv_data, "My Store")
+        question = diagnostic.get_current_question(session)
+        diagnostic.submit_answer(session, "yes")
+        report = diagnostic.generate_report(session)
 
-    # Create isolated context for this request
-    ctx = create_analysis_context()
+Legacy API (v2.1-v4.x - Deprecated)
+===================================
+The old context-based API is still available for backward compatibility
+but is deprecated. Migrate to Dorian for new development.
 
-    # Option 1: Use grounded evidence scoring
-    scorer = create_cause_scorer(ctx)
-    result = scorer.score_rows(rows, context={"avg_margin": 0.3})
-    print(f"Cause: {result.top_cause}, Confidence: {result.confidence}")
-
-    # Option 2: Use smart router for hybrid analysis
-    router = create_smart_router(ctx)
-    analysis = router.analyze(rows)
-    print(f"Final cause: {analysis.final_cause}, Grounded: {analysis.grounded}")
-
-Example (v2.1 - Core Detection):
-    from sentinel_engine import bundle_pos_facts, query_bundle, LEAK_METADATA
-    from sentinel_engine.context import create_analysis_context
-
-    # Create isolated context for this request
-    ctx = create_analysis_context()
-
-    # Bundle POS data facts
-    bundle = bundle_pos_facts(ctx, rows)
-
-    # Query for anomalies
-    items, scores = query_bundle(ctx, bundle, "low_stock")
-
-    # Get recommendations
-    metadata = LEAK_METADATA["low_stock"]
-
-Example (Legacy - Deprecated):
-    # Still works but uses global state (not thread-safe)
-    bundle = bundle_pos_facts(rows)  # Deprecated signature
+    from sentinel_engine import _CORE_AVAILABLE
+    if _CORE_AVAILABLE:
+        from sentinel_engine import bundle_pos_facts, query_bundle
 """
 
-__version__ = "4.0.0"
+__version__ = "5.0.0"  # Dorian integration
 
-# Context-based API (v2.1 - Recommended)
-from .context import (
-    DEFAULT_DIMENSIONS,
-    DEFAULT_MAX_CODEBOOK_SIZE,
-    HIERARCHICAL_CODEBOOK_THRESHOLD,
-    AnalysisContext,
-    create_analysis_context,
-)
+# Default constants (used by legacy API and Dorian)
+DEFAULT_DIMENSIONS = 10000
+DEFAULT_MAX_CODEBOOK_SIZE = 100000
+HIERARCHICAL_CODEBOOK_THRESHOLD = 10000
+
+# Legacy context-based API (v2.1 - Deprecated, use Dorian instead)
+try:
+    from .legacy.context import (
+        AnalysisContext,
+        create_analysis_context,
+    )
+
+    _CONTEXT_AVAILABLE = True
+except ImportError:
+    import logging
+
+    logging.getLogger(__name__).debug(
+        "Legacy context module not available - using Dorian"
+    )
+    _CONTEXT_AVAILABLE = False
+    AnalysisContext = None
+    create_analysis_context = None
 
 # Core analysis functions (proprietary - may not be available in all environments)
 try:
@@ -304,16 +290,76 @@ except ImportError as e:
     SemanticFlag = None
     SemanticFlagDetector = None
 
+# Dorian Knowledge Engine (v5.0.0) - Production VSA with FAISS indexing
+try:
+    from .dorian import (
+        DorianCore,
+        FactStore,
+        InferenceEngine,
+        KnowledgePipeline,
+        VSAEngine,
+    )
+
+    _DORIAN_AVAILABLE = True
+except ImportError as e:
+    import logging
+
+    logging.getLogger(__name__).debug(f"Dorian module not available: {e}")
+    _DORIAN_AVAILABLE = False
+    DorianCore = None
+    VSAEngine = None
+    FactStore = None
+    InferenceEngine = None
+    KnowledgePipeline = None
+
+# Diagnostic Engine (v5.0.0) - Conversational shrinkage diagnostic
+try:
+    from .diagnostic import (
+        ConversationalDiagnostic,
+        DetectedPattern,
+        DiagnosticSession,
+        ProfitSentinelReport,
+        generate_report_from_session,
+    )
+
+    _DIAGNOSTIC_AVAILABLE = True
+except ImportError as e:
+    import logging
+
+    logging.getLogger(__name__).debug(f"Diagnostic module not available: {e}")
+    _DIAGNOSTIC_AVAILABLE = False
+    ConversationalDiagnostic = None
+    DiagnosticSession = None
+    DetectedPattern = None
+    ProfitSentinelReport = None
+    generate_report_from_session = None
+
 __all__ = [
     # Version
     "__version__",
-    # Context API (v2.1 - Recommended)
-    "AnalysisContext",
-    "create_analysis_context",
+    # Dorian (v5.0.0) - PRIMARY API
+    "_DORIAN_AVAILABLE",
+    "DorianCore",
+    "VSAEngine",
+    "FactStore",
+    "InferenceEngine",
+    "KnowledgePipeline",
+    # Diagnostic (v5.0.0) - PRIMARY API
+    "_DIAGNOSTIC_AVAILABLE",
+    "ConversationalDiagnostic",
+    "DiagnosticSession",
+    "DetectedPattern",
+    "ProfitSentinelReport",
+    "generate_report_from_session",
+    # Constants
     "DEFAULT_DIMENSIONS",
     "DEFAULT_MAX_CODEBOOK_SIZE",
     "HIERARCHICAL_CODEBOOK_THRESHOLD",
-    # Core availability flag
+    # Legacy Context API (v2.1 - Deprecated)
+    "_CONTEXT_AVAILABLE",
+    "AnalysisContext",
+    "create_analysis_context",
+    # Core availability flag (legacy)
     "_CORE_AVAILABLE",
     # Flagging (v4.1.0)
     "_FLAGGING_AVAILABLE",

@@ -139,14 +139,15 @@ class AnalysisService:
         """Initialize analysis service with VSA engine."""
         try:
             from sentinel_engine import (
+                _CONTEXT_AVAILABLE,
                 _CORE_AVAILABLE,
                 LEAK_METADATA,
                 bundle_pos_facts,
+                create_analysis_context,
                 get_all_primitives,
                 get_primitive_metadata,
                 query_bundle,
             )
-            from sentinel_engine.context import create_analysis_context
 
             # Check if core module is available (bundle_pos_facts may be None if core.py is gitignored)
             if not _CORE_AVAILABLE or bundle_pos_facts is None:
@@ -156,7 +157,9 @@ class AnalysisService:
             self._query_bundle = query_bundle
             self._get_primitive_metadata = get_primitive_metadata
             self._get_all_primitives = get_all_primitives
-            self._create_context = create_analysis_context
+            self._create_context = (
+                create_analysis_context if _CONTEXT_AVAILABLE else None
+            )
             self._leak_metadata = LEAK_METADATA if LEAK_METADATA else {}
             self._engine_available = True
             logger.info(
@@ -706,7 +709,7 @@ class AnalysisService:
         """Safely convert to float."""
         if val is None:
             return 0.0
-        if isinstance(val, (int, float)):
+        if isinstance(val, int | float):
             return float(val)
         try:
             return float(str(val).replace("$", "").replace(",", "").strip())
