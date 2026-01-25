@@ -1559,9 +1559,11 @@ class DorianAgentV2:
                 "conversations": self.growth.conversations,
                 "questions_answered": self.growth.questions_answered,
                 "questions_unanswered": self.growth.questions_unanswered,
-                "first_interaction": self.growth.first_interaction.isoformat()
-                if self.growth.first_interaction
-                else None,
+                "first_interaction": (
+                    self.growth.first_interaction.isoformat()
+                    if self.growth.first_interaction
+                    else None
+                ),
                 "entities": list(self.growth.entities),
                 "relations": list(self.growth.relations),
                 "entity_frequency": dict(self.growth.entity_frequency),

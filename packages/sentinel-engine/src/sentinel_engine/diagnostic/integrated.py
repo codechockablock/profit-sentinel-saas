@@ -474,9 +474,9 @@ class ProfitSentinel:
             "total_shrinkage": total_cost,
             "explained_value": explained_cost,
             "unexplained_value": unexplained_cost,
-            "explained_percentage": (explained_cost / total_cost * 100)
-            if total_cost > 0
-            else 0,
+            "explained_percentage": (
+                (explained_cost / total_cost * 100) if total_cost > 0 else 0
+            ),
             "by_category": {
                 "non_tracked": len(classified["non_tracked"]),
                 "receiving_gap": len(classified["receiving_gap"]),

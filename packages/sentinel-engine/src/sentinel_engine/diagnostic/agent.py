@@ -431,9 +431,11 @@ class ProfitSentinelAgent:
                         "quantity_on_hand": qoh,
                         "avg_daily_sales": avg_sales,
                         "geometric_similarity": round(similarity, 3),
-                        "detection_method": "rule+geometry"
-                        if (is_dead_by_rule and is_dead_by_geometry)
-                        else ("rule" if is_dead_by_rule else "geometry"),
+                        "detection_method": (
+                            "rule+geometry"
+                            if (is_dead_by_rule and is_dead_by_geometry)
+                            else ("rule" if is_dead_by_rule else "geometry")
+                        ),
                     },
                     causal_chain=causal_chain,
                 )
@@ -691,9 +693,11 @@ class ProfitSentinelAgent:
                     evidence={
                         "retail_price": retail,
                         "unit_cost": cost,
-                        "actual_margin_pct": round((retail - cost) / retail * 100, 1)
-                        if retail > 0
-                        else 0,
+                        "actual_margin_pct": (
+                            round((retail - cost) / retail * 100, 1)
+                            if retail > 0
+                            else 0
+                        ),
                         "category_avg_margin_pct": round(cat_avg_margin.get(cat, 0), 1),
                         "error_types": errors,
                     },
@@ -866,9 +870,11 @@ class ProfitSentinelAgent:
                         "vendor_id": vendor,
                         "total_ordered": metrics["total_ordered"],
                         "total_received": metrics["total_received"],
-                        "fill_rate_pct": round(fill_rate * 100, 1)
-                        if metrics["total_ordered"] > 0
-                        else 100,
+                        "fill_rate_pct": (
+                            round(fill_rate * 100, 1)
+                            if metrics["total_ordered"] > 0
+                            else 100
+                        ),
                         "compliance_issues": issues,
                     },
                     causal_chain=[
@@ -1431,9 +1437,9 @@ class ProfitSentinelAgent:
                 lt.value: {
                     "count": len(leaks),
                     "total_impact": sum(l.estimated_impact for l in leaks),
-                    "avg_confidence": np.mean([l.confidence for l in leaks])
-                    if leaks
-                    else 0,
+                    "avg_confidence": (
+                        np.mean([l.confidence for l in leaks]) if leaks else 0
+                    ),
                 }
                 for lt, leaks in by_type.items()
             },
