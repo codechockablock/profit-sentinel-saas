@@ -99,14 +99,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers[
-            "Strict-Transport-Security"
-        ] = "max-age=31536000; includeSubDomains"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
         response.headers["Content-Security-Policy"] = "default-src 'self'"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers[
-            "Permissions-Policy"
-        ] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=()"
+        )
 
         return response
 
@@ -164,12 +164,12 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
                 logger.info(f"CORS preflight APPROVED for origin: {origin}")
                 response = Response(status_code=200)
                 response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers[
-                    "Access-Control-Allow-Methods"
-                ] = "GET, POST, PUT, DELETE, OPTIONS"
-                response.headers[
-                    "Access-Control-Allow-Headers"
-                ] = "Authorization, Content-Type, Accept, X-Requested-With"
+                response.headers["Access-Control-Allow-Methods"] = (
+                    "GET, POST, PUT, DELETE, OPTIONS"
+                )
+                response.headers["Access-Control-Allow-Headers"] = (
+                    "Authorization, Content-Type, Accept, X-Requested-With"
+                )
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Max-Age"] = "600"
                 return response
