@@ -756,8 +756,7 @@ def demo():
     report = engine.get_final_report()
     summary = report["summary"]
 
-    print(
-        f"""
+    print(f"""
 ┌────────────────────────────────────────────────────────────────┐
 │  DIAGNOSTIC COMPLETE                                           │
 ├────────────────────────────────────────────────────────────────┤
@@ -773,8 +772,7 @@ def demo():
 │                                                                │
 │  {summary['patterns_total']} patterns reviewed                                      │
 └────────────────────────────────────────────────────────────────┘
-"""
-    )
+""")
 
     print("\nTop 10 items to investigate:")
     for item in report["items_to_investigate"][:10]:

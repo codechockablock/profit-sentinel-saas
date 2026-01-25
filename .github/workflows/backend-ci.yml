@@ -59,13 +59,12 @@ jobs:
 
       - name: Install local packages
         run: |
-          pip install -e packages/vsa-core
-          pip install -e packages/reasoning
+          # sentinel-engine v5.0.0 (Dorian) is self-contained
           pip install -e packages/sentinel-engine
 
       - name: Run tests
         env:
-          PYTHONPATH: apps/api/src:packages/vsa-core/src:packages/reasoning/src:packages/sentinel-engine/src
+          PYTHONPATH: apps/api/src:packages/sentinel-engine/src
         run: |
           python -m pytest apps/api/tests/ -v --tb=short
 
