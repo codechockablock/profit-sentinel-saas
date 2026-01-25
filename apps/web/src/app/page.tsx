@@ -31,7 +31,7 @@ export default function Home() {
 
           {/* CTA */}
           <Link
-            href="/upload"
+            href="/diagnostic"
             className="inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-xl rounded-2xl hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-105 shadow-lg shadow-emerald-500/25"
           >
             <UploadIcon className="w-6 h-6" />
@@ -182,7 +182,7 @@ export default function Home() {
             Free analysis. Results in under 2 minutes. No credit card required.
           </p>
           <Link
-            href="/upload"
+            href="/diagnostic"
             className="inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-xl rounded-2xl hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-105 shadow-lg shadow-emerald-500/25"
           >
             <UploadIcon className="w-6 h-6" />
