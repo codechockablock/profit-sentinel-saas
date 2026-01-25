@@ -167,6 +167,13 @@ export default function DiagnosticDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
 
+  // Email modal state
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
   const handleDrag = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -293,6 +300,42 @@ export default function DiagnosticDashboard() {
 
   const handleSkip = () => {
     handleAnswer('investigate');
+  };
+
+  const handleSendEmail = async () => {
+    if (!sessionId || !emailInput.trim()) return;
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailInput)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+
+    setEmailSending(true);
+    setEmailError(null);
+
+    try {
+      const response = await fetch(`/api/diagnostic/${sessionId}/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailInput,
+          include_summary: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to send email');
+      }
+
+      setEmailSent(true);
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Failed to send email');
+    } finally {
+      setEmailSending(false);
+    }
   };
 
   const reductionPercent = totalShrinkage > 0 ? (explainedValue / totalShrinkage) * 100 : 0;
@@ -907,7 +950,7 @@ export default function DiagnosticDashboard() {
         )}
 
         {/* Download/Email buttons */}
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={async () => {
               if (sessionId) {
@@ -923,11 +966,190 @@ export default function DiagnosticDashboard() {
               fontSize: '0.9rem',
               fontWeight: 600,
               cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
             }}
           >
-            Download PDF Report
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download PDF
+          </button>
+          <button
+            onClick={() => {
+              setShowEmailModal(true);
+              setEmailSent(false);
+              setEmailError(null);
+            }}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: 'transparent',
+              border: '1px solid #3f3f46',
+              borderRadius: 8,
+              color: '#e4e4e7',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            Email Report
           </button>
         </div>
+
+        {/* Email Modal */}
+        {showEmailModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+            }}
+            onClick={() => setShowEmailModal(false)}
+          >
+            <div
+              style={{
+                background: '#18181b',
+                border: '1px solid #27272a',
+                borderRadius: 16,
+                padding: '2rem',
+                maxWidth: 400,
+                width: '90%',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {emailSent ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: '50%',
+                      background: 'rgba(16, 185, 129, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 1rem',
+                    }}
+                  >
+                    <CheckCircle size={28} color="#10b981" />
+                  </div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    Report Sent!
+                  </h3>
+                  <p style={{ color: '#71717a', marginBottom: '1.5rem' }}>
+                    Check your inbox at <strong style={{ color: '#e4e4e7' }}>{emailInput}</strong>
+                  </p>
+                  <button
+                    onClick={() => setShowEmailModal(false)}
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      background: '#27272a',
+                      border: 'none',
+                      borderRadius: 8,
+                      color: 'white',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    Email Your Report
+                  </h3>
+                  <p style={{ color: '#71717a', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                    Get the full diagnostic report with all SKU details sent to your inbox.
+                  </p>
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSendEmail();
+                    }}
+                    placeholder="you@example.com"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      background: '#09090b',
+                      border: '1px solid #27272a',
+                      borderRadius: 8,
+                      color: '#e4e4e7',
+                      fontSize: '1rem',
+                      marginBottom: '0.75rem',
+                      outline: 'none',
+                    }}
+                    autoFocus
+                  />
+                  {emailError && (
+                    <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+                      {emailError}
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button
+                      onClick={() => setShowEmailModal(false)}
+                      style={{
+                        flex: 1,
+                        padding: '0.75rem',
+                        background: 'transparent',
+                        border: '1px solid #3f3f46',
+                        borderRadius: 8,
+                        color: '#a1a1aa',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSendEmail}
+                      disabled={emailSending || !emailInput.trim()}
+                      style={{
+                        flex: 1,
+                        padding: '0.75rem',
+                        background: emailSending ? '#27272a' : 'linear-gradient(135deg, #10b981, #059669)',
+                        border: 'none',
+                        borderRadius: 8,
+                        color: 'white',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        cursor: emailSending ? 'not-allowed' : 'pointer',
+                        opacity: !emailInput.trim() ? 0.5 : 1,
+                      }}
+                    >
+                      {emailSending ? 'Sending...' : 'Send Report'}
+                    </button>
+                  </div>
+                  <p style={{ color: '#52525b', fontSize: '0.75rem', marginTop: '1rem', textAlign: 'center' }}>
+                    Your data is deleted after sending. No spam, ever.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
