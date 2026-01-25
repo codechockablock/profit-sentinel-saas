@@ -28,11 +28,18 @@ async def health(request: Request):
     # Check sentinel engine
     engine_status = "unavailable"
     engine_version = None
+    dorian_available = False
+    diagnostic_available = False
     try:
+        from sentinel_engine import _DIAGNOSTIC_AVAILABLE, _DORIAN_AVAILABLE
         from sentinel_engine import __version__ as ev
 
         engine_version = ev
-        engine_status = "available"
+        dorian_available = _DORIAN_AVAILABLE
+        diagnostic_available = _DIAGNOSTIC_AVAILABLE
+        engine_status = (
+            "available" if (dorian_available or diagnostic_available) else "partial"
+        )
     except ImportError:
         pass
 
@@ -52,6 +59,8 @@ async def health(request: Request):
             "sentinel_engine": {
                 "status": engine_status,
                 "version": engine_version,
+                "dorian": dorian_available,
+                "diagnostic": diagnostic_available,
                 "warning": (
                     "Using mock analysis - emails will contain placeholder SKUs"
                     if engine_status == "unavailable"

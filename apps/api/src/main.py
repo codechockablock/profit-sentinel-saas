@@ -99,14 +99,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"
-        )
+        response.headers[
+            "Strict-Transport-Security"
+        ] = "max-age=31536000; includeSubDomains"
         response.headers["Content-Security-Policy"] = "default-src 'self'"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = (
-            "geolocation=(), microphone=(), camera=()"
-        )
+        response.headers[
+            "Permissions-Policy"
+        ] = "geolocation=(), microphone=(), camera=()"
 
         return response
 
@@ -164,12 +164,12 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
                 logger.info(f"CORS preflight APPROVED for origin: {origin}")
                 response = Response(status_code=200)
                 response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Methods"] = (
-                    "GET, POST, PUT, DELETE, OPTIONS"
-                )
-                response.headers["Access-Control-Allow-Headers"] = (
-                    "Authorization, Content-Type, Accept, X-Requested-With"
-                )
+                response.headers[
+                    "Access-Control-Allow-Methods"
+                ] = "GET, POST, PUT, DELETE, OPTIONS"
+                response.headers[
+                    "Access-Control-Allow-Headers"
+                ] = "Authorization, Content-Type, Accept, X-Requested-With"
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Max-Age"] = "600"
                 return response
@@ -219,20 +219,35 @@ async def lifespan(app: FastAPI):
 def _verify_sentinel_engine():
     """Verify sentinel engine is available and log status."""
     try:
-        from sentinel_engine import _CORE_AVAILABLE, get_all_primitives
+        from sentinel_engine import _DIAGNOSTIC_AVAILABLE, _DORIAN_AVAILABLE
         from sentinel_engine import __version__ as engine_version
 
-        if not _CORE_AVAILABLE or get_all_primitives is None:
-            logger.warning(
-                f"Sentinel Engine v{engine_version} loaded but core module unavailable. "
-                "Analysis will use heuristic fallback mode."
+        # Primary: Check Dorian (v5.0.0+)
+        if _DORIAN_AVAILABLE and _DIAGNOSTIC_AVAILABLE:
+            logger.info(
+                f"Sentinel Engine v{engine_version} loaded successfully "
+                "(Dorian + Diagnostic available)"
             )
             return True
 
-        primitives = get_all_primitives()
-        logger.info(
-            f"Sentinel Engine v{engine_version} loaded successfully "
-            f"({len(primitives)} primitives available)"
+        # Fallback: Check legacy core
+        try:
+            from sentinel_engine import _CORE_AVAILABLE, get_all_primitives
+
+            if _CORE_AVAILABLE and get_all_primitives is not None:
+                primitives = get_all_primitives()
+                logger.info(
+                    f"Sentinel Engine v{engine_version} loaded (legacy mode) "
+                    f"({len(primitives)} primitives available)"
+                )
+                return True
+        except ImportError:
+            pass
+
+        logger.warning(
+            f"Sentinel Engine v{engine_version} loaded but modules unavailable. "
+            f"Dorian: {_DORIAN_AVAILABLE}, Diagnostic: {_DIAGNOSTIC_AVAILABLE}. "
+            "Analysis will use heuristic fallback mode."
         )
         return True
     except ImportError as e:
@@ -240,7 +255,7 @@ def _verify_sentinel_engine():
             f"CRITICAL: Sentinel Engine NOT AVAILABLE - {e}. "
             "Analysis will use MOCK DATA with placeholder SKUs! "
             "Emails will contain 'SKU-001', 'SKU-002' instead of real data. "
-            "To fix: ensure sentinel-engine package is installed."
+            "To fix: pip install -e packages/sentinel-engine"
         )
         return False
 
@@ -352,11 +367,18 @@ async def health():
     # Check sentinel engine
     engine_status = "unavailable"
     engine_version = None
+    dorian_available = False
+    diagnostic_available = False
     try:
+        from sentinel_engine import _DIAGNOSTIC_AVAILABLE, _DORIAN_AVAILABLE
         from sentinel_engine import __version__ as ev
 
         engine_version = ev
-        engine_status = "available"
+        dorian_available = _DORIAN_AVAILABLE
+        diagnostic_available = _DIAGNOSTIC_AVAILABLE
+        engine_status = (
+            "available" if (dorian_available or diagnostic_available) else "partial"
+        )
     except ImportError:
         pass
 
@@ -376,6 +398,8 @@ async def health():
             "sentinel_engine": {
                 "status": engine_status,
                 "version": engine_version,
+                "dorian": dorian_available,
+                "diagnostic": diagnostic_available,
                 "warning": (
                     "Using mock analysis - emails will contain placeholder SKUs"
                     if engine_status == "unavailable"

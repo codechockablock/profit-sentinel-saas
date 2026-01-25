@@ -22,6 +22,21 @@ const nextConfig: NextConfig = {
     domains: ["profitsentinel.com"],
   },
 
+  // API rewrites to proxy backend requests
+  async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    return [
+      {
+        source: "/api/diagnostic/:path*",
+        destination: `${apiUrl}/diagnostic/:path*`,
+      },
+      {
+        source: "/api/:path*",
+        destination: `${apiUrl}/:path*`,
+      },
+    ];
+  },
+
   // Headers for security - comprehensive OWASP-compliant headers
   async headers() {
     return [
@@ -54,7 +69,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Content-Security-Policy",
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.profitsentinel.com https://*.supabase.co https://api.x.ai https://*.s3.amazonaws.com https://*.s3.us-east-1.amazonaws.com; frame-ancestors 'none';",
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 https://api.profitsentinel.com https://*.supabase.co https://api.x.ai https://*.s3.amazonaws.com https://*.s3.us-east-1.amazonaws.com; frame-ancestors 'none';",
           },
         ],
       },

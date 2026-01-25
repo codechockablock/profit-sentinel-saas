@@ -682,6 +682,316 @@ class EmailService:
         }
         return colors.get(leak_type, "#6b7280")
 
+    async def send_diagnostic_report(
+        self,
+        to_email: str,
+        pdf_path: str,
+        store_name: str,
+        summary: dict | None = None,
+    ) -> dict[str, Any]:
+        """
+        Send diagnostic report email with PDF attachment.
+
+        Args:
+            to_email: Recipient email address
+            pdf_path: Path to the generated PDF report
+            store_name: Name of the store for the report
+            summary: Optional summary data to include in email body
+
+        Returns:
+            Dict with success status and message ID
+        """
+        if not self.is_configured:
+            logger.warning("Email service not configured, skipping send")
+            return {"success": False, "error": "Email service not configured"}
+
+        # Read PDF file
+        try:
+            import base64
+
+            with open(pdf_path, "rb") as f:
+                pdf_content = base64.b64encode(f.read()).decode("utf-8")
+        except Exception as e:
+            logger.error(f"Failed to read PDF file: {e}")
+            return {"success": False, "error": f"Failed to read PDF: {str(e)}"}
+
+        # Generate email content
+        html_content = self._generate_diagnostic_email_html(store_name, summary)
+        text_content = self._generate_diagnostic_email_text(store_name, summary)
+
+        subject = f"Profit Sentinel Diagnostic Report - {store_name}"
+
+        try:
+            if self.provider == "resend":
+                return await self._send_diagnostic_via_resend(
+                    to_email,
+                    subject,
+                    html_content,
+                    text_content,
+                    pdf_content,
+                    store_name,
+                )
+            elif self.provider == "sendgrid":
+                return await self._send_diagnostic_via_sendgrid(
+                    to_email,
+                    subject,
+                    html_content,
+                    text_content,
+                    pdf_content,
+                    store_name,
+                )
+        except Exception as e:
+            logger.error(f"Failed to send diagnostic email: {e}")
+            return {"success": False, "error": str(e)}
+
+        return {"success": False, "error": "No email provider configured"}
+
+    async def _send_diagnostic_via_resend(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: str,
+        pdf_content: str,
+        store_name: str,
+    ) -> dict[str, Any]:
+        """Send diagnostic email via Resend API with PDF attachment."""
+        try:
+            import resend
+
+            resend.api_key = self.resend_api_key
+
+            safe_store_name = store_name.lower().replace(" ", "_")
+            filename = f"profit_sentinel_report_{safe_store_name}.pdf"
+
+            response = resend.Emails.send(
+                {
+                    "from": f"{self.from_name} <{self.from_email}>",
+                    "to": [to_email],
+                    "subject": subject,
+                    "html": html_content,
+                    "text": text_content,
+                    "attachments": [
+                        {
+                            "filename": filename,
+                            "content": pdf_content,
+                        }
+                    ],
+                    "headers": {
+                        "List-Unsubscribe": f"<mailto:unsubscribe@profitsentinel.com?subject=Unsubscribe {to_email}>"
+                    },
+                }
+            )
+
+            logger.info(
+                f"Diagnostic email sent via Resend to {to_email}, ID: {response.get('id')}"
+            )
+            return {"success": True, "message_id": response.get("id")}
+
+        except ImportError:
+            logger.error("Resend package not installed: pip install resend")
+            return {"success": False, "error": "Resend package not installed"}
+        except Exception as e:
+            logger.error(f"Resend API error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _send_diagnostic_via_sendgrid(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: str,
+        pdf_content: str,
+        store_name: str,
+    ) -> dict[str, Any]:
+        """Send diagnostic email via SendGrid API with PDF attachment."""
+        try:
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import (
+                Attachment,
+                Content,
+                Disposition,
+                Email,
+                FileContent,
+                FileName,
+                FileType,
+                Header,
+                Mail,
+                To,
+            )
+
+            sg = SendGridAPIClient(self.sendgrid_api_key)
+
+            message = Mail(
+                from_email=Email(self.from_email, self.from_name),
+                to_emails=To(to_email),
+                subject=subject,
+            )
+            message.add_content(Content("text/plain", text_content))
+            message.add_content(Content("text/html", html_content))
+
+            # Add PDF attachment
+            safe_store_name = store_name.lower().replace(" ", "_")
+            filename = f"profit_sentinel_report_{safe_store_name}.pdf"
+
+            attachment = Attachment(
+                FileContent(pdf_content),
+                FileName(filename),
+                FileType("application/pdf"),
+                Disposition("attachment"),
+            )
+            message.add_attachment(attachment)
+
+            # Add unsubscribe header
+            message.add_header(
+                Header(
+                    "List-Unsubscribe",
+                    f"<mailto:unsubscribe@profitsentinel.com?subject=Unsubscribe {to_email}>",
+                )
+            )
+
+            response = sg.send(message)
+
+            logger.info(
+                f"Diagnostic email sent via SendGrid to {to_email}, status: {response.status_code}"
+            )
+            return {
+                "success": response.status_code in [200, 201, 202],
+                "status_code": response.status_code,
+            }
+
+        except ImportError:
+            logger.error("SendGrid package not installed: pip install sendgrid")
+            return {"success": False, "error": "SendGrid package not installed"}
+        except Exception as e:
+            logger.error(f"SendGrid API error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _generate_diagnostic_email_html(
+        self, store_name: str, summary: dict | None = None
+    ) -> str:
+        """Generate HTML email content for diagnostic report."""
+        summary_section = ""
+        if summary:
+            total_shrinkage = summary.get("total_shrinkage", 0)
+            explained = summary.get("explained_value", 0)
+            unexplained = summary.get("unexplained_value", 0)
+            reduction = summary.get("reduction_percent", 0)
+
+            summary_section = f"""
+            <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 25px; margin-bottom: 30px;">
+                <h2 style="color: #10b981; margin: 0 0 20px 0; font-size: 20px;">Diagnostic Summary</h2>
+                <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+                    <div style="text-align: center; min-width: 100px;">
+                        <p style="color: #ef4444; font-size: 24px; font-weight: bold; margin: 0;">${total_shrinkage:,.0f}</p>
+                        <p style="color: #94a3b8; font-size: 12px; margin: 5px 0 0 0;">Apparent Shrinkage</p>
+                    </div>
+                    <div style="text-align: center; min-width: 100px;">
+                        <p style="color: #10b981; font-size: 24px; font-weight: bold; margin: 0;">${explained:,.0f}</p>
+                        <p style="color: #94a3b8; font-size: 12px; margin: 5px 0 0 0;">Explained</p>
+                    </div>
+                    <div style="text-align: center; min-width: 100px;">
+                        <p style="color: #f97316; font-size: 24px; font-weight: bold; margin: 0;">${unexplained:,.0f}</p>
+                        <p style="color: #94a3b8; font-size: 12px; margin: 5px 0 0 0;">To Investigate</p>
+                    </div>
+                    <div style="text-align: center; min-width: 100px;">
+                        <p style="color: #10b981; font-size: 24px; font-weight: bold; margin: 0;">{reduction:.1f}%</p>
+                        <p style="color: #94a3b8; font-size: 12px; margin: 5px 0 0 0;">Reduction</p>
+                    </div>
+                </div>
+            </div>
+            """
+
+        return f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profit Sentinel Diagnostic Report</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 40px;">
+            <h1 style="color: #10b981; margin: 0; font-size: 28px;">Profit Sentinel</h1>
+            <p style="color: #64748b; margin: 10px 0 0 0; font-size: 14px;">Diagnostic Report for {store_name}</p>
+        </div>
+
+        {summary_section}
+
+        <div style="background: #1e293b; border-radius: 16px; padding: 25px; margin-bottom: 30px;">
+            <h2 style="color: #f1f5f9; margin: 0 0 15px 0; font-size: 18px;">Your Report is Attached</h2>
+            <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0;">
+                Your comprehensive diagnostic report is attached to this email as a PDF file.
+                The report includes:
+            </p>
+            <ul style="color: #cbd5e1; padding-left: 20px; margin: 15px 0 0 0;">
+                <li style="margin-bottom: 8px;">Executive summary with financial impact</li>
+                <li style="margin-bottom: 8px;">Pattern-by-pattern breakdown of findings</li>
+                <li style="margin-bottom: 8px;">Complete SKU listing for verification</li>
+                <li style="margin-bottom: 8px;">Recommended next steps</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; padding-top: 30px; border-top: 1px solid #334155;">
+            <p style="color: #64748b; font-size: 12px; margin: 0 0 10px 0;">
+                This report was generated by Profit Sentinel.
+            </p>
+            <p style="color: #334155; font-size: 10px; margin: 15px 0 0 0;">
+                Profit Sentinel - Protecting retail margins with AI-powered forensic analysis.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+        """
+
+    def _generate_diagnostic_email_text(
+        self, store_name: str, summary: dict | None = None
+    ) -> str:
+        """Generate plain text email content for diagnostic report."""
+        lines = [
+            "PROFIT SENTINEL - Diagnostic Report",
+            f"Store: {store_name}",
+            "=" * 40,
+            "",
+        ]
+
+        if summary:
+            total_shrinkage = summary.get("total_shrinkage", 0)
+            explained = summary.get("explained_value", 0)
+            unexplained = summary.get("unexplained_value", 0)
+            reduction = summary.get("reduction_percent", 0)
+
+            lines.extend(
+                [
+                    "SUMMARY",
+                    "-" * 20,
+                    f"Apparent Shrinkage: ${total_shrinkage:,.0f}",
+                    f"Explained: ${explained:,.0f}",
+                    f"To Investigate: ${unexplained:,.0f}",
+                    f"Reduction: {reduction:.1f}%",
+                    "",
+                ]
+            )
+
+        lines.extend(
+            [
+                "Your comprehensive diagnostic report is attached to this email as a PDF.",
+                "",
+                "The report includes:",
+                "- Executive summary with financial impact",
+                "- Pattern-by-pattern breakdown of findings",
+                "- Complete SKU listing for verification",
+                "- Recommended next steps",
+                "",
+                "---",
+                "This report was generated by Profit Sentinel.",
+            ]
+        )
+
+        return "\n".join(lines)
+
 
 # Singleton instance
 _email_service: EmailService | None = None

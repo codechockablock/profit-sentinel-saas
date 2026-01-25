@@ -92,30 +92,24 @@ async def engine_status() -> dict:
         Engine availability, version, and calibration parameters.
     """
     try:
-        from sentinel_engine import __version__
-        from sentinel_engine.context import (
+        from sentinel_engine import (
+            _DIAGNOSTIC_AVAILABLE,
+            _DORIAN_AVAILABLE,
             DEFAULT_DIMENSIONS,
             DEFAULT_MAX_CODEBOOK_SIZE,
-            RESONATOR_ALPHA,
-            RESONATOR_CONVERGENCE_THRESHOLD,
-            RESONATOR_ITERS,
-            RESONATOR_POWER,
+            __version__,
         )
 
         return {
             "status": "available",
             "version": __version__,
+            "dorian_available": _DORIAN_AVAILABLE,
+            "diagnostic_available": _DIAGNOSTIC_AVAILABLE,
             "configuration": {
                 "dimensions": DEFAULT_DIMENSIONS,
                 "max_codebook_size": DEFAULT_MAX_CODEBOOK_SIZE,
-                "resonator": {
-                    "convergence_threshold": RESONATOR_CONVERGENCE_THRESHOLD,
-                    "iterations": RESONATOR_ITERS,
-                    "alpha": RESONATOR_ALPHA,
-                    "power": RESONATOR_POWER,
-                },
             },
-            "calibration_version": "v2.1.3",
+            "calibration_version": "v5.0.0",
         }
     except ImportError as e:
         logger.warning(f"Sentinel engine not available: {e}")
@@ -182,44 +176,35 @@ async def resonator_metrics() -> dict:
 
     Returns:
         Resonator configuration, validation stats, and convergence rates.
+
+    Note: Resonator is legacy (v2.x-v4.x). Dorian (v5.0) uses FAISS indexing.
     """
-    try:
-        from sentinel_engine.context import (
-            RESONATOR_CONVERGENCE_THRESHOLD,
-            RESONATOR_ITERS,
-        )
+    total = _metrics_store["resonator_validations"]["total"]
+    converged = _metrics_store["resonator_validations"]["converged"]
+    flagged = _metrics_store["resonator_validations"]["flagged"]
 
-        total = _metrics_store["resonator_validations"]["total"]
-        converged = _metrics_store["resonator_validations"]["converged"]
-        flagged = _metrics_store["resonator_validations"]["flagged"]
+    convergence_rate = converged / total if total > 0 else None
 
-        convergence_rate = converged / total if total > 0 else None
+    return {
+        "status": "legacy",
+        "role": "sanity_checker",
+        "note": "Resonator is legacy (v2.x-v4.x). Dorian v5.0 uses FAISS indexing.",
+        "validation_stats": {
+            "total_validations": total,
+            "converged": converged,
+            "flagged": flagged,
+            "convergence_rate": convergence_rate,
+        },
+    }
 
-        return {
-            "status": "active",
-            "role": "sanity_checker",
-            "configuration": {
-                "convergence_threshold": RESONATOR_CONVERGENCE_THRESHOLD,
-                "iterations": RESONATOR_ITERS,
-                "sku_only_codebook": True,  # Calibrated default
-            },
-            "validation_stats": {
-                "total_validations": total,
-                "converged": converged,
-                "flagged": flagged,
-                "convergence_rate": convergence_rate,
-            },
-            "calibration_notes": {
-                "threshold_lowered": "0.01 -> 0.005 (v2.1.0)",
-                "sku_only_enabled": "Reduces codebook pollution (v2.1.0)",
-                "expected_convergence_rate": "~100% with calibration",
-            },
-        }
-    except ImportError:
-        return {
-            "status": "unavailable",
-            "error": "Engine not available",
-        }
+
+@router.get("/resonator-legacy")
+async def resonator_metrics_legacy() -> dict:
+    """Legacy resonator metrics (deprecated)."""
+    return {
+        "status": "deprecated",
+        "note": "Resonator is legacy. Dorian v5.0 uses FAISS indexing.",
+    }
 
 
 @router.get("/analysis")
@@ -297,7 +282,9 @@ async def dashboard() -> dict:
         "health_status": (
             "healthy"
             if health_score >= 80
-            else "degraded" if health_score >= 50 else "unhealthy"
+            else "degraded"
+            if health_score >= 50
+            else "unhealthy"
         ),
         "engine": engine,
         "primitives": primitives,
