@@ -432,9 +432,9 @@ async def email_diagnostic_report(
                 to_email=request.email,
                 pdf_path=data["report_path"],
                 store_name=data["store_name"],
-                summary=data["session"].get_summary()
-                if request.include_summary
-                else None,
+                summary=(
+                    data["session"].get_summary() if request.include_summary else None
+                ),
             )
         except Exception as e:
             logger.error(f"Failed to send diagnostic email: {e}")
