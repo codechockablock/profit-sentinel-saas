@@ -1,5 +1,3 @@
-import Link from 'next/link'
-
 export const metadata = {
   title: 'Roadmap | Profit Sentinel',
   description: 'See what features are coming next to Profit Sentinel - integrations, automation, and more.',
@@ -17,12 +15,12 @@ const roadmapItems: RoadmapItem[] = [
   {
     status: 'shipped',
     title: 'Core Leak Detection Engine',
-    description: '8 profit leak primitives: low stock, margin erosion, dead inventory, negative inventory, overstock, price discrepancy, shrinkage patterns, and more.',
+    description: '11 profit leak types: low stock, dead inventory, margin leak, negative inventory, overstock, price discrepancy, shrinkage pattern, margin erosion, zero cost anomaly, negative profit, and severe inventory deficit.',
   },
   {
     status: 'shipped',
     title: 'Large File Support',
-    description: 'Process 150k+ row inventory files in under 60 seconds with streaming analysis.',
+    description: 'Process 156,000+ SKUs in seconds with sub-second analysis.',
   },
   {
     status: 'shipped',
@@ -32,47 +30,57 @@ const roadmapItems: RoadmapItem[] = [
   {
     status: 'shipped',
     title: 'Privacy-First Architecture',
-    description: 'All analysis happens in your browser. Your data never touches our servers.',
+    description: 'Files encrypted in transit and at rest. Auto-deleted within 24 hours.',
+  },
+  {
+    status: 'shipped',
+    title: 'Email Reports',
+    description: 'Get your full analysis report delivered to your inbox with actionable recommendations.',
+  },
+  {
+    status: 'shipped',
+    title: 'PDF Report Generation',
+    description: 'CFO-ready PDF reports with 100+ pages of detailed analysis.',
+  },
+  {
+    status: 'shipped',
+    title: 'Multi-File Vendor Correlation',
+    description: 'Upload up to 200 vendor invoices. Cross-reference to find short ships & cost variances.',
+    eta: 'Premium Preview',
   },
 
   // In Progress
   {
     status: 'in-progress',
-    title: 'Email Reports',
-    description: 'Get your full analysis report delivered to your inbox with actionable recommendations.',
-    eta: 'Q1 2026',
-  },
-  {
-    status: 'in-progress',
-    title: 'Past Analysis Dashboard',
-    description: 'View and compare your previous analyses. Track improvements over time.',
+    title: 'Cross-Report Pattern Detection',
+    description: 'Identify patterns across multiple analyses to spot recurring issues.',
     eta: 'Q1 2026',
   },
 
   // Planned
   {
     status: 'planned',
+    title: 'Automated Vendor Performance Scoring',
+    description: 'Score vendors based on delivery accuracy, pricing consistency, and short-ship history.',
+    eta: 'Q2 2026',
+  },
+  {
+    status: 'planned',
+    title: 'Predictive Inventory Alerts',
+    description: 'AI-powered predictions for stockouts and overstock situations before they happen.',
+    eta: 'Q3 2026',
+  },
+  {
+    status: 'planned',
+    title: 'API Access for Enterprise',
+    description: 'REST API for integrating Profit Sentinel into your existing workflows.',
+    eta: 'Q4 2026',
+  },
+  {
+    status: 'planned',
     title: 'POS System Integrations',
     description: 'Direct connections to Square, Lightspeed, Clover, and Shopify POS for automatic data sync.',
-    eta: 'Q2 2026',
-  },
-  {
-    status: 'planned',
-    title: 'Scheduled Analysis',
-    description: 'Set up weekly or monthly automatic scans with email alerts for new issues.',
-    eta: 'Q2 2026',
-  },
-  {
-    status: 'planned',
-    title: 'Category Benchmarking',
-    description: 'See how your margins and turnover compare to industry benchmarks.',
-    eta: 'Q2 2026',
-  },
-  {
-    status: 'planned',
-    title: 'Action Tracking',
-    description: 'Mark issues as resolved and track the dollar impact of your fixes.',
-    eta: 'Q3 2026',
+    eta: 'Q4 2026',
   },
 
   // Exploring
@@ -83,13 +91,8 @@ const roadmapItems: RoadmapItem[] = [
   },
   {
     status: 'exploring',
-    title: 'Vendor Scorecards',
-    description: 'Identify which vendors are contributing to your profit leaks.',
-  },
-  {
-    status: 'exploring',
-    title: 'AI Recommendations',
-    description: 'Personalized, context-aware action items powered by AI.',
+    title: 'Scheduled Analysis',
+    description: 'Set up weekly or monthly automatic scans with email alerts for new issues.',
   },
   {
     status: 'exploring',
@@ -200,8 +203,6 @@ export default function RoadmapPage() {
 }
 
 function RoadmapCard({ item }: { item: RoadmapItem }) {
-  const config = statusConfig[item.status]
-
   return (
     <div className="bg-white/5 rounded-xl border border-slate-700 p-5 hover:bg-white/[0.07] transition">
       <div className="flex items-start justify-between gap-4">

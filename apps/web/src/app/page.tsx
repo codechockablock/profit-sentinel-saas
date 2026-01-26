@@ -26,7 +26,7 @@ export default function Home() {
           </h1>
 
           <p className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto mb-8">
-            AI-powered analysis finds dead stock, margin erosion, shrinkage patterns, and 5 other profit-draining issues in your POS data.
+            Our proprietary AI engine analyzes 156,000+ SKUs in seconds, detecting 11 types of profit leaks that humans miss. Retailers see 71% average shrinkage reduction.
           </p>
 
           {/* CTA */}
@@ -57,21 +57,26 @@ export default function Home() {
             Three steps to find thousands in hidden profits
           </p>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-4 gap-6">
             <StepCard
               number="1"
-              title="Upload Your Export"
+              title="Upload Your CSV"
               description="Export your inventory from any POS system - Paladin, Square, Lightspeed, Clover, or custom CSV."
             />
             <StepCard
               number="2"
-              title="AI Scans for Leaks"
-              description="Our engine checks for 8 types of profit leaks: dead stock, margin erosion, shrinkage, and more."
+              title="AI Analyzes Every SKU"
+              description="Our AI engine analyzes every SKU for 11 types of profit leaks using advanced pattern recognition."
             />
             <StepCard
               number="3"
-              title="Get Actionable Results"
-              description="See exactly which SKUs need attention, with dollar impact estimates and fix recommendations."
+              title="Answer Simple Questions"
+              description="Tell us about your business through a quick diagnostic to contextualize the findings."
+            />
+            <StepCard
+              number="4"
+              title="Get CFO-Ready Report"
+              description="Receive a detailed report with exact dollar impact and prioritized action items."
             />
           </div>
         </div>
@@ -84,24 +89,10 @@ export default function Home() {
             What We Find
           </h2>
           <p className="text-xl text-slate-400 text-center mb-12 max-w-2xl mx-auto">
-            8 types of profit leaks, detected automatically
+            11 types of profit leaks, detected automatically
           </p>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <LeakTypeCard
-              title="Dead Inventory"
-              description="Items sitting on shelves with no sales velocity"
-              color="text-red-400"
-              bgColor="bg-red-500/10"
-              borderColor="border-red-500/30"
-            />
-            <LeakTypeCard
-              title="Margin Erosion"
-              description="Items selling below target margin"
-              color="text-orange-400"
-              bgColor="bg-orange-500/10"
-              borderColor="border-orange-500/30"
-            />
+          <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-4">
             <LeakTypeCard
               title="Low Stock"
               description="Fast sellers about to stock out"
@@ -110,11 +101,25 @@ export default function Home() {
               borderColor="border-amber-500/30"
             />
             <LeakTypeCard
-              title="Shrinkage"
-              description="Inventory discrepancies indicating theft or loss"
-              color="text-purple-400"
-              bgColor="bg-purple-500/10"
-              borderColor="border-purple-500/30"
+              title="Dead Inventory"
+              description="Items sitting on shelves with no sales velocity"
+              color="text-slate-400"
+              bgColor="bg-slate-500/10"
+              borderColor="border-slate-500/30"
+            />
+            <LeakTypeCard
+              title="Margin Leak"
+              description="High-volume items with below-target margins"
+              color="text-red-400"
+              bgColor="bg-red-500/10"
+              borderColor="border-red-500/30"
+            />
+            <LeakTypeCard
+              title="Negative Inventory"
+              description="System errors showing impossible stock levels"
+              color="text-rose-400"
+              bgColor="bg-rose-500/10"
+              borderColor="border-rose-500/30"
             />
             <LeakTypeCard
               title="Overstock"
@@ -124,25 +129,49 @@ export default function Home() {
               borderColor="border-blue-500/30"
             />
             <LeakTypeCard
-              title="Price Issues"
+              title="Price Discrepancy"
               description="Items priced below suggested retail"
+              color="text-violet-400"
+              bgColor="bg-violet-500/10"
+              borderColor="border-violet-500/30"
+            />
+            <LeakTypeCard
+              title="Shrinkage Pattern"
+              description="Inventory discrepancies indicating theft or loss"
+              color="text-orange-400"
+              bgColor="bg-orange-500/10"
+              borderColor="border-orange-500/30"
+            />
+            <LeakTypeCard
+              title="Margin Erosion"
+              description="Items with declining profitability over time"
               color="text-pink-400"
               bgColor="bg-pink-500/10"
               borderColor="border-pink-500/30"
             />
             <LeakTypeCard
-              title="Negative Inventory"
-              description="System errors showing impossible stock levels"
-              color="text-cyan-400"
-              bgColor="bg-cyan-500/10"
-              borderColor="border-cyan-500/30"
+              title="Zero Cost Anomaly"
+              description="Items with missing or zero cost data"
+              color="text-yellow-400"
+              bgColor="bg-yellow-500/10"
+              borderColor="border-yellow-500/30"
+              isNew
             />
             <LeakTypeCard
-              title="Margin Leaks"
-              description="High-volume items with below-cost pricing"
-              color="text-emerald-400"
-              bgColor="bg-emerald-500/10"
-              borderColor="border-emerald-500/30"
+              title="Negative Profit"
+              description="Items selling at a loss"
+              color="text-red-500"
+              bgColor="bg-red-600/10"
+              borderColor="border-red-600/30"
+              isNew
+            />
+            <LeakTypeCard
+              title="Severe Inventory Deficit"
+              description="Critical stock shortages requiring immediate action"
+              color="text-fuchsia-400"
+              bgColor="bg-fuchsia-500/10"
+              borderColor="border-fuchsia-500/30"
+              isNew
             />
           </div>
         </div>
@@ -222,15 +251,22 @@ function LeakTypeCard({
   color,
   bgColor,
   borderColor,
+  isNew,
 }: {
   title: string
   description: string
   color: string
   bgColor: string
   borderColor: string
+  isNew?: boolean
 }) {
   return (
-    <div className={`${bgColor} rounded-xl border ${borderColor} p-5`}>
+    <div className={`${bgColor} rounded-xl border ${borderColor} p-5 relative`}>
+      {isNew && (
+        <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-emerald-500 text-white text-xs font-bold rounded-full">
+          NEW
+        </span>
+      )}
       <h3 className={`text-lg font-bold ${color} mb-2`}>{title}</h3>
       <p className="text-sm text-slate-400">{description}</p>
     </div>

@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
   title: 'Profit Sentinel | Find Hidden Profit Leaks in Your Inventory',
-  description: 'AI-powered inventory analysis that finds the profit leaks hiding in your retail data. Free analysis, no credit card required.',
+  description: 'Proprietary AI engine analyzes 156,000+ SKUs in seconds, detecting 11 types of profit leaks. 71% average shrinkage reduction. Free analysis, no credit card required.',
 }
 
 export default function RootLayout({
