@@ -206,6 +206,75 @@ export const LEAK_METADATA: Record<string, LeakMetadata> = {
       'MSRP is $29.99 but selling at $24.99',
       'Sale ended but price wasn\'t updated back'
     ]
+  },
+
+  zero_cost_anomaly: {
+    key: 'zero_cost_anomaly',
+    title: 'Zero Cost Anomaly',
+    description: 'Items with missing or zero cost data',
+    plainEnglish: 'These items have no cost recorded in your system. Without accurate cost data, you can\'t calculate margins, and you might be selling at a loss without knowing it!',
+    impactFormula: 'Unknown - cost data missing',
+    recommendations: [
+      'Update cost data from recent vendor invoices',
+      'Check if items were received without cost entry',
+      'Review vendor price lists for current costs',
+      'Set up automatic cost updates from purchasing'
+    ],
+    severity: 'high',
+    color: '#eab308',
+    bgColor: 'rgba(234, 179, 8, 0.1)',
+    borderColor: 'rgba(234, 179, 8, 0.3)',
+    icon: 'alert-triangle',
+    tooltipExamples: [
+      'Item has $0.00 cost but sells for $19.99',
+      'No cost data since item was added 6 months ago'
+    ]
+  },
+
+  negative_profit: {
+    key: 'negative_profit',
+    title: 'Negative Profit',
+    description: 'Items actively selling at a loss',
+    plainEnglish: 'You\'re LOSING money every time you sell these items! The selling price is below your cost. This is an emergency that needs immediate attention.',
+    impactFormula: 'Loss per unit × Units sold',
+    recommendations: [
+      'Immediately raise prices or stop selling',
+      'Verify cost and price data are correct',
+      'Check for pricing errors or unauthorized discounts',
+      'Consider removing from active inventory'
+    ],
+    severity: 'critical',
+    color: '#dc2626',
+    bgColor: 'rgba(220, 38, 38, 0.1)',
+    borderColor: 'rgba(220, 38, 38, 0.3)',
+    icon: 'alert-circle',
+    tooltipExamples: [
+      'Costs $15, sells for $12 = -$3 per sale',
+      'Every sale increases your losses'
+    ]
+  },
+
+  severe_inventory_deficit: {
+    key: 'severe_inventory_deficit',
+    title: 'Severe Inventory Deficit',
+    description: 'Critical stock shortages requiring immediate action',
+    plainEnglish: 'These items are at critically low or zero stock levels with high demand. You\'re losing sales RIGHT NOW because customers can\'t buy what they want.',
+    impactFormula: 'Lost sales per day × Days until restock',
+    recommendations: [
+      'Emergency reorder immediately',
+      'Check if stock is misplaced in store/warehouse',
+      'Contact vendor for expedited shipping',
+      'Consider sourcing from alternative suppliers'
+    ],
+    severity: 'critical',
+    color: '#d946ef',
+    bgColor: 'rgba(217, 70, 239, 0.1)',
+    borderColor: 'rgba(217, 70, 239, 0.3)',
+    icon: 'alert-circle',
+    tooltipExamples: [
+      'Zero stock on item that sells 20/day',
+      'Reorder point was 50, current stock is 3'
+    ]
   }
 };
 
@@ -303,7 +372,10 @@ export function estimateItemImpact(
     margin_erosion: 40,
     dead_item: 25,
     overstock: 15,
-    price_discrepancy: 20
+    price_discrepancy: 20,
+    zero_cost_anomaly: 35,
+    negative_profit: 80,
+    severe_inventory_deficit: 70
   };
 
   const multiplier = multipliers[leakType] || 25;
