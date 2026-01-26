@@ -14,27 +14,117 @@ Endpoints:
     DELETE /diagnostic/{id}         - Delete session
 """
 
+import asyncio
 import csv
 import logging
 import os
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import StringIO
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, EmailStr
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
+from ..config import get_settings
 from ..services.email import get_email_service
+
+# Rate limiter - 30 diagnostic starts per hour, 100 requests per minute for other endpoints
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# In-memory session storage (use Redis/DB in production)
+# In-memory session storage with TTL (use Redis/DB in production)
 diagnostic_sessions: dict[str, dict[str, Any]] = {}
+
+# Session cleanup task reference
+_cleanup_task: asyncio.Task | None = None
+
+
+def _get_session_ttl() -> timedelta:
+    """Get the session TTL from settings."""
+    settings = get_settings()
+    return timedelta(hours=settings.session_ttl_hours)
+
+
+def _is_session_expired(session_data: dict[str, Any]) -> bool:
+    """Check if a session has expired based on TTL."""
+    created_at = session_data.get("created_at")
+    if not created_at:
+        return True
+    return datetime.now() - created_at > _get_session_ttl()
+
+
+def _cleanup_session_files(session_data: dict[str, Any]) -> None:
+    """Clean up any temporary files associated with a session."""
+    if "report_path" in session_data:
+        report_path = session_data["report_path"]
+        if report_path and os.path.exists(report_path):
+            try:
+                os.unlink(report_path)
+                logger.debug(f"Cleaned up report file: {report_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete temp report file: {e}")
+
+
+async def _cleanup_expired_sessions() -> None:
+    """Background task to clean up expired sessions."""
+    while True:
+        try:
+            # Check every 5 minutes
+            await asyncio.sleep(300)
+
+            expired_ids = []
+            for session_id, data in diagnostic_sessions.items():
+                if _is_session_expired(data):
+                    expired_ids.append(session_id)
+
+            for session_id in expired_ids:
+                data = diagnostic_sessions.pop(session_id, None)
+                if data:
+                    _cleanup_session_files(data)
+                    logger.info(f"Cleaned up expired diagnostic session: {session_id}")
+
+            if expired_ids:
+                logger.info(
+                    f"Cleaned up {len(expired_ids)} expired diagnostic sessions"
+                )
+
+        except asyncio.CancelledError:
+            logger.info("Session cleanup task cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in session cleanup task: {e}")
+
+
+def start_cleanup_task() -> None:
+    """Start the background cleanup task if not already running."""
+    global _cleanup_task
+    if _cleanup_task is None or _cleanup_task.done():
+        _cleanup_task = asyncio.create_task(_cleanup_expired_sessions())
+        logger.info("Started diagnostic session cleanup task")
+
+
+def _validate_session(session_id: str) -> dict[str, Any]:
+    """Validate and return session data, raising HTTPException if invalid or expired."""
+    if session_id not in diagnostic_sessions:
+        raise HTTPException(404, "Session not found")
+
+    data = diagnostic_sessions[session_id]
+
+    if _is_session_expired(data):
+        # Clean up the expired session
+        _cleanup_session_files(data)
+        del diagnostic_sessions[session_id]
+        raise HTTPException(410, "Session has expired. Please start a new diagnostic.")
+
+    return data
 
 
 # =============================================================================
@@ -180,7 +270,9 @@ def parse_numeric(value: str) -> float:
 
 
 @router.post("/start", response_model=StartResponse)
+@limiter.limit("30/hour")
 async def start_diagnostic(
+    request: Request,
     file: UploadFile = File(...),
     store_name: str = "My Store",
 ):
@@ -195,7 +287,12 @@ async def start_diagnostic(
     - Description/Name
     - Quantity/In Stock Qty/On Hand
     - Cost/Unit Cost/Avg Cost
+
+    Sessions expire after 24 hours (configurable via SESSION_TTL_HOURS).
     """
+    # Start cleanup task if not running
+    start_cleanup_task()
+
     # Import diagnostic engine (lazy load to avoid startup overhead)
     try:
         from sentinel_engine.diagnostic.engine import ConversationalDiagnostic
@@ -275,12 +372,11 @@ async def start_diagnostic(
 
 
 @router.get("/{session_id}/question", response_model=QuestionResponse | None)
-async def get_question(session_id: str):
+@limiter.limit("100/minute")
+async def get_question(request: Request, session_id: str):
     """Get the current question for a session."""
-    if session_id not in diagnostic_sessions:
-        raise HTTPException(404, "Session not found")
-
-    diagnostic = diagnostic_sessions[session_id]["diagnostic"]
+    data = _validate_session(session_id)
+    diagnostic = data["diagnostic"]
     question = diagnostic.get_current_question()
 
     if not question:
@@ -290,12 +386,11 @@ async def get_question(session_id: str):
 
 
 @router.post("/{session_id}/answer")
-async def submit_answer(session_id: str, answer: AnswerRequest):
+@limiter.limit("100/minute")
+async def submit_answer(request: Request, session_id: str, answer: AnswerRequest):
     """Submit an answer to the current question."""
-    if session_id not in diagnostic_sessions:
-        raise HTTPException(404, "Session not found")
-
-    diagnostic = diagnostic_sessions[session_id]["diagnostic"]
+    data = _validate_session(session_id)
+    diagnostic = data["diagnostic"]
     result = diagnostic.answer_question(answer.classification, answer.note)
 
     if "error" in result:
@@ -310,12 +405,10 @@ async def submit_answer(session_id: str, answer: AnswerRequest):
 
 
 @router.get("/{session_id}/summary", response_model=SessionSummary)
-async def get_summary(session_id: str):
+@limiter.limit("100/minute")
+async def get_summary(request: Request, session_id: str):
     """Get current session summary with running totals."""
-    if session_id not in diagnostic_sessions:
-        raise HTTPException(404, "Session not found")
-
-    data = diagnostic_sessions[session_id]
+    data = _validate_session(session_id)
     session = data["session"]
     summary = session.get_summary()
 
@@ -335,10 +428,10 @@ async def get_summary(session_id: str):
 
 
 @router.get("/{session_id}/report")
-async def generate_report(session_id: str):
+@limiter.limit("10/minute")
+async def generate_report(request: Request, session_id: str):
     """Generate and download the PDF report."""
-    if session_id not in diagnostic_sessions:
-        raise HTTPException(404, "Session not found")
+    data = _validate_session(session_id)
 
     # Import report generator
     try:
@@ -346,8 +439,6 @@ async def generate_report(session_id: str):
     except ImportError as e:
         logger.error(f"Failed to import report generator: {e}")
         raise HTTPException(500, "Report generator not available")
-
-    data = diagnostic_sessions[session_id]
     diagnostic = data["diagnostic"]
 
     # Generate report data
@@ -384,16 +475,15 @@ async def generate_report(session_id: str):
 
 
 @router.post("/{session_id}/email")
+@limiter.limit("5/minute")
 async def email_diagnostic_report(
+    request: Request,
     session_id: str,
-    request: EmailRequest,
+    email_request: EmailRequest,
     background_tasks: BackgroundTasks,
 ):
     """Email the diagnostic report."""
-    if session_id not in diagnostic_sessions:
-        raise HTTPException(404, "Session not found")
-
-    data = diagnostic_sessions[session_id]
+    data = _validate_session(session_id)
 
     # Generate report if not already done
     if "report_path" not in data or not os.path.exists(data.get("report_path", "")):
@@ -429,11 +519,13 @@ async def email_diagnostic_report(
     async def send_diagnostic_email():
         try:
             await email_service.send_diagnostic_report(
-                to_email=request.email,
+                to_email=email_request.email,
                 pdf_path=data["report_path"],
                 store_name=data["store_name"],
                 summary=(
-                    data["session"].get_summary() if request.include_summary else None
+                    data["session"].get_summary()
+                    if email_request.include_summary
+                    else None
                 ),
             )
         except Exception as e:
@@ -442,33 +534,29 @@ async def email_diagnostic_report(
     background_tasks.add_task(send_diagnostic_email)
 
     return {
-        "message": f"Report will be sent to {request.email}",
+        "message": f"Report will be sent to {email_request.email}",
         "session_id": session_id,
     }
 
 
 @router.delete("/{session_id}")
-async def delete_session(session_id: str):
+@limiter.limit("50/minute")
+async def delete_session(request: Request, session_id: str):
     """Delete a diagnostic session."""
     if session_id not in diagnostic_sessions:
         raise HTTPException(404, "Session not found")
 
     # Clean up temp files
-    data = diagnostic_sessions[session_id]
-    if "report_path" in data and os.path.exists(data["report_path"]):
-        try:
-            os.unlink(data["report_path"])
-        except Exception as e:
-            logger.warning(f"Failed to delete temp report file: {e}")
-
-    del diagnostic_sessions[session_id]
-    logger.info(f"Deleted diagnostic session {session_id}")
+    data = diagnostic_sessions.pop(session_id)
+    _cleanup_session_files(data)
+    logger.info(f"Deleted diagnostic session: {session_id}")
 
     return {"message": "Session deleted"}
 
 
 @router.get("/sessions")
-async def list_sessions():
+@limiter.limit("30/minute")
+async def list_sessions(request: Request):
     """List all active diagnostic sessions."""
     sessions = []
     for session_id, data in diagnostic_sessions.items():

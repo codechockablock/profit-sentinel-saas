@@ -123,9 +123,8 @@ class EmailService:
                 }
             )
 
-            logger.info(
-                f"Email sent via Resend to {to_email}, ID: {response.get('id')}"
-            )
+            # Log success without PII (no email address)
+            logger.info(f"Email sent via Resend, ID: {response.get('id')}")
             return {"success": True, "message_id": response.get("id")}
 
         except ImportError:
@@ -163,9 +162,8 @@ class EmailService:
 
             response = sg.send(message)
 
-            logger.info(
-                f"Email sent via SendGrid to {to_email}, status: {response.status_code}"
-            )
+            # Log success without PII (no email address)
+            logger.info(f"Email sent via SendGrid, status: {response.status_code}")
             return {
                 "success": response.status_code in [200, 201, 202],
                 "status_code": response.status_code,
@@ -783,9 +781,8 @@ class EmailService:
                 }
             )
 
-            logger.info(
-                f"Diagnostic email sent via Resend to {to_email}, ID: {response.get('id')}"
-            )
+            # Log success without PII (no email address)
+            logger.info(f"Diagnostic email sent via Resend, ID: {response.get('id')}")
             return {"success": True, "message_id": response.get("id")}
 
         except ImportError:
@@ -852,8 +849,9 @@ class EmailService:
 
             response = sg.send(message)
 
+            # Log success without PII (no email address)
             logger.info(
-                f"Diagnostic email sent via SendGrid to {to_email}, status: {response.status_code}"
+                f"Diagnostic email sent via SendGrid, status: {response.status_code}"
             )
             return {
                 "success": response.status_code in [200, 201, 202],

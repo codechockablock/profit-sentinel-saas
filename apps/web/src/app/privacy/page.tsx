@@ -38,6 +38,13 @@ export default function PrivacyPage() {
               <li>You can unsubscribe at any time</li>
             </ul>
 
+            <h3 className="text-xl font-semibold text-slate-200 mt-6 mb-3">Technical Information</h3>
+            <ul className="list-disc list-inside text-slate-300 space-y-2">
+              <li>IP address - used for security, rate limiting, and fraud prevention</li>
+              <li>User agent (browser/device info) - used for compatibility and debugging</li>
+              <li>This data is retained for 7 days for security purposes, then deleted</li>
+            </ul>
+
             <h3 className="text-xl font-semibold text-slate-200 mt-6 mb-3">Anonymized Analytics</h3>
             <ul className="list-disc list-inside text-slate-300 space-y-2">
               <li>Aggregate statistics (leak counts, averages) with no PII</li>
@@ -285,13 +292,13 @@ export default function PrivacyPage() {
         {/* Back Link */}
         <div className="text-center mt-12">
           <a
-            href="/upload"
+            href="/diagnostic"
             className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
               <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
             </svg>
-            Back to Analysis
+            Back to Diagnostic
           </a>
         </div>
       </div>
