@@ -184,11 +184,14 @@ async def send_report(
             status_code=400, detail="User consent is required to send email reports"
         )
 
-    # Log consent for audit trail
+    # Log consent for audit trail (no PII - hash the email)
+    import hashlib
+
     consent_time = request.consent_timestamp or datetime.utcnow().isoformat()
+    email_hash = hashlib.sha256(request.email.lower().encode()).hexdigest()[:12]
     logger.info(
         f"Email report consent recorded - "
-        f"email: {request.email}, "
+        f"email_hash: {email_hash}, "
         f"consent_given: {request.consent_given}, "
         f"consent_timestamp: {consent_time}"
     )

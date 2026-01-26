@@ -38,9 +38,12 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from .persistence import DorianPersistence
 
 # Ontology integration (local module)
 from .ontology import DorianOntology, RelationProperty, get_ontology
@@ -1932,6 +1935,97 @@ class DorianCore:
 
         print(f"Loaded DorianCore from {path}")
         return core
+
+    def load_from_persistence(
+        self,
+        persistence: "DorianPersistence" = None,
+        industry: str | None = None,
+        limit: int = 100000,
+    ) -> int:
+        """
+        Load facts from the Supabase persistence layer into the core.
+
+        This is called at startup to warm the knowledge moat with
+        previously confirmed patterns from all users.
+
+        Args:
+            persistence: Persistence instance (or uses singleton)
+            industry: Optional industry filter
+            limit: Maximum facts to load
+
+        Returns:
+            Number of facts loaded
+        """
+        # Get persistence instance
+        if persistence is None:
+            try:
+                from .persistence import get_persistence
+
+                persistence = get_persistence()
+            except ImportError:
+                print("Persistence module not available")
+                return 0
+
+        if not persistence.is_enabled:
+            print("Persistence not enabled (no Supabase credentials)")
+            return 0
+
+        # Load facts
+        if industry:
+            facts = persistence.load_by_industry(industry, limit=limit)
+        else:
+            facts = persistence.load_all(limit=limit)
+
+        if not facts:
+            print("No facts to load from persistence")
+            return 0
+
+        print(f"Loading {len(facts)} facts from persistence...")
+
+        # Register a system agent for persistence-loaded facts
+        if "persistence_loader" not in [a.name for a in self.agents.values()]:
+            self.register_agent(
+                "persistence_loader",
+                domain="moat",
+                can_write=True,
+                can_verify=True,
+            )
+
+        # Find the agent
+        loader_agent = None
+        for agent in self.agents.values():
+            if agent.name == "persistence_loader":
+                loader_agent = agent
+                break
+
+        if not loader_agent:
+            print("Failed to create loader agent")
+            return 0
+
+        # Load each fact
+        loaded = 0
+        for pf in facts:
+            result = self.write(
+                subject=pf.subject,
+                predicate=pf.predicate,
+                obj=pf.object,
+                agent_id=loader_agent.agent_id,
+                confidence=pf.confidence,
+                source="persistence_moat",
+                metadata={
+                    "confirmations": pf.confirmations,
+                    "industry": pf.industry,
+                    "pattern_type": pf.pattern_type,
+                    "sku_category": pf.sku_category,
+                    "original_id": pf.id,
+                },
+                check_contradictions=False,  # Skip for bulk load
+            )
+            if result.success:
+                loaded += 1
+
+        print(f"  Loaded {loaded} facts from persistence moat")
+        return loaded
 
     # =========================================================================
     # EVENT LOGGING

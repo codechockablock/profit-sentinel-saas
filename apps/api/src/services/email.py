@@ -303,7 +303,7 @@ class EmailService:
 
                     <div style="background: #0f172a; border-radius: 12px; padding: 20px; margin-bottom: 15px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <span style="color: #f1f5f9; font-size: 18px; font-weight: bold;">{top_cause.replace('_', ' ').title()}</span>
+                            <span style="color: #f1f5f9; font-size: 18px; font-weight: bold;">{top_cause.replace("_", " ").title()}</span>
                             <span style="background: {severity_color}22; color: {severity_color}; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; text-transform: uppercase;">{severity}</span>
                         </div>
                         <p style="color: #94a3b8; font-size: 14px; margin: 0 0 12px 0;">{description}</p>
@@ -399,7 +399,7 @@ class EmailService:
                                 <span style="color: #f1f5f9; font-family: monospace; font-weight: bold;">{sku}</span>
                                 <span style="background: {color}22; color: {color}; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">{pct}% risk</span>
                             </div>
-                            {f'<p style="color: #64748b; font-size: 12px; margin: 0 0 8px 0;">{desc}</p>' if desc else ''}
+                            {f'<p style="color: #64748b; font-size: 12px; margin: 0 0 8px 0;">{desc}</p>' if desc else ""}
                             <div style="display: flex; gap: 15px; font-size: 12px; margin-bottom: 8px;">
                                 <span style="color: #94a3b8;">QOH: <strong style="color: #f1f5f9;">{qty:.0f}</strong></span>
                                 <span style="color: #94a3b8;">Cost: <strong style="color: #f1f5f9;">${cost:.2f}</strong></span>

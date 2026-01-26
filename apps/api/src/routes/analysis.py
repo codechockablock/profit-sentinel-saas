@@ -23,6 +23,7 @@ from ..dependencies import get_current_user, get_s3_client, require_pro_tier
 from ..services.analysis import AnalysisService
 from ..services.anonymization import get_anonymization_service
 from ..services.s3 import S3Service
+from ..services.virus_scan import get_virus_scanner
 
 router = APIRouter()
 
@@ -380,6 +381,21 @@ async def analyze_upload(
         s3_client = get_s3_client()
         s3_service = S3Service(s3_client, settings.s3_bucket_name)
 
+        # Check GuardDuty scan status before processing (C6 - malware scanning)
+        scanner = get_virus_scanner()
+        if scanner.is_available:
+            scan_result = await scanner.check_scan_status(
+                s3_client, settings.s3_bucket_name, key
+            )
+            if not scan_result.is_clean:
+                # Delete infected file and reject
+                s3_client.delete_object(Bucket=settings.s3_bucket_name, Key=key)
+                logger.warning("Rejected infected file, deleted from S3")
+                raise HTTPException(
+                    status_code=400,
+                    detail="File rejected: security scan detected a threat. Please upload a clean file.",
+                )
+
         # Load full DataFrame
         load_start = time.time()
         df = s3_service.load_dataframe(key)
@@ -602,6 +618,24 @@ async def analyze_multi_reports(
         s3_client = get_s3_client()
         s3_service = S3Service(s3_client, settings.s3_bucket_name)
 
+        # Check GuardDuty scan status for all files before processing (C6)
+        scanner = get_virus_scanner()
+        if scanner.is_available:
+            for key in keys:
+                scan_result = await scanner.check_scan_status(
+                    s3_client, settings.s3_bucket_name, key
+                )
+                if not scan_result.is_clean:
+                    # Delete infected file
+                    s3_client.delete_object(Bucket=settings.s3_bucket_name, Key=key)
+                    logger.warning(
+                        "Rejected infected file in multi-report, deleted from S3"
+                    )
+                    raise HTTPException(
+                        status_code=400,
+                        detail="File rejected: security scan detected a threat in one of the uploaded files.",
+                    )
+
         # Load and prepare all reports
         reports = []
         all_warnings = []
@@ -612,14 +646,14 @@ async def analyze_multi_reports(
             original_columns = df.columns.tolist()
 
             logger.info(
-                f"Loaded report {i+1}/{len(keys)} ({len(df)} rows, {len(df.columns)} cols) "
+                f"Loaded report {i + 1}/{len(keys)} ({len(df)} rows, {len(df.columns)} cols) "
                 f"from {key} in {time.time() - load_start:.2f}s"
             )
 
             # Apply column mapping
             df, warnings = _validate_and_apply_mapping(df, mapping_dict)
             if warnings:
-                all_warnings.extend([f"Report {i+1}: {w}" for w in warnings])
+                all_warnings.extend([f"Report {i + 1}: {w}" for w in warnings])
 
             # Clean numeric columns
             df = _clean_numeric_columns(df)
@@ -627,7 +661,9 @@ async def analyze_multi_reports(
             # Drop duplicate columns
             if df.columns.duplicated().any():
                 dup_cols = df.columns[df.columns.duplicated()].tolist()
-                logger.warning(f"Report {i+1}: dropping duplicate columns: {dup_cols}")
+                logger.warning(
+                    f"Report {i + 1}: dropping duplicate columns: {dup_cols}"
+                )
                 df = df.loc[:, ~df.columns.duplicated(keep="first")]
 
             # Convert to records

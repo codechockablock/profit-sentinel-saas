@@ -149,7 +149,8 @@ async def create_checkout_session(
             cancel_url=cancel_url,
         )
 
-        logger.info(f"Created checkout session for user {user_id}")
+        # Log without user_id (privacy - use session ID instead)
+        logger.info(f"Created checkout session: {session.id}")
 
         return CheckoutSessionResponse(
             url=session.url,
@@ -159,7 +160,8 @@ async def create_checkout_session(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create checkout session: {e}", exc_info=True)
+        # Log error without stack trace in production (M3 fix)
+        logger.error(f"Failed to create checkout session: {type(e).__name__}")
         raise HTTPException(
             status_code=500,
             detail="Failed to create checkout session. Please try again.",
@@ -228,7 +230,7 @@ async def create_portal_session(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create portal session: {e}", exc_info=True)
+        logger.error(f"Failed to create portal session: {type(e).__name__}")
         raise HTTPException(
             status_code=500,
             detail="Failed to create portal session. Please try again.",
@@ -291,7 +293,7 @@ async def get_subscription_status(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get subscription status: {e}", exc_info=True)
+        logger.error(f"Failed to get subscription status: {type(e).__name__}")
         raise HTTPException(
             status_code=500,
             detail="Failed to get subscription status.",
@@ -365,7 +367,7 @@ async def handle_webhook(
         return WebhookResponse(received=True, event_type=event_type)
 
     except Exception as e:
-        logger.error(f"Error processing webhook {event_type}: {e}", exc_info=True)
+        logger.error(f"Error processing webhook {event_type}: {type(e).__name__}")
         # Return 200 to prevent Stripe retries for processing errors
         # The webhook was received, we just failed to process it
         return WebhookResponse(received=True, event_type=event_type)
@@ -395,7 +397,8 @@ async def _handle_checkout_completed(session, supabase, billing) -> None:
         logger.warning(f"Checkout completed without user_id: {session.id}")
         return
 
-    logger.info(f"Processing checkout completion for user {user_id}")
+    # Log without user_id (privacy - use session ID instead)
+    logger.info(f"Processing checkout completion for session {session.id}")
 
     # Get subscription details
     if subscription_id:
@@ -423,7 +426,7 @@ async def _handle_checkout_completed(session, supabase, billing) -> None:
 
     supabase.table("user_profiles").update(update_data).eq("id", user_id).execute()
 
-    logger.info(f"Activated subscription for user {user_id}")
+    logger.info(f"Activated subscription for session {session.id}")
 
 
 async def _handle_subscription_updated(subscription, supabase) -> None:

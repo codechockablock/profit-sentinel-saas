@@ -18,6 +18,13 @@ Example:
 """
 
 from .core import DorianCore, FactStore, InferenceEngine, VSAEngine
+from .persistence import (
+    DorianPersistence,
+    PersistedFact,
+    anonymize_sku_to_category,
+    detect_industry,
+    get_persistence,
+)
 from .pipeline import KnowledgePipeline
 
 __all__ = [
@@ -26,6 +33,12 @@ __all__ = [
     "FactStore",
     "InferenceEngine",
     "KnowledgePipeline",
+    # Persistence
+    "DorianPersistence",
+    "PersistedFact",
+    "get_persistence",
+    "anonymize_sku_to_category",
+    "detect_industry",
 ]
 
 __version__ = "1.0.0"

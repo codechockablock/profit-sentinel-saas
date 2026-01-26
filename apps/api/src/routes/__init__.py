@@ -14,6 +14,7 @@ from .employee import router as employee_router
 from .health import router as health_router
 from .metrics import router as metrics_router
 from .premium import router as premium_router
+from .privacy import router as privacy_router
 from .repair import router as repair_router
 from .reports import router as reports_router
 from .uploads import router as uploads_router
@@ -33,3 +34,4 @@ api_router.include_router(repair_router, prefix="/repair", tags=["repair"])
 api_router.include_router(employee_router, prefix="/employee", tags=["employee"])
 api_router.include_router(contact_router, prefix="/contact", tags=["contact"])
 api_router.include_router(billing_router, prefix="/billing", tags=["billing"])
+api_router.include_router(privacy_router, prefix="/privacy", tags=["privacy"])

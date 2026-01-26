@@ -194,8 +194,10 @@ class S3Service:
         file_size_mb = file_size / (1024 * 1024)
 
         if file_size_mb > max_size_mb:
+            # Log without exposing full S3 key (may contain user_id)
+            key_suffix = key.rsplit("/", 1)[-1] if "/" in key else key
             logger.warning(
-                f"File {key} exceeds size limit: {file_size_mb:.1f}MB > {max_size_mb}MB"
+                f"File exceeds size limit: {file_size_mb:.1f}MB > {max_size_mb}MB (file: {key_suffix})"
             )
             raise ValueError(
                 f"File too large ({file_size_mb:.1f}MB). "
@@ -203,7 +205,9 @@ class S3Service:
             )
 
         if file_size_mb > 10:
-            logger.info(f"Loading large file: {key} ({file_size_mb:.1f}MB)")
+            # Log without exposing full S3 key (may contain user_id)
+            key_suffix = key.rsplit("/", 1)[-1] if "/" in key else key
+            logger.info(f"Loading large file ({file_size_mb:.1f}MB): {key_suffix}")
 
         obj = self.client.get_object(Bucket=self.bucket_name, Key=key)
         contents = obj["Body"].read()
@@ -212,7 +216,11 @@ class S3Service:
         extension = key.rsplit(".", 1)[-1] if "." in key else ""
         is_valid, error_msg = _validate_magic_bytes(contents, extension)
         if not is_valid:
-            logger.warning(f"Magic byte validation failed for {key}: {error_msg}")
+            # Log without exposing full S3 key (may contain user_id)
+            key_suffix = key.rsplit("/", 1)[-1] if "/" in key else key
+            logger.warning(
+                f"Magic byte validation failed for {key_suffix}: {error_msg}"
+            )
             raise ValueError(error_msg)
 
         read_kwargs = {"dtype": str}
@@ -232,8 +240,10 @@ class S3Service:
             df = pd.read_excel(io.BytesIO(contents), **read_kwargs)
 
         if len(df) >= effective_rows and not sample_rows:
+            # Log without exposing full S3 key (may contain user_id)
+            key_suffix = key.rsplit("/", 1)[-1] if "/" in key else key
             logger.warning(
-                f"File {key} truncated to {effective_rows} rows (max_rows limit). "
+                f"File {key_suffix} truncated to {effective_rows} rows (max_rows limit). "
                 f"Original file may have more data."
             )
 

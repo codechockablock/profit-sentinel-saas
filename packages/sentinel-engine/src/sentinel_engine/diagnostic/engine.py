@@ -18,19 +18,28 @@ Flow:
 4. Running total updates with each answer
 5. Final report shows the journey from $726K → $178K
 
+Knowledge Moat:
+When users confirm patterns, we save anonymized versions to build
+the data moat. Every confirmation makes the system smarter.
+- NO PII ever saved
+- NO raw SKUs (anonymized to category)
+- ONLY confirmed patterns (user said "yes")
+
 Author: Joseph + Claude
 Date: 2026-01-25
 """
 
-import re
+import logging
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING
 
-sys.path.insert(0, "/home/claude")
+if TYPE_CHECKING:
+    from ..dorian.persistence import DorianPersistence
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -440,10 +449,25 @@ class ConversationalDiagnostic:
     """
     Diagnostic engine that asks about EVERY pattern.
     No auto-classification - user confirms everything.
+
+    When users confirm patterns, saves anonymized facts to the knowledge moat.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        persistence: "DorianPersistence | None" = None,
+        industry: str | None = None,
+    ):
+        """
+        Initialize the diagnostic engine.
+
+        Args:
+            persistence: Optional persistence layer for saving confirmed patterns
+            industry: Optional industry hint (e.g., "hardware", "grocery")
+        """
         self.session: DiagnosticSession | None = None
+        self._persistence = persistence
+        self._industry = industry
 
     def start_session(self, items: list[dict]) -> DiagnosticSession:
         """
@@ -569,6 +593,9 @@ class ConversationalDiagnostic:
         """
         Process user's answer to current question.
 
+        When users confirm a pattern (not "investigate"), saves anonymized
+        fact to the knowledge moat to make the system smarter.
+
         Args:
             classification: One of: receiving_gap, non_tracked, vendor_managed,
                           expiration, theft, investigate
@@ -592,6 +619,14 @@ class ConversationalDiagnostic:
 
         pattern.user_answer = user_note
 
+        # Save confirmed patterns to the knowledge moat
+        # Only save if user confirmed (not "investigate" or "pending")
+        if self._persistence and pattern.classification not in [
+            Classification.INVESTIGATE,
+            Classification.PENDING,
+        ]:
+            self._save_confirmed_pattern(pattern)
+
         # Move to next question
         self.session.current_index += 1
 
@@ -610,6 +645,92 @@ class ConversationalDiagnostic:
             "is_complete": self.session.is_complete,
             "next_question": self.get_current_question(),
         }
+
+    def _save_confirmed_pattern(self, pattern: DetectedPattern) -> None:
+        """
+        Save a confirmed pattern to the knowledge moat.
+
+        Anonymizes all data before saving:
+        - NO store names or customer IDs
+        - NO raw SKUs (anonymized to category)
+        - NO exact quantities
+        - ONLY the pattern type and classification
+        """
+        if not self._persistence:
+            return
+
+        try:
+            # Import anonymization helper
+            from ..dorian.persistence import anonymize_sku_to_category
+
+            # Determine SKU category from sample items
+            sku_category = None
+            if pattern.items:
+                # Try to detect category from first few items
+                for item in pattern.items[:5]:
+                    sku = item.get("sku", "")
+                    desc = item.get("description", "")
+                    category = anonymize_sku_to_category(f"{sku} {desc}")
+                    if category != "general":
+                        sku_category = category
+                        break
+
+            # Build anonymized subject (generic industry term)
+            subject = f"{self._industry or 'retail'}_store"
+
+            # Save the fact
+            self._persistence.save_fact(
+                subject=subject,
+                predicate="has_pattern",
+                object=pattern.classification.value,
+                vector=None,  # No vector for now (would need VSA encoding)
+                confidence=1.0,  # User confirmed
+                industry=self._industry,
+                pattern_type=pattern.pattern_id,
+                sku_category=sku_category,
+                metadata={
+                    "item_count_range": self._quantize_count(pattern.item_count),
+                    "value_range": self._quantize_value(pattern.total_value),
+                },
+            )
+            logger.debug(
+                f"Saved confirmed pattern to moat: {pattern.pattern_id} -> "
+                f"{pattern.classification.value}"
+            )
+
+        except Exception as e:
+            # Don't fail the answer if persistence fails
+            logger.warning(f"Failed to save pattern to moat: {e}")
+
+    def _quantize_count(self, count: int) -> str:
+        """Quantize item count to a range (privacy)."""
+        if count <= 5:
+            return "1-5"
+        elif count <= 20:
+            return "6-20"
+        elif count <= 50:
+            return "21-50"
+        elif count <= 100:
+            return "51-100"
+        else:
+            return "100+"
+
+    def _quantize_value(self, value: float) -> str:
+        """Quantize dollar value to a range (privacy)."""
+        if value <= 100:
+            return "$0-100"
+        elif value <= 500:
+            return "$100-500"
+        elif value <= 1000:
+            return "$500-1000"
+        elif value <= 5000:
+            return "$1000-5000"
+        elif value <= 10000:
+            return "$5000-10000"
+        elif value <= 50000:
+            return "$10000-50000"
+        else:
+            return "$50000+"
 
     def get_final_report(self) -> dict:
         """Get the final diagnostic report."""
@@ -756,7 +877,8 @@ def demo():
     report = engine.get_final_report()
     summary = report["summary"]
 
-    print(f"""
+    print(
+        f"""
 ┌────────────────────────────────────────────────────────────────┐
 │  DIAGNOSTIC COMPLETE                                           │
 ├────────────────────────────────────────────────────────────────┤
@@ -772,7 +894,8 @@ def demo():
 │                                                                │
 │  {summary['patterns_total']} patterns reviewed                                      │
 └────────────────────────────────────────────────────────────────┘
-""")
+"""
+    )
 
     print("\nTop 10 items to investigate:")
     for item in report["items_to_investigate"][:10]:

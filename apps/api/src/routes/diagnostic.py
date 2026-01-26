@@ -42,6 +42,21 @@ from ..config import get_settings
 from ..dependencies import get_current_user
 from ..services.email import get_email_service
 
+# Import persistence for the knowledge moat
+try:
+    from sentinel_engine.dorian.persistence import (
+        DorianPersistence,
+        detect_industry,
+        get_persistence,
+    )
+
+    PERSISTENCE_AVAILABLE = True
+except ImportError:
+    PERSISTENCE_AVAILABLE = False
+    get_persistence = None
+    detect_industry = None
+    DorianPersistence = None
+
 # Rate limiter - 30 diagnostic starts per hour, 100 requests per minute for other endpoints
 limiter = Limiter(key_func=get_remote_address)
 
@@ -368,8 +383,24 @@ async def start_diagnostic(
     # Create session
     session_id = str(uuid.uuid4())
 
+    # Detect industry from store name for knowledge moat
+    detected_industry = None
+    if PERSISTENCE_AVAILABLE and detect_industry:
+        detected_industry = detect_industry(store_name)
+
+    # Get persistence instance for saving confirmed patterns
+    persistence = None
+    if PERSISTENCE_AVAILABLE and get_persistence:
+        try:
+            persistence = get_persistence()
+        except Exception as e:
+            logger.warning(f"Failed to get persistence: {e}")
+
     try:
-        diagnostic = ConversationalDiagnostic()
+        diagnostic = ConversationalDiagnostic(
+            persistence=persistence,
+            industry=detected_industry,
+        )
         session = diagnostic.start_session(items)
     except Exception as e:
         logger.error(f"Failed to start diagnostic session: {e}")

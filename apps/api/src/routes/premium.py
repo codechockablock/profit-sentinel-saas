@@ -429,9 +429,11 @@ async def generate_premium_report(
                 {
                     "pattern_id": p["type"],
                     "pattern_name": p["description"][:50],
-                    "classification": data["diagnostic"]._answers[i]["classification"]
-                    if i < len(data["diagnostic"]._answers)
-                    else "investigate",
+                    "classification": (
+                        data["diagnostic"]._answers[i]["classification"]
+                        if i < len(data["diagnostic"]._answers)
+                        else "investigate"
+                    ),
                     "total_value": p["impact"],
                     "item_count": len(p["affected_skus"]),
                     "items": [{"sku": sku} for sku in p["affected_skus"][:10]],
