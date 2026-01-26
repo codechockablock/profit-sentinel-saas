@@ -201,9 +201,7 @@ class AnalysisService:
             # This populates ctx.leak_counts with actual detection counts
             # Note: bundle return value unused - we use heuristics for specific items
             bundle_start = time.time()
-            _ = self._bundle_pos_facts(
-                ctx, rows
-            )  # noqa: F841 - populates ctx.leak_counts
+            _ = self._bundle_pos_facts(ctx, rows)  # noqa: F841 - populates ctx.leak_counts
             bundle_time = time.time() - bundle_start
 
             # Get leak counts from context (populated during bundling)
@@ -1038,7 +1036,7 @@ class AnalysisService:
                 actual_margin = (revenue - cost) / revenue * 100
                 return (
                     f"Margin eroded to {actual_margin:.1f}%. "
-                    f"Cost ${cost:.2f} is {cost/revenue*100:.0f}% of retail ${revenue:.2f}. "
+                    f"Cost ${cost:.2f} is {cost / revenue * 100:.0f}% of retail ${revenue:.2f}. "
                     f"QOH: {qty:.0f}, Sold: {sold:.0f}. Review pricing."
                 )
             return f"Margin erosion detected. QOH: {qty:.0f}."

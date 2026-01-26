@@ -161,7 +161,7 @@ class VisionGuardrails:
         if len(image_base64) > cls.MAX_IMAGE_SIZE_BYTES * 1.37:  # Base64 overhead
             return (
                 False,
-                f"Image exceeds {cls.MAX_IMAGE_SIZE_BYTES // (1024*1024)}MB limit",
+                f"Image exceeds {cls.MAX_IMAGE_SIZE_BYTES // (1024 * 1024)}MB limit",
             )
 
         try:
@@ -174,7 +174,7 @@ class VisionGuardrails:
         if len(image_bytes) > cls.MAX_IMAGE_SIZE_BYTES:
             return (
                 False,
-                f"Decoded image exceeds {cls.MAX_IMAGE_SIZE_BYTES // (1024*1024)}MB limit",
+                f"Decoded image exceeds {cls.MAX_IMAGE_SIZE_BYTES // (1024 * 1024)}MB limit",
             )
 
         # Check for valid image magic bytes

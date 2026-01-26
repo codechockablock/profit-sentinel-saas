@@ -217,16 +217,16 @@ class FileType(Enum):
 class ColumnMapping:
     """Mapping of logical columns to actual column names in file."""
 
-    sku: Optional[str] = None
-    description: Optional[str] = None
-    quantity: Optional[str] = None
-    cost: Optional[str] = None
-    retail: Optional[str] = None
-    vendor: Optional[str] = None
-    qty_ordered: Optional[str] = None
-    qty_shipped: Optional[str] = None
-    po_number: Optional[str] = None
-    date: Optional[str] = None
+    sku: str | None = None
+    description: str | None = None
+    quantity: str | None = None
+    cost: str | None = None
+    retail: str | None = None
+    vendor: str | None = None
+    qty_ordered: str | None = None
+    qty_shipped: str | None = None
+    po_number: str | None = None
+    date: str | None = None
 
 
 @dataclass
@@ -251,7 +251,7 @@ class InventoryItem:
     quantity: float
     cost: float
     retail: float
-    vendor: Optional[str] = None
+    vendor: str | None = None
     margin_pct: float = 0.0
     source_file: str = ""
 
@@ -271,7 +271,7 @@ class VendorInvoiceLine:
     qty_shipped: float
     unit_cost: float
     po_number: str
-    invoice_date: Optional[datetime] = None
+    invoice_date: datetime | None = None
     source_file: str = ""
 
     @property
@@ -305,8 +305,8 @@ class AggregatedVendorData:
     min_cost: float = float("inf")
     max_cost: float = 0.0
     avg_cost: float = 0.0
-    first_invoice: Optional[datetime] = None
-    last_invoice: Optional[datetime] = None
+    first_invoice: datetime | None = None
+    last_invoice: datetime | None = None
 
     @property
     def fill_rate(self) -> float:
@@ -338,7 +338,7 @@ class VendorSummary:
     """Summary statistics for a vendor across all invoices."""
 
     vendor_code: str = ""
-    vendor_name: Optional[str] = None
+    vendor_name: str | None = None
     total_lines: int = 0
     total_ordered: float = 0.0
     total_shipped: float = 0.0
@@ -442,7 +442,7 @@ class SKUNormalizer:
 
         return sku_stripped
 
-    def register_sku(self, sku: str, canonical: Optional[str] = None) -> str:
+    def register_sku(self, sku: str, canonical: str | None = None) -> str:
         """Register a SKU and optionally set its canonical form."""
         normalized = self.normalize(sku)
 
@@ -467,7 +467,7 @@ class SKUNormalizer:
         self.vendor_item_map[vendor_norm] = sku_norm
         self.reverse_map[sku_norm].add(vendor_norm)
 
-    def match_vendor_item(self, vendor_item: str) -> Optional[str]:
+    def match_vendor_item(self, vendor_item: str) -> str | None:
         """Try to match a vendor item number to a known SKU."""
         vendor_norm = self.normalize(vendor_item)
 
@@ -557,7 +557,7 @@ class MultiFileParser:
         mapping = ColumnMapping()
         cols_lower = {c.lower().strip(): c for c in columns}
 
-        def find_column(aliases: list[str]) -> Optional[str]:
+        def find_column(aliases: list[str]) -> str | None:
             for alias in aliases:
                 # Exact match
                 if alias in cols_lower:
@@ -605,8 +605,8 @@ class MultiFileParser:
     def parse_file(
         self,
         file_path: Union[str, Path],
-        content: Optional[str] = None,
-        override_type: Optional[FileType] = None,
+        content: str | None = None,
+        override_type: FileType | None = None,
     ) -> ParsedFile:
         """Parse a single CSV file."""
         filename = str(file_path) if isinstance(file_path, Path) else file_path
@@ -762,7 +762,7 @@ class VendorInvoiceAggregator:
         except Exception:
             return 0.0
 
-    def _parse_date(self, value: str) -> Optional[datetime]:
+    def _parse_date(self, value: str) -> datetime | None:
         """Try to parse a date string."""
         if not value:
             return None
@@ -1312,7 +1312,7 @@ class MultiFileDiagnostic:
         self._answers: list[dict] = []
 
     def add_inventory_file(
-        self, file_path: Union[str, Path], content: Optional[str] = None
+        self, file_path: Union[str, Path], content: str | None = None
     ):
         """Add an inventory file."""
         parsed = self.parser.parse_file(
@@ -1322,7 +1322,7 @@ class MultiFileDiagnostic:
         return parsed
 
     def add_vendor_invoice(
-        self, file_path: Union[str, Path], content: Optional[str] = None
+        self, file_path: Union[str, Path], content: str | None = None
     ):
         """Add a vendor invoice file."""
         parsed = self.parser.parse_file(
@@ -1414,13 +1414,13 @@ class MultiFileDiagnostic:
         return self._current_pattern_index >= len(self.correlation_patterns)
 
     @property
-    def current_pattern(self) -> Optional[CorrelationPattern]:
+    def current_pattern(self) -> CorrelationPattern | None:
         """Get current pattern being reviewed."""
         if self.is_complete:
             return None
         return self.correlation_patterns[self._current_pattern_index]
 
-    def get_current_question(self) -> Optional[dict]:
+    def get_current_question(self) -> dict | None:
         """Get the current question for the user."""
         pattern = self.current_pattern
         if not pattern:

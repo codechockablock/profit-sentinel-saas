@@ -122,6 +122,27 @@ class Settings(BaseSettings):
         default=24, description="Hours before diagnostic sessions expire"
     )
 
+    # Redis for distributed rate limiting (H6-H7)
+    redis_url: str | None = Field(
+        default=None,
+        description="Redis URL for distributed rate limiting (e.g., redis://localhost:6379)",
+    )
+
+    # Virus/Malware Scanning via AWS GuardDuty (C6)
+    guardduty_scan_enabled: bool = Field(
+        default=True,
+        description="Enable GuardDuty malware scanning on S3 uploads",
+    )
+    guardduty_scan_timeout: int = Field(
+        default=30,
+        description="Max seconds to wait for GuardDuty scan to complete",
+    )
+
+    @property
+    def has_redis(self) -> bool:
+        """Check if Redis is configured for distributed rate limiting."""
+        return self.redis_url is not None
+
     @property
     def has_stripe(self) -> bool:
         """Check if Stripe is configured."""

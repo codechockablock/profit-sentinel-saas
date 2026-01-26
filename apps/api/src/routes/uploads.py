@@ -23,6 +23,7 @@ from ..config import get_settings
 from ..dependencies import get_current_user, get_s3_client
 from ..services.mapping import MappingService
 from ..services.s3 import S3Service
+from ..services.virus_scan import get_virus_scanner
 
 router = APIRouter()
 
@@ -203,6 +204,20 @@ async def suggest_mapping(
     mapping_service = MappingService()
 
     try:
+        # Check GuardDuty scan status before processing (C6 - malware scanning)
+        scanner = get_virus_scanner()
+        if scanner.is_available:
+            scan_result = await scanner.check_scan_status(
+                s3_client, settings.s3_bucket_name, key
+            )
+            if not scan_result.is_clean:
+                # Delete infected file and reject
+                s3_client.delete_object(Bucket=settings.s3_bucket_name, Key=key)
+                raise HTTPException(
+                    status_code=400,
+                    detail="File rejected: security scan detected a threat. Please upload a clean file.",
+                )
+
         # Load sample data
         df = s3_service.load_dataframe(key, sample_rows=50)
 
