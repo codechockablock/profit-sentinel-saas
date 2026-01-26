@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useCallback, useRef, ChangeEvent, DragEvent, KeyboardEvent } from 'react';
+import Link from 'next/link';
 import {
   Upload, AlertTriangle, CheckCircle, Package, TrendingDown,
-  MessageSquare, ChevronRight, Zap, Brain, ArrowRight, HelpCircle
+  MessageSquare, ChevronRight, Zap, Brain, ArrowRight, HelpCircle,
+  Star, Truck
 } from 'lucide-react';
 
 // Types
@@ -75,6 +77,66 @@ const CLASSIFICATION_LABELS: Record<string, ClassificationInfo> = {
 
 const formatCurrency = (n: number): string => `$${n.toLocaleString()}`;
 const formatNumber = (n: number): string => n.toLocaleString();
+
+// Premium Preview Banner Component
+function PremiumPreviewBanner() {
+  return (
+    <Link
+      href="/diagnostic/premium"
+      style={{
+        display: 'block',
+        textDecoration: 'none',
+        background: 'linear-gradient(135deg, rgba(251,191,36,0.1) 0%, rgba(245,158,11,0.05) 100%)',
+        border: '1px solid rgba(251,191,36,0.3)',
+        borderRadius: 12,
+        padding: '1rem 1.25rem',
+        marginBottom: '1.5rem',
+        transition: 'all 0.2s',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Star size={20} color="#1a1a1a" fill="#1a1a1a" />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+            <span style={{ fontWeight: 600, color: '#fbbf24', fontSize: '0.9rem' }}>
+              Premium Preview
+            </span>
+            <span
+              style={{
+                padding: '0.15rem 0.5rem',
+                background: 'rgba(251,191,36,0.2)',
+                borderRadius: 4,
+                fontSize: '0.65rem',
+                color: '#fbbf24',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+              }}
+            >
+              New
+            </span>
+          </div>
+          <p style={{ color: '#a1a1aa', fontSize: '0.8rem', margin: 0 }}>
+            Multi-file vendor correlation — cross-reference invoices to find short ships & cost variances
+          </p>
+        </div>
+        <ChevronRight size={20} color="#fbbf24" />
+      </div>
+    </Link>
+  );
+}
 
 // Parse **text** and render as bold
 const formatBoldText = (text: string): React.ReactNode => {
@@ -376,6 +438,9 @@ export default function DiagnosticDashboard() {
           <p style={{ color: '#71717a', marginBottom: '1.5rem' }}>
             Conversational Shrinkage Diagnostic
           </p>
+
+          {/* Premium Preview Banner */}
+          <PremiumPreviewBanner />
 
           <input
             type="text"
@@ -1004,6 +1069,44 @@ export default function DiagnosticDashboard() {
             </svg>
             Email Report
           </button>
+        </div>
+
+        {/* Premium Upsell */}
+        <div
+          style={{
+            marginTop: '2rem',
+            padding: '1.5rem',
+            background: 'linear-gradient(135deg, rgba(251,191,36,0.1) 0%, rgba(245,158,11,0.05) 100%)',
+            border: '1px solid rgba(251,191,36,0.3)',
+            borderRadius: 12,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <Star size={18} color="#fbbf24" fill="#fbbf24" />
+            <span style={{ fontWeight: 600, color: '#fbbf24' }}>Want deeper insights?</span>
+          </div>
+          <p style={{ color: '#a1a1aa', fontSize: '0.85rem', marginBottom: '1rem' }}>
+            Try our premium vendor correlation analysis — upload invoices to find short ships, cost variances, and vendor issues.
+          </p>
+          <Link
+            href="/diagnostic/premium"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.6rem 1.25rem',
+              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+              borderRadius: 8,
+              color: '#1a1a1a',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              textDecoration: 'none',
+            }}
+          >
+            <Truck size={18} />
+            Try Vendor Correlation
+          </Link>
         </div>
 
         {/* Email Modal */}

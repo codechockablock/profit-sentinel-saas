@@ -42,6 +42,10 @@ const nextConfig: NextConfig = {
         destination: `${apiUrl}/diagnostic/:path*`,
       },
       {
+        source: "/api/premium/:path*",
+        destination: `${apiUrl}/premium/:path*`,
+      },
+      {
         source: "/api/:path*",
         destination: `${apiUrl}/:path*`,
       },
