@@ -34,13 +34,27 @@ Example:
 """
 
 from .engine import ConversationalDiagnostic, DetectedPattern, DiagnosticSession
+from .multi_file import (
+    CorrelationPattern,
+    CorrelationType,
+    MultiFileDiagnostic,
+    VendorSummary,
+    create_multi_file_diagnostic,
+)
 from .report import DiagnosticResult, ProfitSentinelReport, generate_report_from_session
 
 __all__ = [
+    # Core diagnostic
     "ConversationalDiagnostic",
     "DiagnosticSession",
     "DetectedPattern",
     "ProfitSentinelReport",
     "generate_report_from_session",
     "DiagnosticResult",
+    # Premium: Multi-file vendor correlation
+    "MultiFileDiagnostic",
+    "CorrelationPattern",
+    "CorrelationType",
+    "VendorSummary",
+    "create_multi_file_diagnostic",
 ]
