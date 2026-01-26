@@ -231,7 +231,7 @@ aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS 
 print_success "Logged in"
 
 print_step "Building image (amd64)..."
-docker build --platform linux/amd64 -t "$ECR_REPO_NAME:$IMAGE_TAG" apps/api/
+docker build --platform linux/amd64 -f apps/api/Dockerfile -t "$ECR_REPO_NAME:$IMAGE_TAG" .
 print_success "Built"
 
 print_step "Tagging..."
