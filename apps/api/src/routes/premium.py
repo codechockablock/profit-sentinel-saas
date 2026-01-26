@@ -18,23 +18,112 @@ Endpoints:
     DELETE /premium/diagnostic/{id}         - Delete session
 """
 
+import asyncio
 import logging
 import os
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from ..config import get_settings
+
+# Rate limiter - 20 premium diagnostic starts per hour (stricter due to more processing)
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# In-memory session storage (use Redis/DB in production)
+# In-memory session storage with TTL (use Redis/DB in production)
 premium_sessions: dict[str, dict[str, Any]] = {}
+
+# Session cleanup task reference
+_cleanup_task: asyncio.Task | None = None
+
+
+def _get_session_ttl() -> timedelta:
+    """Get the session TTL from settings."""
+    settings = get_settings()
+    return timedelta(hours=settings.session_ttl_hours)
+
+
+def _is_session_expired(session_data: dict[str, Any]) -> bool:
+    """Check if a session has expired based on TTL."""
+    created_at = session_data.get("created_at")
+    if not created_at:
+        return True
+    return datetime.now() - created_at > _get_session_ttl()
+
+
+def _cleanup_session_files(session_data: dict[str, Any]) -> None:
+    """Clean up any temporary files associated with a session."""
+    if "report_path" in session_data:
+        report_path = session_data["report_path"]
+        if report_path and os.path.exists(report_path):
+            try:
+                os.unlink(report_path)
+                logger.debug(f"Cleaned up report file: {report_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete temp report file: {e}")
+
+
+async def _cleanup_expired_sessions() -> None:
+    """Background task to clean up expired sessions."""
+    while True:
+        try:
+            # Check every 5 minutes
+            await asyncio.sleep(300)
+
+            expired_ids = []
+            for session_id, data in premium_sessions.items():
+                if _is_session_expired(data):
+                    expired_ids.append(session_id)
+
+            for session_id in expired_ids:
+                data = premium_sessions.pop(session_id, None)
+                if data:
+                    _cleanup_session_files(data)
+                    logger.info(f"Cleaned up expired premium session: {session_id}")
+
+            if expired_ids:
+                logger.info(f"Cleaned up {len(expired_ids)} expired premium sessions")
+
+        except asyncio.CancelledError:
+            logger.info("Premium session cleanup task cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in premium session cleanup task: {e}")
+
+
+def start_cleanup_task() -> None:
+    """Start the background cleanup task if not already running."""
+    global _cleanup_task
+    if _cleanup_task is None or _cleanup_task.done():
+        _cleanup_task = asyncio.create_task(_cleanup_expired_sessions())
+        logger.info("Started premium session cleanup task")
+
+
+def _validate_session(session_id: str) -> dict[str, Any]:
+    """Validate and return session data, raising HTTPException if invalid or expired."""
+    if session_id not in premium_sessions:
+        raise HTTPException(404, "Session not found")
+
+    data = premium_sessions[session_id]
+
+    if _is_session_expired(data):
+        # Clean up the expired session
+        _cleanup_session_files(data)
+        del premium_sessions[session_id]
+        raise HTTPException(410, "Session has expired. Please start a new diagnostic.")
+
+    return data
 
 
 # =============================================================================
@@ -94,7 +183,9 @@ class PremiumSummary(BaseModel):
 
 
 @router.post("/diagnostic/start", response_model=PremiumStartResponse)
+@limiter.limit("20/hour")
 async def start_premium_diagnostic(
+    request: Request,
     inventory_file: UploadFile = File(...),
     invoice_files: list[UploadFile] = File(default=[]),
     store_name: str = Form(default="My Store"),
@@ -114,7 +205,12 @@ async def start_premium_diagnostic(
     3. Aggregate vendor invoice data
     4. Discover causal correlations
     5. Generate interactive questions
+
+    Sessions expire after 24 hours (configurable via SESSION_TTL_HOURS).
     """
+    # Start cleanup task if not running
+    start_cleanup_task()
+
     # Import diagnostic engine (lazy load)
     try:
         from sentinel_engine.diagnostic.multi_file import MultiFileDiagnostic
@@ -173,7 +269,7 @@ async def start_premium_diagnostic(
     }
 
     logger.info(
-        f"Started premium diagnostic session {session_id} for {store_name} "
+        f"Started premium diagnostic session {session_id} "
         f"with {summary['files_processed']['total']} files, "
         f"{summary['patterns_discovered']} patterns discovered"
     )
@@ -192,12 +288,11 @@ async def start_premium_diagnostic(
 
 
 @router.get("/{session_id}/question", response_model=CorrelationQuestionResponse | None)
-async def get_premium_question(session_id: str):
+@limiter.limit("100/minute")
+async def get_premium_question(request: Request, session_id: str):
     """Get the current correlation question for a premium session."""
-    if session_id not in premium_sessions:
-        raise HTTPException(404, "Session not found")
-
-    diagnostic = premium_sessions[session_id]["diagnostic"]
+    data = _validate_session(session_id)
+    diagnostic = data["diagnostic"]
     question = diagnostic.get_current_question()
 
     if not question:
@@ -219,12 +314,13 @@ async def get_premium_question(session_id: str):
 
 
 @router.post("/{session_id}/answer")
-async def submit_premium_answer(session_id: str, answer: PremiumAnswerRequest):
+@limiter.limit("100/minute")
+async def submit_premium_answer(
+    request: Request, session_id: str, answer: PremiumAnswerRequest
+):
     """Submit an answer to the current correlation question."""
-    if session_id not in premium_sessions:
-        raise HTTPException(404, "Session not found")
-
-    diagnostic = premium_sessions[session_id]["diagnostic"]
+    data = _validate_session(session_id)
+    diagnostic = data["diagnostic"]
     result = diagnostic.answer_question(answer.classification, answer.note)
 
     if "error" in result:
@@ -239,12 +335,10 @@ async def submit_premium_answer(session_id: str, answer: PremiumAnswerRequest):
 
 
 @router.get("/{session_id}/summary", response_model=PremiumSummary)
-async def get_premium_summary(session_id: str):
+@limiter.limit("100/minute")
+async def get_premium_summary(request: Request, session_id: str):
     """Get comprehensive summary with vendor metrics."""
-    if session_id not in premium_sessions:
-        raise HTTPException(404, "Session not found")
-
-    data = premium_sessions[session_id]
+    data = _validate_session(session_id)
     diagnostic = data["diagnostic"]
     summary = diagnostic.get_summary()
     final_report = diagnostic.get_final_report()
@@ -266,10 +360,10 @@ async def get_premium_summary(session_id: str):
 
 
 @router.get("/{session_id}/report")
-async def generate_premium_report(session_id: str):
+@limiter.limit("10/minute")
+async def generate_premium_report(request: Request, session_id: str):
     """Generate and download the premium PDF report with vendor analysis."""
-    if session_id not in premium_sessions:
-        raise HTTPException(404, "Session not found")
+    data = _validate_session(session_id)
 
     # For now, use the standard report generator
     # In the future, create a premium report with vendor correlation details
@@ -279,7 +373,6 @@ async def generate_premium_report(session_id: str):
         logger.error(f"Failed to import report generator: {e}")
         raise HTTPException(500, "Report generator not available")
 
-    data = premium_sessions[session_id]
     diagnostic = data["diagnostic"]
 
     # Get report data
@@ -352,30 +445,29 @@ async def generate_premium_report(session_id: str):
 
 
 @router.delete("/{session_id}")
-async def delete_premium_session(session_id: str):
+@limiter.limit("50/minute")
+async def delete_premium_session(request: Request, session_id: str):
     """Delete a premium diagnostic session."""
     if session_id not in premium_sessions:
         raise HTTPException(404, "Session not found")
 
     # Clean up temp files
-    data = premium_sessions[session_id]
-    if "report_path" in data and os.path.exists(data["report_path"]):
-        try:
-            os.unlink(data["report_path"])
-        except Exception as e:
-            logger.warning(f"Failed to delete temp report file: {e}")
-
-    del premium_sessions[session_id]
-    logger.info(f"Deleted premium diagnostic session {session_id}")
+    data = premium_sessions.pop(session_id)
+    _cleanup_session_files(data)
+    logger.info(f"Deleted premium diagnostic session: {session_id}")
 
     return {"message": "Session deleted"}
 
 
 @router.get("/sessions")
-async def list_premium_sessions():
+@limiter.limit("30/minute")
+async def list_premium_sessions(request: Request):
     """List all active premium diagnostic sessions."""
     sessions = []
     for session_id, data in premium_sessions.items():
+        # Skip expired sessions in listing
+        if _is_session_expired(data):
+            continue
         summary = data["diagnostic"].get_summary()
         sessions.append(
             {

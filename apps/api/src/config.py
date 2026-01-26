@@ -106,6 +106,27 @@ class Settings(BaseSettings):
     grok_api_key: str | None = Field(default=None)
     xai_api_key: str | None = Field(default=None)
 
+    # Stripe Payment Configuration
+    stripe_secret_key: str | None = Field(default=None)
+    stripe_webhook_secret: str | None = Field(default=None)
+    stripe_price_id: str | None = Field(default=None)
+    stripe_success_url: str | None = Field(
+        default=None, description="URL to redirect after successful payment"
+    )
+    stripe_cancel_url: str | None = Field(
+        default=None, description="URL to redirect after cancelled payment"
+    )
+
+    # Session Management
+    session_ttl_hours: int = Field(
+        default=24, description="Hours before diagnostic sessions expire"
+    )
+
+    @property
+    def has_stripe(self) -> bool:
+        """Check if Stripe is configured."""
+        return self.stripe_secret_key is not None
+
     @property
     def ai_api_key(self) -> str | None:
         """

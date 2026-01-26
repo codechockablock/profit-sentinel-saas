@@ -70,11 +70,8 @@ async def submit_contact(request: ContactRequest) -> ContactResponse:
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     reference_id = f"PS-{request.type.upper()[:3]}-{timestamp}"
 
-    # Log the submission
-    logger.info(
-        f"Contact form submission: ref={reference_id}, "
-        f"type={request.type}, email={request.email}"
-    )
+    # Log the submission (no PII - email address is not logged)
+    logger.info(f"Contact form submission: ref={reference_id}, type={request.type}")
 
     # Determine destination
     destination = CONTACT_DESTINATIONS.get(request.type, "support@profitsentinel.com")
