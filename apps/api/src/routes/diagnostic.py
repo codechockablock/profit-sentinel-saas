@@ -24,13 +24,22 @@ from datetime import datetime, timedelta
 from io import StringIO
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, EmailStr
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..config import get_settings
+from ..dependencies import get_current_user
 from ..services.email import get_email_service
 
 # Rate limiter - 30 diagnostic starts per hour, 100 requests per minute for other endpoints
@@ -111,8 +120,13 @@ def start_cleanup_task() -> None:
         logger.info("Started diagnostic session cleanup task")
 
 
-def _validate_session(session_id: str) -> dict[str, Any]:
-    """Validate and return session data, raising HTTPException if invalid or expired."""
+def _validate_session(session_id: str, user_id: str | None = None) -> dict[str, Any]:
+    """
+    Validate and return session data, raising HTTPException if invalid or expired.
+
+    If user_id is provided and the session has an owner, validates ownership.
+    Anonymous sessions (no owner) can be accessed by anyone with the session ID.
+    """
     if session_id not in diagnostic_sessions:
         raise HTTPException(404, "Session not found")
 
@@ -123,6 +137,17 @@ def _validate_session(session_id: str) -> dict[str, Any]:
         _cleanup_session_files(data)
         del diagnostic_sessions[session_id]
         raise HTTPException(410, "Session has expired. Please start a new diagnostic.")
+
+    # Validate ownership if session has an owner
+    session_owner = data.get("user_id")
+    if session_owner is not None:
+        # Session is owned - only owner can access
+        if user_id != session_owner:
+            logger.warning(
+                f"Session access denied: session owner mismatch "
+                f"(session={session_id[:8]}...)"
+            )
+            raise HTTPException(403, "Not authorized to access this session")
 
     return data
 
@@ -275,6 +300,7 @@ async def start_diagnostic(
     request: Request,
     file: UploadFile = File(...),
     store_name: str = "My Store",
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Start a new diagnostic session.
@@ -289,6 +315,9 @@ async def start_diagnostic(
     - Cost/Unit Cost/Avg Cost
 
     Sessions expire after 24 hours (configurable via SESSION_TTL_HOURS).
+
+    Authentication is optional - anonymous users can use the diagnostic,
+    but authenticated users get session ownership protection.
     """
     # Start cleanup task if not running
     start_cleanup_task()
@@ -346,7 +375,7 @@ async def start_diagnostic(
         logger.error(f"Failed to start diagnostic session: {e}")
         raise HTTPException(500, f"Failed to initialize diagnostic: {str(e)}")
 
-    # Store session
+    # Store session with optional user ownership
     diagnostic_sessions[session_id] = {
         "diagnostic": diagnostic,
         "session": session,
@@ -354,11 +383,14 @@ async def start_diagnostic(
         "store_name": store_name,
         "created_at": datetime.now(),
         "status": "in_progress",
+        "user_id": user_id,  # None for anonymous, user ID for authenticated
     }
 
+    # Log without exposing user_id (privacy)
+    auth_status = "authenticated" if user_id else "anonymous"
     logger.info(
         f"Started diagnostic session {session_id} for {store_name} "
-        f"with {len(items)} items, {session.negative_items} negative"
+        f"with {len(items)} items, {session.negative_items} negative ({auth_status})"
     )
 
     return StartResponse(
@@ -373,9 +405,13 @@ async def start_diagnostic(
 
 @router.get("/{session_id}/question", response_model=QuestionResponse | None)
 @limiter.limit("100/minute")
-async def get_question(request: Request, session_id: str):
+async def get_question(
+    request: Request,
+    session_id: str,
+    user_id: str | None = Depends(get_current_user),
+):
     """Get the current question for a session."""
-    data = _validate_session(session_id)
+    data = _validate_session(session_id, user_id)
     diagnostic = data["diagnostic"]
     question = diagnostic.get_current_question()
 
@@ -387,9 +423,14 @@ async def get_question(request: Request, session_id: str):
 
 @router.post("/{session_id}/answer")
 @limiter.limit("100/minute")
-async def submit_answer(request: Request, session_id: str, answer: AnswerRequest):
+async def submit_answer(
+    request: Request,
+    session_id: str,
+    answer: AnswerRequest,
+    user_id: str | None = Depends(get_current_user),
+):
     """Submit an answer to the current question."""
-    data = _validate_session(session_id)
+    data = _validate_session(session_id, user_id)
     diagnostic = data["diagnostic"]
     result = diagnostic.answer_question(answer.classification, answer.note)
 
@@ -406,9 +447,13 @@ async def submit_answer(request: Request, session_id: str, answer: AnswerRequest
 
 @router.get("/{session_id}/summary", response_model=SessionSummary)
 @limiter.limit("100/minute")
-async def get_summary(request: Request, session_id: str):
+async def get_summary(
+    request: Request,
+    session_id: str,
+    user_id: str | None = Depends(get_current_user),
+):
     """Get current session summary with running totals."""
-    data = _validate_session(session_id)
+    data = _validate_session(session_id, user_id)
     session = data["session"]
     summary = session.get_summary()
 
@@ -429,9 +474,13 @@ async def get_summary(request: Request, session_id: str):
 
 @router.get("/{session_id}/report")
 @limiter.limit("10/minute")
-async def generate_report(request: Request, session_id: str):
+async def generate_report(
+    request: Request,
+    session_id: str,
+    user_id: str | None = Depends(get_current_user),
+):
     """Generate and download the PDF report."""
-    data = _validate_session(session_id)
+    data = _validate_session(session_id, user_id)
 
     # Import report generator
     try:
@@ -481,9 +530,10 @@ async def email_diagnostic_report(
     session_id: str,
     email_request: EmailRequest,
     background_tasks: BackgroundTasks,
+    user_id: str | None = Depends(get_current_user),
 ):
     """Email the diagnostic report."""
-    data = _validate_session(session_id)
+    data = _validate_session(session_id, user_id)
 
     # Generate report if not already done
     if "report_path" not in data or not os.path.exists(data.get("report_path", "")):
@@ -541,13 +591,17 @@ async def email_diagnostic_report(
 
 @router.delete("/{session_id}")
 @limiter.limit("50/minute")
-async def delete_session(request: Request, session_id: str):
+async def delete_session(
+    request: Request,
+    session_id: str,
+    user_id: str | None = Depends(get_current_user),
+):
     """Delete a diagnostic session."""
-    if session_id not in diagnostic_sessions:
-        raise HTTPException(404, "Session not found")
+    # Validate session exists and user has access
+    data = _validate_session(session_id, user_id)
 
     # Clean up temp files
-    data = diagnostic_sessions.pop(session_id)
+    diagnostic_sessions.pop(session_id)
     _cleanup_session_files(data)
     logger.info(f"Deleted diagnostic session: {session_id}")
 
@@ -556,10 +610,23 @@ async def delete_session(request: Request, session_id: str):
 
 @router.get("/sessions")
 @limiter.limit("30/minute")
-async def list_sessions(request: Request):
-    """List all active diagnostic sessions."""
+async def list_sessions(
+    request: Request,
+    user_id: str | None = Depends(get_current_user),
+):
+    """
+    List active diagnostic sessions.
+
+    If authenticated, returns only the user's sessions.
+    If anonymous, returns an empty list (anonymous sessions are private by session ID).
+    """
     sessions = []
     for session_id, data in diagnostic_sessions.items():
+        # Only show sessions owned by this user (or skip if anonymous)
+        session_owner = data.get("user_id")
+        if session_owner is None or session_owner != user_id:
+            continue
+
         sessions.append(
             {
                 "session_id": session_id,
