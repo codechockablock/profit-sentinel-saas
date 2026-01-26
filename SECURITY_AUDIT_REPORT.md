@@ -397,8 +397,8 @@ Add post-upload HeadObject validation.
 
 ### Immediate (Before Go-Live)
 1. [x] C1: Implement session TTL/cleanup ✅ **FIXED (2026-01-25)**
-2. [ ] C2: Configure S3 lifecycle policy (24-hour expiration) - See Infrastructure section below
-3. [ ] C3: Add session authentication (optional - sessions use UUIDs)
+2. [x] C2: Configure S3 lifecycle policy (24-hour expiration) ✅ **FIXED (2026-01-25)**
+3. [x] C3: Add session authentication ✅ **FIXED (2026-01-25)** - Optional auth with ownership validation
 4. [x] C4: Remove PII from logs ✅ **FIXED (2026-01-25)**
 5. [x] C5: Add missing Stripe config fields ✅ **FIXED (2026-01-25)**
 6. [x] H1-H2: Update privacy policy for IP/UA disclosure ✅ **FIXED (2026-01-25)**

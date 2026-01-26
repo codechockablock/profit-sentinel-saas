@@ -26,13 +26,14 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..config import get_settings
+from ..dependencies import get_current_user
 
 # Rate limiter - 20 premium diagnostic starts per hour (stricter due to more processing)
 limiter = Limiter(key_func=get_remote_address)
@@ -110,8 +111,13 @@ def start_cleanup_task() -> None:
         logger.info("Started premium session cleanup task")
 
 
-def _validate_session(session_id: str) -> dict[str, Any]:
-    """Validate and return session data, raising HTTPException if invalid or expired."""
+def _validate_session(session_id: str, user_id: str | None = None) -> dict[str, Any]:
+    """
+    Validate and return session data, raising HTTPException if invalid or expired.
+
+    If user_id is provided and the session has an owner, validates ownership.
+    Anonymous sessions (no owner) can be accessed by anyone with the session ID.
+    """
     if session_id not in premium_sessions:
         raise HTTPException(404, "Session not found")
 
@@ -122,6 +128,17 @@ def _validate_session(session_id: str) -> dict[str, Any]:
         _cleanup_session_files(data)
         del premium_sessions[session_id]
         raise HTTPException(410, "Session has expired. Please start a new diagnostic.")
+
+    # Validate ownership if session has an owner
+    session_owner = data.get("user_id")
+    if session_owner is not None:
+        # Session is owned - only owner can access
+        if user_id != session_owner:
+            logger.warning(
+                f"Premium session access denied: session owner mismatch "
+                f"(session={session_id[:8]}...)"
+            )
+            raise HTTPException(403, "Not authorized to access this session")
 
     return data
 
@@ -189,6 +206,7 @@ async def start_premium_diagnostic(
     inventory_file: UploadFile = File(...),
     invoice_files: list[UploadFile] = File(default=[]),
     store_name: str = Form(default="My Store"),
+    user_id: str | None = Depends(get_current_user),
 ):
     """
     Start a premium multi-file diagnostic session with vendor correlation.
@@ -207,6 +225,9 @@ async def start_premium_diagnostic(
     5. Generate interactive questions
 
     Sessions expire after 24 hours (configurable via SESSION_TTL_HOURS).
+
+    Authentication is optional - anonymous users can use the diagnostic,
+    but authenticated users get session ownership protection.
     """
     # Start cleanup task if not running
     start_cleanup_task()
@@ -259,19 +280,22 @@ async def start_premium_diagnostic(
     # Get summary
     summary = diagnostic.get_summary()
 
-    # Store session
+    # Store session with optional user ownership
     session_id = str(uuid.uuid4())
     premium_sessions[session_id] = {
         "diagnostic": diagnostic,
         "store_name": store_name,
         "created_at": datetime.now(),
         "status": "in_progress" if summary["patterns_discovered"] > 0 else "complete",
+        "user_id": user_id,  # None for anonymous, user ID for authenticated
     }
 
+    # Log without exposing user_id (privacy)
+    auth_status = "authenticated" if user_id else "anonymous"
     logger.info(
         f"Started premium diagnostic session {session_id} "
         f"with {summary['files_processed']['total']} files, "
-        f"{summary['patterns_discovered']} patterns discovered"
+        f"{summary['patterns_discovered']} patterns discovered ({auth_status})"
     )
 
     return PremiumStartResponse(
@@ -289,9 +313,13 @@ async def start_premium_diagnostic(
 
 @router.get("/{session_id}/question", response_model=CorrelationQuestionResponse | None)
 @limiter.limit("100/minute")
-async def get_premium_question(request: Request, session_id: str):
+async def get_premium_question(
+    request: Request,
+    session_id: str,
+    user_id: str | None = Depends(get_current_user),
+):
     """Get the current correlation question for a premium session."""
-    data = _validate_session(session_id)
+    data = _validate_session(session_id, user_id)
     diagnostic = data["diagnostic"]
     question = diagnostic.get_current_question()
 
@@ -316,10 +344,13 @@ async def get_premium_question(request: Request, session_id: str):
 @router.post("/{session_id}/answer")
 @limiter.limit("100/minute")
 async def submit_premium_answer(
-    request: Request, session_id: str, answer: PremiumAnswerRequest
+    request: Request,
+    session_id: str,
+    answer: PremiumAnswerRequest,
+    user_id: str | None = Depends(get_current_user),
 ):
     """Submit an answer to the current correlation question."""
-    data = _validate_session(session_id)
+    data = _validate_session(session_id, user_id)
     diagnostic = data["diagnostic"]
     result = diagnostic.answer_question(answer.classification, answer.note)
 
@@ -336,9 +367,13 @@ async def submit_premium_answer(
 
 @router.get("/{session_id}/summary", response_model=PremiumSummary)
 @limiter.limit("100/minute")
-async def get_premium_summary(request: Request, session_id: str):
+async def get_premium_summary(
+    request: Request,
+    session_id: str,
+    user_id: str | None = Depends(get_current_user),
+):
     """Get comprehensive summary with vendor metrics."""
-    data = _validate_session(session_id)
+    data = _validate_session(session_id, user_id)
     diagnostic = data["diagnostic"]
     summary = diagnostic.get_summary()
     final_report = diagnostic.get_final_report()
@@ -361,9 +396,13 @@ async def get_premium_summary(request: Request, session_id: str):
 
 @router.get("/{session_id}/report")
 @limiter.limit("10/minute")
-async def generate_premium_report(request: Request, session_id: str):
+async def generate_premium_report(
+    request: Request,
+    session_id: str,
+    user_id: str | None = Depends(get_current_user),
+):
     """Generate and download the premium PDF report with vendor analysis."""
-    data = _validate_session(session_id)
+    data = _validate_session(session_id, user_id)
 
     # For now, use the standard report generator
     # In the future, create a premium report with vendor correlation details
@@ -446,13 +485,17 @@ async def generate_premium_report(request: Request, session_id: str):
 
 @router.delete("/{session_id}")
 @limiter.limit("50/minute")
-async def delete_premium_session(request: Request, session_id: str):
+async def delete_premium_session(
+    request: Request,
+    session_id: str,
+    user_id: str | None = Depends(get_current_user),
+):
     """Delete a premium diagnostic session."""
-    if session_id not in premium_sessions:
-        raise HTTPException(404, "Session not found")
+    # Validate session exists and user has access
+    data = _validate_session(session_id, user_id)
 
     # Clean up temp files
-    data = premium_sessions.pop(session_id)
+    premium_sessions.pop(session_id)
     _cleanup_session_files(data)
     logger.info(f"Deleted premium diagnostic session: {session_id}")
 
@@ -461,13 +504,27 @@ async def delete_premium_session(request: Request, session_id: str):
 
 @router.get("/sessions")
 @limiter.limit("30/minute")
-async def list_premium_sessions(request: Request):
-    """List all active premium diagnostic sessions."""
+async def list_premium_sessions(
+    request: Request,
+    user_id: str | None = Depends(get_current_user),
+):
+    """
+    List active premium diagnostic sessions.
+
+    If authenticated, returns only the user's sessions.
+    If anonymous, returns an empty list (anonymous sessions are private by session ID).
+    """
     sessions = []
     for session_id, data in premium_sessions.items():
         # Skip expired sessions in listing
         if _is_session_expired(data):
             continue
+
+        # Only show sessions owned by this user (or skip if anonymous)
+        session_owner = data.get("user_id")
+        if session_owner is None or session_owner != user_id:
+            continue
+
         summary = data["diagnostic"].get_summary()
         sessions.append(
             {
