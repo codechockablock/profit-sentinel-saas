@@ -1,0 +1,176 @@
+# =============================================================================
+# PROFIT SENTINEL - LOCAL DEVELOPMENT ENVIRONMENT
+# =============================================================================
+#
+# This Docker Compose file provides a COMPLETE local development environment
+# with NO dependency on AWS or production services.
+#
+# USAGE:
+#   docker-compose -f docker-compose.local.yml up
+#
+# WHAT'S INCLUDED:
+#   - PostgreSQL database (replaces Supabase)
+#   - MinIO S3-compatible storage (replaces AWS S3)
+#   - Backend API (FastAPI)
+#   - Frontend (Next.js dev server)
+#
+# IMPORTANT:
+#   - This is for LOCAL DEVELOPMENT ONLY
+#   - Do NOT use production credentials with this setup
+#   - Generate synthetic data with tools/generate_synthetic_data.py
+#
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # DATABASE - PostgreSQL (replaces Supabase)
+  # ===========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: profit-sentinel-local-db
+    environment:
+      POSTGRES_USER: sentinel_dev
+      POSTGRES_PASSWORD: local_dev_password_123
+      POSTGRES_DB: profit_sentinel_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+      # Initialize with schema
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel_dev -d profit_sentinel_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===========================================================================
+  # OBJECT STORAGE - MinIO (replaces AWS S3)
+  # ===========================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: profit-sentinel-local-storage
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    volumes:
+      - minio_local_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # MINIO SETUP - Creates bucket on startup
+  # ===========================================================================
+  minio-setup:
+    image: minio/mc:latest
+    container_name: profit-sentinel-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin123;
+      mc mb local/profit-sentinel-uploads --ignore-existing;
+      mc anonymous set upload local/profit-sentinel-uploads;
+      echo 'MinIO bucket created successfully';
+      exit 0;
+      "
+
+  # ===========================================================================
+  # BACKEND API - FastAPI
+  # ===========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: profit-sentinel-local-api
+    environment:
+      # Database - point to local PostgreSQL
+      DATABASE_URL: postgresql://sentinel_dev:local_dev_password_123@postgres:5432/profit_sentinel_dev
+      # These are NOT used in local mode, but kept for compatibility
+      SUPABASE_URL: ""
+      SUPABASE_SERVICE_KEY: ""
+      # S3 - point to local MinIO
+      S3_BUCKET_NAME: profit-sentinel-uploads
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin123
+      AWS_REGION: us-east-1
+      # MinIO endpoint override
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_USE_PATH_STYLE: "true"
+      # Analysis settings
+      USE_VSA_GROUNDING: "true"
+      INCLUDE_CAUSE_DIAGNOSIS: "true"
+      # AI features disabled for local (no API key needed)
+      XAI_API_KEY: ""
+      # Debug mode for local development
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+      # CORS - allow local frontend
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/api:/app
+      - ./packages:/packages:ro
+      - ./config:/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # ===========================================================================
+  # FRONTEND - Next.js Development Server
+  # ===========================================================================
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.dev
+    container_name: profit-sentinel-local-web
+    environment:
+      NODE_ENV: development
+      # API URL - point to local backend
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Supabase disabled for local dev
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+      # Disable AI features
+      XAI_API_KEY: ""
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_local_data:
+    name: profit-sentinel-local-postgres
+  minio_local_data:
+    name: profit-sentinel-local-minio
+
+networks:
+  default:
+    name: profit-sentinel-local-network
