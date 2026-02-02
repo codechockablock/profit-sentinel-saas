@@ -24,13 +24,16 @@ The codebase had accumulated duplicate code paths and stale artifacts from rapid
 
 6. **`packages/sentinel-engine/src/sentinel_engine/__init__.py`** - Complex availability checking logic scattered throughout 450+ lines, making it difficult to understand which components were available.
 
-### Note: `packages/sentinel-core/` was preserved
+### Note: `packages/sentinel-core/` was initially preserved
 
 The original review flagged `packages/sentinel-core/` as "empty", but investigation revealed it's a **git submodule** pointing to `profit-sentinel-core.git` containing:
 - 40K+ lines of VSA validation experiments
 - Referenced in `.github/workflows/deploy.yml`
 
-This was preserved to avoid breaking the deployment pipeline.
+This was preserved in ADR 001, but later removed in ADR 002 (sentinel-core consolidation) after verifying:
+- No direct imports from the submodule in production code
+- The only active module (`semantic_flagging.py`) was already migrated to `sentinel-engine.flagging`
+- The deploy workflow fetches `core.py` separately (not via the submodule)
 
 ## Decision
 
@@ -102,5 +105,6 @@ The cleanup was performed in logical commits:
 ## References
 
 - Original architectural review that identified these issues
-- Git submodule configuration in `.gitmodules`
+- ~~Git submodule configuration in `.gitmodules`~~ (removed in ADR 002)
 - Deployment workflow in `.github/workflows/deploy.yml`
+- See also: ADR 002 - Sentinel-Core Consolidation
