@@ -2814,14 +2814,14 @@ cli = ["click (>=5.0)"]
 
 [[package]]
 name = "python-multipart"
-version = "0.0.21"
+version = "0.0.22"
 description = "A streaming multipart parser for Python"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "python_multipart-0.0.21-py3-none-any.whl", hash = "sha256:cf7a6713e01c87aa35387f4774e812c4361150938d20d232800f75ffcf266090"},
-    {file = "python_multipart-0.0.21.tar.gz", hash = "sha256:7137ebd4d3bbf70ea1622998f902b97a29434a9e8dc40eb203bbcf7c2a2cba92"},
+    {file = "python_multipart-0.0.22-py3-none-any.whl", hash = "sha256:fd5c1ebb7bbe7e7eecc04b8f09bed03ca5ef80e62d7aaed93a8c8c7fbfa39f1a"},
+    {file = "python_multipart-0.0.22.tar.gz", hash = "sha256:50b4e7d6bf0db7ba79cf9abd62a825e96bb4099df3075c4f5a9ce6e3f7ae6688"},
 ]
 
 [[package]]
