@@ -35,6 +35,10 @@ but is deprecated. Migrate to Dorian for new development.
     from sentinel_engine import _CORE_AVAILABLE
     if _CORE_AVAILABLE:
         from sentinel_engine import bundle_pos_facts, query_bundle
+
+For internal/advanced use, import from submodules directly:
+    from sentinel_engine.vsa_evidence import CauseScorer
+    from sentinel_engine.streaming import process_large_file
 """
 
 __version__ = "5.0.0"  # Dorian integration
@@ -44,36 +48,76 @@ DEFAULT_DIMENSIONS = 10000
 DEFAULT_MAX_CODEBOOK_SIZE = 100000
 HIERARCHICAL_CODEBOOK_THRESHOLD = 10000
 
-# Legacy context-based API (v2.1 - Deprecated, use Dorian instead)
-try:
-    from .legacy.context import (
-        AnalysisContext,
-        create_analysis_context,
-    )
+# =============================================================================
+# Availability Flags (centralized in _availability.py)
+# =============================================================================
+from ._availability import (
+    _BRIDGE_AVAILABLE,
+    _CONTEXT_AVAILABLE,
+    _CONTRADICTION_DETECTOR_AVAILABLE,
+    _CORE_AVAILABLE,
+    _DIAGNOSTIC_AVAILABLE,
+    _DORIAN_AVAILABLE,
+    _FLAGGING_AVAILABLE,
+    _PIPELINE_AVAILABLE,
+    _STREAMING_AVAILABLE,
+    _VSA_EVIDENCE_AVAILABLE,
+)
 
-    _CONTEXT_AVAILABLE = True
-except ImportError:
-    import logging
-
-    logging.getLogger(__name__).debug(
-        "Legacy context module not available - using Dorian"
+# =============================================================================
+# Primary API (v5.0.0) - Dorian & Diagnostic
+# =============================================================================
+if _DORIAN_AVAILABLE:
+    from .dorian import (
+        DorianCore,
+        FactStore,
+        InferenceEngine,
+        KnowledgePipeline,
+        VSAEngine,
     )
-    _CONTEXT_AVAILABLE = False
+else:
+    DorianCore = None
+    VSAEngine = None
+    FactStore = None
+    InferenceEngine = None
+    KnowledgePipeline = None
+
+if _DIAGNOSTIC_AVAILABLE:
+    from .diagnostic import (
+        ConversationalDiagnostic,
+        DetectedPattern,
+        DiagnosticSession,
+        ProfitSentinelReport,
+        generate_report_from_session,
+    )
+else:
+    ConversationalDiagnostic = None
+    DiagnosticSession = None
+    DetectedPattern = None
+    ProfitSentinelReport = None
+    generate_report_from_session = None
+
+# =============================================================================
+# Legacy Context API (v2.1 - Deprecated, use Dorian)
+# =============================================================================
+if _CONTEXT_AVAILABLE:
+    from .legacy.context import AnalysisContext, create_analysis_context
+else:
     AnalysisContext = None
     create_analysis_context = None
 
-# Core analysis functions (proprietary - may not be available in all environments)
-try:
+# =============================================================================
+# Core Functions (proprietary - may not be available)
+# =============================================================================
+if _CORE_AVAILABLE:
     from .core import (
         CATEGORY_ALIASES,
         COST_ALIASES,
         LAST_SALE_ALIASES,
         LEAK_METADATA,
         MARGIN_ALIASES,
-        # Data structures
         PRIMITIVES,
         QTY_DIFF_ALIASES,
-        # Column aliases (for reference)
         QUANTITY_ALIASES,
         REVENUE_ALIASES,
         SKU_ALIASES,
@@ -81,26 +125,17 @@ try:
         THRESHOLDS,
         VENDOR_ALIASES,
         add_to_codebook,
-        # Main functions
         bundle_pos_facts,
-        codebook_dict,  # Deprecated - use ctx.codebook instead
+        codebook_dict,
         convergence_lock_resonator_gpu,
         get_all_primitives,
         get_primitive_metadata,
         normalize_torch,
         query_bundle,
-        reset_codebook,  # Now a no-op for backward compatibility
-        # VSA utilities (legacy - prefer context methods)
+        reset_codebook,
         seed_hash,
     )
-
-    _CORE_AVAILABLE = True
-except ImportError as e:
-    import logging
-
-    logging.getLogger(__name__).debug(f"Core module not available: {e}")
-    _CORE_AVAILABLE = False
-    # Set placeholders for optional core imports
+else:
     CATEGORY_ALIASES = None
     COST_ALIASES = None
     LAST_SALE_ALIASES = None
@@ -125,15 +160,14 @@ except ImportError as e:
     reset_codebook = None
     seed_hash = None
 
-# Pipeline components (if they exist and are complete)
-try:
+# =============================================================================
+# Pipeline Components
+# =============================================================================
+if _PIPELINE_AVAILABLE:
     from .batch import BatchProcessor, StreamProcessor
     from .codebook import CodebookManager, PersistentCodebook
     from .pipeline import PipelineResult, PipelineStage, TieredPipeline
-
-    _PIPELINE_AVAILABLE = True
-except ImportError:
-    _PIPELINE_AVAILABLE = False
+else:
     TieredPipeline = None
     PipelineStage = None
     PipelineResult = None
@@ -142,17 +176,18 @@ except ImportError:
     BatchProcessor = None
     StreamProcessor = None
 
-# Bridge (if available)
-try:
+# =============================================================================
+# Bridge
+# =============================================================================
+if _BRIDGE_AVAILABLE:
     from .bridge import VSASymbolicBridge
-
-    _BRIDGE_AVAILABLE = True
-except ImportError:
-    _BRIDGE_AVAILABLE = False
+else:
     VSASymbolicBridge = None
 
+# =============================================================================
 # Contradiction Detector (v2.1.0)
-try:
+# =============================================================================
+if _CONTRADICTION_DETECTOR_AVAILABLE:
     from .contradiction_detector import (
         CONTRADICTORY_PAIRS,
         Contradiction,
@@ -160,21 +195,17 @@ try:
         generate_contradiction_report,
         resolve_contradictions,
     )
-
-    _CONTRADICTION_DETECTOR_AVAILABLE = True
-except ImportError as e:
-    import logging
-
-    logging.getLogger(__name__).debug(f"Contradiction detector not available: {e}")
-    _CONTRADICTION_DETECTOR_AVAILABLE = False
+else:
     CONTRADICTORY_PAIRS = None
     Contradiction = None
     detect_contradictions = None
     generate_contradiction_report = None
     resolve_contradictions = None
 
-# Streaming module for large files (v3.0.0)
-try:
+# =============================================================================
+# Streaming (v3.0.0)
+# =============================================================================
+if _STREAMING_AVAILABLE:
     from .streaming import (
         StreamingResult,
         StreamingStats,
@@ -184,13 +215,7 @@ try:
         process_large_file,
         read_file_chunked,
     )
-
-    _STREAMING_AVAILABLE = True
-except ImportError as e:
-    import logging
-
-    logging.getLogger(__name__).debug(f"Streaming module not available: {e}")
-    _STREAMING_AVAILABLE = False
+else:
     StreamingResult = None
     StreamingStats = None
     bundle_pos_facts_streaming = None
@@ -199,8 +224,10 @@ except ImportError as e:
     process_large_file = None
     read_file_chunked = None
 
-# VSA Evidence Grounding (v4.0.0) - 0% hallucination, 100% multi-hop accuracy
-try:
+# =============================================================================
+# VSA Evidence Grounding (v4.0.0)
+# =============================================================================
+if _VSA_EVIDENCE_AVAILABLE:
     from .routing import (
         AnalysisResult,
         ColdPathRequest,
@@ -231,14 +258,7 @@ try:
         extract_evidence_facts,
         get_cause_metadata,
     )
-
-    _VSA_EVIDENCE_AVAILABLE = True
-except ImportError as e:
-    import logging
-
-    logging.getLogger(__name__).debug(f"VSA Evidence module not available: {e}")
-    _VSA_EVIDENCE_AVAILABLE = False
-    # Set placeholders for optional imports
+else:
     AnalysisResult = None
     ColdPathRequest = None
     HotPathResult = None
@@ -266,8 +286,10 @@ except ImportError as e:
     extract_evidence_facts = None
     get_cause_metadata = None
 
-# Semantic Flagging (v4.1.0) - Employer review system
-try:
+# =============================================================================
+# Semantic Flagging (v4.1.0)
+# =============================================================================
+if _FLAGGING_AVAILABLE:
     from .flagging import (
         FlagCategory,
         FlaggedQuery,
@@ -276,13 +298,7 @@ try:
         SemanticFlag,
         SemanticFlagDetector,
     )
-
-    _FLAGGING_AVAILABLE = True
-except ImportError as e:
-    import logging
-
-    logging.getLogger(__name__).debug(f"Flagging module not available: {e}")
-    _FLAGGING_AVAILABLE = False
+else:
     FlagCategory = None
     FlaggedQuery = None
     FlagSeverity = None
@@ -290,85 +306,43 @@ except ImportError as e:
     SemanticFlag = None
     SemanticFlagDetector = None
 
-# Dorian Knowledge Engine (v5.0.0) - Production VSA with FAISS indexing
-try:
-    from .dorian import (
-        DorianCore,
-        FactStore,
-        InferenceEngine,
-        KnowledgePipeline,
-        VSAEngine,
-    )
 
-    _DORIAN_AVAILABLE = True
-except ImportError as e:
-    import logging
-
-    logging.getLogger(__name__).debug(f"Dorian module not available: {e}")
-    _DORIAN_AVAILABLE = False
-    DorianCore = None
-    VSAEngine = None
-    FactStore = None
-    InferenceEngine = None
-    KnowledgePipeline = None
-
-# Diagnostic Engine (v5.0.0) - Conversational shrinkage diagnostic
-try:
-    from .diagnostic import (
-        ConversationalDiagnostic,
-        DetectedPattern,
-        DiagnosticSession,
-        ProfitSentinelReport,
-        generate_report_from_session,
-    )
-
-    _DIAGNOSTIC_AVAILABLE = True
-except ImportError as e:
-    import logging
-
-    logging.getLogger(__name__).debug(f"Diagnostic module not available: {e}")
-    _DIAGNOSTIC_AVAILABLE = False
-    ConversationalDiagnostic = None
-    DiagnosticSession = None
-    DetectedPattern = None
-    ProfitSentinelReport = None
-    generate_report_from_session = None
-
+# =============================================================================
+# Public API
+# =============================================================================
 __all__ = [
     # Version
     "__version__",
-    # Dorian (v5.0.0) - PRIMARY API
+    # Constants
+    "DEFAULT_DIMENSIONS",
+    "DEFAULT_MAX_CODEBOOK_SIZE",
+    "HIERARCHICAL_CODEBOOK_THRESHOLD",
+    # Availability flags
+    "_CONTEXT_AVAILABLE",
+    "_CORE_AVAILABLE",
+    "_PIPELINE_AVAILABLE",
+    "_BRIDGE_AVAILABLE",
+    "_CONTRADICTION_DETECTOR_AVAILABLE",
+    "_STREAMING_AVAILABLE",
+    "_VSA_EVIDENCE_AVAILABLE",
+    "_FLAGGING_AVAILABLE",
     "_DORIAN_AVAILABLE",
+    "_DIAGNOSTIC_AVAILABLE",
+    # Dorian (v5.0.0) - PRIMARY API
     "DorianCore",
     "VSAEngine",
     "FactStore",
     "InferenceEngine",
     "KnowledgePipeline",
     # Diagnostic (v5.0.0) - PRIMARY API
-    "_DIAGNOSTIC_AVAILABLE",
     "ConversationalDiagnostic",
     "DiagnosticSession",
     "DetectedPattern",
     "ProfitSentinelReport",
     "generate_report_from_session",
-    # Constants
-    "DEFAULT_DIMENSIONS",
-    "DEFAULT_MAX_CODEBOOK_SIZE",
-    "HIERARCHICAL_CODEBOOK_THRESHOLD",
     # Legacy Context API (v2.1 - Deprecated)
-    "_CONTEXT_AVAILABLE",
     "AnalysisContext",
     "create_analysis_context",
-    # Core availability flag (legacy)
-    "_CORE_AVAILABLE",
-    # Flagging (v4.1.0)
-    "_FLAGGING_AVAILABLE",
-    "FlagCategory",
-    "FlaggedQuery",
-    "FlagSeverity",
-    "ProfitSentinelFlagIntegration",
-    "SemanticFlag",
-    "SemanticFlagDetector",
     # Core functions
     "bundle_pos_facts",
     "query_bundle",
@@ -395,7 +369,7 @@ __all__ = [
     "SKU_ALIASES",
     "VENDOR_ALIASES",
     "CATEGORY_ALIASES",
-    # Pipeline (if available)
+    # Pipeline
     "TieredPipeline",
     "PipelineStage",
     "PipelineResult",
@@ -403,7 +377,7 @@ __all__ = [
     "CodebookManager",
     "BatchProcessor",
     "StreamProcessor",
-    # Bridge (if available)
+    # Bridge
     "VSASymbolicBridge",
     # Contradiction Detector (v2.1.0)
     "detect_contradictions",
@@ -411,8 +385,8 @@ __all__ = [
     "generate_contradiction_report",
     "Contradiction",
     "CONTRADICTORY_PAIRS",
+    "_CONTRADICTION_DETECTOR_AVAILABLE",
     # Streaming (v3.0.0)
-    "_STREAMING_AVAILABLE",
     "process_large_file",
     "process_dataframe",
     "StreamingResult",
@@ -420,10 +394,7 @@ __all__ = [
     "read_file_chunked",
     "compute_streaming_stats",
     "bundle_pos_facts_streaming",
-    # Contradiction Detector (v2.1.0)
-    "_CONTRADICTION_DETECTOR_AVAILABLE",
     # VSA Evidence Grounding (v4.0.0)
-    "_VSA_EVIDENCE_AVAILABLE",
     "CAUSE_KEYS",
     "CAUSE_METADATA",
     "RETAIL_EVIDENCE_RULES",
@@ -451,4 +422,11 @@ __all__ = [
     "ColdPathRequest",
     "AnalysisResult",
     "create_smart_router",
+    # Flagging (v4.1.0)
+    "FlagCategory",
+    "FlaggedQuery",
+    "FlagSeverity",
+    "ProfitSentinelFlagIntegration",
+    "SemanticFlag",
+    "SemanticFlagDetector",
 ]

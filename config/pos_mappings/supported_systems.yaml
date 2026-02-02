@@ -1,0 +1,20 @@
+# Supported POS Systems
+# For documentation and UI reference
+
+systems:
+  - Paladin POS
+  - Spruce POS
+  - Epicor Eagle
+  - Square POS
+  - Lightspeed Retail (R-Series, X-Series, S-Series)
+  - Lightspeed eCom (C-Series)
+  - Clover POS
+  - Shopify POS
+  - NCR Counterpoint
+  - Microsoft Dynamics RMS
+  - QuickBooks POS
+  - Vend POS
+  - Toast POS
+  - Revel Systems
+  - TouchBistro
+  - Generic CSV/Excel exports
