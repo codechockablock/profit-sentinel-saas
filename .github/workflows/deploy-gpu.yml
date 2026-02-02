@@ -167,6 +167,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     environment: ${{ github.event.inputs.environment || 'prod' }}
+    outputs:
+      asg_capacity: ${{ steps.get-asg.outputs.desired_capacity }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -178,13 +180,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get ASG name
+      - name: Get ASG name and capacity
         id: get-asg
         run: |
           ASG_NAME=$(aws autoscaling describe-auto-scaling-groups \
             --query "AutoScalingGroups[?contains(Tags[?Key=='Environment'].Value, '${{ github.event.inputs.environment || 'prod' }}') && contains(Tags[?Key=='Application'].Value, 'profit-sentinel')].AutoScalingGroupName" \
             --output text)
           echo "asg_name=$ASG_NAME" >> $GITHUB_OUTPUT
+
+          # Check desired capacity
+          DESIRED=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names "$ASG_NAME" \
+            --query "AutoScalingGroups[0].DesiredCapacity" \
+            --output text)
+          echo "desired_capacity=$DESIRED" >> $GITHUB_OUTPUT
+          echo "ASG $ASG_NAME has desired capacity: $DESIRED"
 
       - name: Update Launch Template with new image
         id: update-template
@@ -232,6 +242,7 @@ jobs:
 
       - name: Start Instance Refresh
         id: instance-refresh
+        if: steps.get-asg.outputs.desired_capacity != '0'
         run: |
           REFRESH_ID=$(aws autoscaling start-instance-refresh \
             --auto-scaling-group-name "${{ steps.get-asg.outputs.asg_name }}" \
@@ -245,7 +256,14 @@ jobs:
             --output text)
           echo "refresh_id=$REFRESH_ID" >> $GITHUB_OUTPUT
 
+      - name: Skip instance refresh (ASG scaled to 0)
+        if: steps.get-asg.outputs.desired_capacity == '0'
+        run: |
+          echo "ASG is scaled to 0 instances - skipping instance refresh"
+          echo "Launch template has been updated. New instances will use the new image when ASG scales up."
+
       - name: Wait for Instance Refresh to complete
+        if: steps.get-asg.outputs.desired_capacity != '0'
         run: |
           echo "Starting instance refresh monitoring..."
           MAX_WAIT=1800  # 30 minutes
@@ -283,12 +301,13 @@ jobs:
           exit 1
 
   # ===========================================================================
-  # Stage 4: Health Check
+  # Stage 4: Health Check (skipped if ASG scaled to 0)
   # ===========================================================================
   health-check:
     name: Health Check
     runs-on: ubuntu-latest
     needs: deploy
+    if: needs.deploy.outputs.asg_capacity != '0'
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -357,10 +376,21 @@ jobs:
       - name: Determine deployment status
         id: status
         run: |
-          if [ "${{ needs.health-check.result }}" = "success" ]; then
-            echo "status=success" >> $GITHUB_OUTPUT
-            echo "emoji=✅" >> $GITHUB_OUTPUT
-            echo "message=Deployment completed successfully" >> $GITHUB_OUTPUT
+          # Health check is skipped when ASG is scaled to 0 - this is success
+          if [ "${{ needs.health-check.result }}" = "success" ] || [ "${{ needs.health-check.result }}" = "skipped" ]; then
+            if [ "${{ needs.deploy.result }}" = "success" ]; then
+              echo "status=success" >> $GITHUB_OUTPUT
+              echo "emoji=✅" >> $GITHUB_OUTPUT
+              if [ "${{ needs.health-check.result }}" = "skipped" ]; then
+                echo "message=Launch template updated (ASG scaled to 0, no instances to refresh)" >> $GITHUB_OUTPUT
+              else
+                echo "message=Deployment completed successfully" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "status=failure" >> $GITHUB_OUTPUT
+              echo "emoji=❌" >> $GITHUB_OUTPUT
+              echo "message=Deployment failed" >> $GITHUB_OUTPUT
+            fi
           else
             echo "status=failure" >> $GITHUB_OUTPUT
             echo "emoji=❌" >> $GITHUB_OUTPUT
