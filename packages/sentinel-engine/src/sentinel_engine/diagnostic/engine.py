@@ -877,25 +877,23 @@ def demo():
     report = engine.get_final_report()
     summary = report["summary"]
 
-    print(
-        f"""
+    print(f"""
 ┌────────────────────────────────────────────────────────────────┐
 │  DIAGNOSTIC COMPLETE                                           │
 ├────────────────────────────────────────────────────────────────┤
 │                                                                │
-│  Total Apparent Shrinkage:   ${summary['total_shrinkage']:>10,.0f}                 │
+│  Total Apparent Shrinkage:   ${summary["total_shrinkage"]:>10,.0f}                 │
 │                                                                │
-│  Process Issues Found:       ${summary['explained_value']:>10,.0f}                 │
-│  Still to Investigate:       ${summary['unexplained_value']:>10,.0f}                 │
+│  Process Issues Found:       ${summary["explained_value"]:>10,.0f}                 │
+│  Still to Investigate:       ${summary["unexplained_value"]:>10,.0f}                 │
 │                                                                │
 │  ════════════════════════════════════════════════════════════ │
-│  REDUCTION:                      {summary['reduction_percent']:>6.1f}%                   │
+│  REDUCTION:                      {summary["reduction_percent"]:>6.1f}%                   │
 │  ════════════════════════════════════════════════════════════ │
 │                                                                │
-│  {summary['patterns_total']} patterns reviewed                                      │
+│  {summary["patterns_total"]} patterns reviewed                                      │
 └────────────────────────────────────────────────────────────────┘
-"""
-    )
+""")
 
     print("\nTop 10 items to investigate:")
     for item in report["items_to_investigate"][:10]:
