@@ -203,3 +203,8 @@ packages/sentinel-engine/src/sentinel_engine/core.py
 local_*
 dev_*
 test_resonator.py
+
+# Generated reports (don't commit test outputs)
+inventory_report.html
+*.html
+!apps/web/**/*.html
