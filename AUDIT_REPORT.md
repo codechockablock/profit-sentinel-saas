@@ -158,7 +158,7 @@ All 11 domain primitives have `ctx.increment_leak_count()` calls:
 ### Ruff
 
 **Main packages (sentinel-engine, api, web):** PASS
-**Other packages:** 218 warnings in sentinel-core (deprecated type hints)
+**Note:** sentinel-core submodule was removed (see ADR 002)
 
 ### Black
 
@@ -222,7 +222,7 @@ All 11 domain primitives have `ctx.increment_leak_count()` calls:
 1. Implement `analysis_context` context manager for cleaner resource management
 2. Implement FIFO eviction with `max_codebook_size` parameter
 3. Add backward compatibility layer for legacy API
-4. Update deprecated type hints in sentinel-core (Dict → dict, List → list)
+4. ~~Update deprecated type hints in sentinel-core~~ (submodule removed, see ADR 002)
 
 ---
 

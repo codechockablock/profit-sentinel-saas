@@ -1,3 +1,0 @@
-[submodule "packages/sentinel-core"]
-	path = packages/sentinel-core
-	url = git@github.com:codechockablock/profit-sentinel-core.git
