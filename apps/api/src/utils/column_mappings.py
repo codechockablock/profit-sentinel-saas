@@ -4,15 +4,38 @@ Column mapping loader.
 Loads POS column mappings from YAML configuration files.
 """
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
 import yaml
 
-# Path to config directory (relative to repo root)
-CONFIG_DIR = (
-    Path(__file__).parent.parent.parent.parent.parent / "config" / "pos_mappings"
-)
+
+def _find_config_dir() -> Path:
+    """Find the config directory, handling both local and Docker environments."""
+    # Docker: config is copied to /app/config/
+    docker_path = Path("/app/config/pos_mappings")
+    if docker_path.exists():
+        return docker_path
+
+    # Local development: relative to repo root
+    # From apps/api/src/utils/column_mappings.py -> repo root
+    local_path = (
+        Path(__file__).parent.parent.parent.parent.parent / "config" / "pos_mappings"
+    )
+    if local_path.exists():
+        return local_path
+
+    # Environment variable override
+    env_path = os.environ.get("POS_MAPPINGS_DIR")
+    if env_path:
+        return Path(env_path)
+
+    # Return local path and let caller handle FileNotFoundError
+    return local_path
+
+
+CONFIG_DIR = _find_config_dir()
 
 
 @lru_cache(maxsize=1)

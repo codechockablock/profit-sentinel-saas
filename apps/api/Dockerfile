@@ -32,6 +32,9 @@ RUN pip install --no-cache-dir /packages/sentinel-engine
 # Copy application code
 COPY apps/api/ .
 
+# Copy configuration files (POS mappings for column detection)
+COPY config/ /app/config/
+
 # Add app source to Python path
 ENV PYTHONPATH="/app:/app/src:${PYTHONPATH}"
 
