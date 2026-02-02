@@ -189,10 +189,10 @@ jobs:
       - name: Update Launch Template with new image
         id: update-template
         run: |
-          # Get current launch template
+          # Get current launch template (handle both regular ASG and MixedInstancesPolicy)
           TEMPLATE_ID=$(aws autoscaling describe-auto-scaling-groups \
             --auto-scaling-group-names "${{ steps.get-asg.outputs.asg_name }}" \
-            --query "AutoScalingGroups[0].LaunchTemplate.LaunchTemplateId" \
+            --query "AutoScalingGroups[0].LaunchTemplate.LaunchTemplateId || AutoScalingGroups[0].MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateId" \
             --output text)
 
           # Get current version
@@ -301,7 +301,7 @@ jobs:
         id: get-alb
         run: |
           ALB_DNS=$(aws elbv2 describe-load-balancers \
-            --query "LoadBalancers[?contains(LoadBalancerName, 'profit-sentinel')].DNSName" \
+            --query "LoadBalancers[?contains(LoadBalancerName, 'profitsentinel')].DNSName" \
             --output text)
           echo "alb_dns=$ALB_DNS" >> $GITHUB_OUTPUT
 
