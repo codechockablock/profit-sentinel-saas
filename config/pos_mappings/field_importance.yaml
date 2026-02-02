@@ -1,0 +1,27 @@
+# Field importance rankings for leak detection (1-5, 5 = most critical)
+# These rankings determine prioritization in column mapping and analysis
+
+margin: 5
+qty_difference: 5
+quantity: 5
+cost: 5
+revenue: 5
+sold: 5
+inventoried_qty: 4
+sub_total: 4
+last_sale_date: 4
+last_purchase_date: 4
+sku: 3
+vendor: 3
+category: 3
+status: 3
+reorder_point: 3
+package_qty: 3
+location: 3
+description: 2
+discount: 2
+tax: 2
+return_flag: 2
+date: 2
+transaction_id: 2
+customer_id: 2
