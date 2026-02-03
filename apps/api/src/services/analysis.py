@@ -218,25 +218,13 @@ class AnalysisService:
         logger.debug(f"Created analysis context: {ctx.get_summary()}")
 
         try:
-            # Bundle facts with aggressive detection
-            # This populates ctx.leak_counts with actual detection counts
-            # Note: bundle return value unused - we use heuristics for specific items
-            bundle_start = time.time()
-            _ = self._bundle_pos_facts(
-                ctx, rows
-            )  # noqa: F841 - populates ctx.leak_counts
-            bundle_time = time.time() - bundle_start
+            # PERF: Build items_with_data FIRST (fast O(n)), then run VSA bundling
+            # and heuristic detection in PARALLEL. VSA bundling is slow (~90s) but
+            # heuristics don't depend on it for identifying items.
+            from concurrent.futures import ThreadPoolExecutor, as_completed
 
-            # Get leak counts from context (populated during bundling)
-            ctx_summary = ctx.get_summary()
-            vsa_leak_counts = ctx_summary.get("leak_counts", {})
-            logger.info(
-                f"Bundled {len(rows)} rows in {bundle_time:.2f}s - "
-                f"VSA leak counts: {vsa_leak_counts}"
-            )
-
-            # Build item data for heuristic detection of specific items
-            # VSA bundling counts detections but doesn't track which specific items
+            # Build item data for heuristic detection (fast - ~1-2s for 36K rows)
+            items_prep_start = time.time()
             items_with_data = []
             for row in rows:
                 sku = self._get_sku(row)
@@ -272,6 +260,36 @@ class AnalysisService:
                             )[:50],
                         }
                     )
+            items_prep_time = time.time() - items_prep_start
+            logger.info(
+                f"Prepared {len(items_with_data)} items in {items_prep_time:.2f}s"
+            )
+
+            # PERF: Run VSA bundling in background thread while doing heuristics
+            # VSA counts are used for logging/metrics but heuristics identify items
+            vsa_leak_counts = {}
+            bundle_time = 0.0
+
+            def run_vsa_bundling():
+                """Run VSA bundling in background (slow but doesn't block heuristics)."""
+                nonlocal vsa_leak_counts, bundle_time
+                bundle_start = time.time()
+                try:
+                    self._bundle_pos_facts(ctx, rows)
+                    ctx_summary = ctx.get_summary()
+                    vsa_leak_counts = ctx_summary.get("leak_counts", {})
+                    bundle_time = time.time() - bundle_start
+                    logger.info(
+                        f"VSA bundling complete in {bundle_time:.2f}s - "
+                        f"leak counts: {vsa_leak_counts}"
+                    )
+                except Exception as e:
+                    logger.warning(f"VSA bundling failed (using heuristics only): {e}")
+                    bundle_time = time.time() - bundle_start
+
+            # Start VSA bundling in background
+            with ThreadPoolExecutor(max_workers=1) as vsa_executor:
+                vsa_future = vsa_executor.submit(run_vsa_bundling)
 
             # Use heuristic detection to identify specific items per primitive
             # VSA provides accurate counts, heuristics identify which items
@@ -280,18 +298,42 @@ class AnalysisService:
             critical_count = 0
             high_count = 0
 
-            for primitive in self.PRIMITIVES:
-                query_start = time.time()
+            # PERF: Pre-compute item lookup once (was computed 11x inside loop)
+            item_lookup = {item["sku"]: item for item in items_with_data}
 
-                # Use heuristic to find specific flagged items
-                flagged_items = self._heuristic_detect(primitive, items_with_data)
+            # PERF: Run all 11 primitive detections in parallel using ThreadPoolExecutor
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            query_start = time.time()
+
+            def detect_primitive(primitive: str) -> tuple[str, list[dict]]:
+                """Detect items for a single primitive (thread-safe)."""
+                return primitive, self._heuristic_detect(primitive, items_with_data)
+
+            # Run detections in parallel (11 primitives, use 11 workers)
+            detection_results = {}
+            with ThreadPoolExecutor(max_workers=11) as executor:
+                futures = {
+                    executor.submit(detect_primitive, p): p for p in self.PRIMITIVES
+                }
+                for future in as_completed(futures):
+                    primitive, flagged_items = future.result()
+                    detection_results[primitive] = flagged_items
+
+            detection_time = time.time() - query_start
+            logger.info(
+                f"Parallel detection of 11 primitives completed in {detection_time:.2f}s"
+            )
+
+            # Process results (sequential - fast O(n) aggregation)
+            for primitive in self.PRIMITIVES:
+                flagged_items = detection_results[primitive]
 
                 # Get metadata for this primitive
                 metadata = self._leak_metadata.get(primitive, {})
                 display = LEAK_DISPLAY.get(primitive, {})
 
-                # Build item details for context
-                item_lookup = {item["sku"]: item for item in items_with_data}
+                # Build item details for context (top 20 only)
                 item_details = []
                 for flagged in flagged_items[:20]:
                     sku = flagged["sku"]
@@ -332,17 +374,25 @@ class AnalysisService:
                 elif metadata.get("severity") == "high":
                     high_count += len(flagged_items)
 
-                elapsed = time.time() - query_start
                 logger.info(
-                    f"Query {primitive}: {len(flagged_items)} items in {elapsed:.2f}s "
+                    f"Query {primitive}: {len(flagged_items)} items "
                     f"(VSA count: {vsa_leak_counts.get(primitive, 0)})"
                 )
 
             # Calculate estimated $ impact (simplified - based on available data)
             estimated_impact = self._estimate_total_impact(rows, leaks)
 
+            # PERF: Wait for VSA bundling to complete (for cause diagnosis)
+            # This runs in parallel with heuristics, so total time is max(heuristics, VSA)
+            try:
+                vsa_future.result(timeout=300)  # 5 min max wait
+            except Exception as e:
+                logger.warning(f"VSA bundling timed out or failed: {e}")
+
             total_time = time.time() - start_time
-            logger.info(f"Full analysis complete in {total_time:.2f}s")
+            logger.info(
+                f"Full analysis complete in {total_time:.2f}s (VSA: {bundle_time:.2f}s parallel)"
+            )
 
             # Record metrics (best-effort)
             primitive_counts = {p: leaks[p]["count"] for p in leaks}
@@ -355,8 +405,9 @@ class AnalysisService:
             )
 
             # VSA Evidence Grounding - Cause Diagnosis (v4.0)
+            # Only run if VSA bundling completed successfully
             cause_diagnosis = None
-            if self._should_use_vsa_grounding():
+            if self._should_use_vsa_grounding() and vsa_leak_counts:
                 try:
                     cause_diagnosis = self._perform_cause_diagnosis(ctx, rows, leaks)
                     logger.info(
@@ -800,10 +851,26 @@ class AnalysisService:
 
         leaks = {}
 
+        # PERF: Pre-compute item lookup once (was computed 11x inside loop)
+        item_lookup = {item["sku"]: item for item in items_with_data}
+
+        # PERF: Run all 11 primitive detections in parallel
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def detect_primitive(primitive: str) -> tuple[str, list[dict]]:
+            return primitive, self._heuristic_detect(primitive, items_with_data)
+
+        detection_results = {}
+        with ThreadPoolExecutor(max_workers=11) as executor:
+            futures = {executor.submit(detect_primitive, p): p for p in self.PRIMITIVES}
+            for future in as_completed(futures):
+                primitive, flagged_items = future.result()
+                detection_results[primitive] = flagged_items
+
         # Heuristic analysis for each primitive using real data
         for primitive in self.PRIMITIVES:
             display = LEAK_DISPLAY.get(primitive, {})
-            flagged_items = self._heuristic_detect(primitive, items_with_data)
+            flagged_items = detection_results[primitive]
 
             metadata = {
                 "severity": (
@@ -814,9 +881,6 @@ class AnalysisService:
                 "category": primitive.replace("_", " ").title(),
                 "recommendations": self._get_recommendations(primitive),
             }
-
-            # Build item details lookup for context
-            item_lookup = {item["sku"]: item for item in items_with_data}
 
             # Include full item details for email/display context
             item_details = []
