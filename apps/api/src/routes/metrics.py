@@ -285,9 +285,7 @@ async def dashboard() -> dict:
         "health_status": (
             "healthy"
             if health_score >= 80
-            else "degraded"
-            if health_score >= 50
-            else "unhealthy"
+            else "degraded" if health_score >= 50 else "unhealthy"
         ),
         "engine": engine,
         "primitives": primitives,
