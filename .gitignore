@@ -196,9 +196,6 @@ profit-sentinel-full-backup/
 backup-repo/
 .legacy-backup/
 
-# Sentinel engine core (proprietary - keep in private repo only)
-packages/sentinel-engine/src/sentinel_engine/core.py
-
 # Local development
 local_*
 dev_*
