@@ -1114,17 +1114,10 @@ def bundle_pos_facts(
     logger.info(f"v3.5: Collected {len(bindings)} bindings in {collect_time:.2f}s")
 
     # =================================================================
-    # PHASE 2b: BATCHED TENSOR OPERATIONS
+    # PHASE 2b: BATCHED TENSOR OPERATIONS (v3.7 memory-optimized)
     # =================================================================
-    # Now perform all bindings in batched operations
-    # Group by primitive for efficient batching
+    # Process bindings per-primitive without building giant SKU tensor
     tensor_start = time.time()
-
-    # Build SKU tensor matrix: (num_skus, dimensions)
-    sku_vectors = torch.stack([ctx.codebook[sku] for sku in sku_list])
-
-    # Build primitive tensor matrix: (num_primitives, dimensions)
-    primitive_vectors = torch.stack([primitives[name] for name in primitive_names])
 
     # Group bindings by primitive for batch processing
     from collections import defaultdict
@@ -1133,31 +1126,41 @@ def bundle_pos_facts(
     for sku_idx, prim_idx, strength in bindings:
         primitive_bindings[prim_idx].append((sku_idx, strength))
 
-    # Process each primitive in batch
+    # Process each primitive - lookup SKU vectors directly from codebook
+    # This avoids creating a 36K x 16K tensor (4.7GB) in memory
     for prim_idx, prim_binds in primitive_bindings.items():
         if not prim_binds:
             continue
 
-        # Get all SKU indices and strengths for this primitive
-        sku_indices = torch.tensor(
-            [b[0] for b in prim_binds], dtype=torch.long, device=ctx.device
-        )
-        strengths = torch.tensor(
-            [b[1] for b in prim_binds], dtype=torch.float32, device=ctx.device
-        )
+        # Get primitive vector
+        prim_name = primitive_names[prim_idx]
+        prim_vec = primitives[prim_name]
 
-        # Batch lookup: (num_binds, dimensions)
-        sku_vecs_batch = sku_vectors[sku_indices]
+        # Process bindings in chunks to avoid memory issues
+        CHUNK_SIZE = 5000
+        for chunk_start in range(0, len(prim_binds), CHUNK_SIZE):
+            chunk_end = min(chunk_start + CHUNK_SIZE, len(prim_binds))
+            chunk_binds = prim_binds[chunk_start:chunk_end]
 
-        # Get primitive vector: (dimensions,)
-        prim_vec = primitive_vectors[prim_idx]
+            # Get SKU vectors for this chunk directly from codebook
+            sku_vecs_list = [ctx.codebook[sku_list[b[0]]] for b in chunk_binds]
+            sku_vecs_batch = torch.stack(sku_vecs_list)
 
-        # Batched binding: prim_vec * sku_vecs * strengths
-        # Shape: (num_binds, dimensions) * (dimensions,) * (num_binds, 1)
-        bound_vecs = prim_vec * sku_vecs_batch * strengths.unsqueeze(1).to(ctx.dtype)
+            # Get strengths for this chunk
+            strengths = torch.tensor(
+                [b[1] for b in chunk_binds], dtype=torch.float32, device=ctx.device
+            )
 
-        # Sum all bound vectors for this primitive
-        bundle += bound_vecs.sum(dim=0)
+            # Batched binding: prim_vec * sku_vecs * strengths
+            bound_vecs = (
+                prim_vec * sku_vecs_batch * strengths.unsqueeze(1).to(ctx.dtype)
+            )
+
+            # Sum and add to bundle
+            bundle += bound_vecs.sum(dim=0)
+
+            # Free memory
+            del sku_vecs_list, sku_vecs_batch, strengths, bound_vecs
 
     # Update leak counts
     for name, count in leak_counts_local.items():
@@ -1166,7 +1169,7 @@ def bundle_pos_facts(
     tensor_time = time.time() - tensor_start
     bundle_phase_time = time.time() - bundle_start
     logger.info(
-        f"v3.5: Tensor ops in {tensor_time:.2f}s, total bundling in {bundle_phase_time:.2f}s"
+        f"v3.7: Tensor ops in {tensor_time:.2f}s, total bundling in {bundle_phase_time:.2f}s"
     )
 
     ctx.rows_processed += num_rows
