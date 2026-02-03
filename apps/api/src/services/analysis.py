@@ -302,7 +302,7 @@ class AnalysisService:
             item_lookup = {item["sku"]: item for item in items_with_data}
 
             # PERF: Run all 11 primitive detections in parallel using ThreadPoolExecutor
-            from concurrent.futures import ThreadPoolExecutor, as_completed
+            # NOTE: ThreadPoolExecutor and as_completed already imported above at line 224
 
             query_start = time.time()
 

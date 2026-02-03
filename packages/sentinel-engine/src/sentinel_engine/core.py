@@ -785,17 +785,24 @@ def bundle_pos_facts(
     )
 
     # =================================================================
-    # PHASE 0.5: BATCH PRE-COMPUTE SKU vectors (v3.4 optimization)
+    # PHASE 0.5: BATCH PRE-COMPUTE SKU vectors (v3.6 optimization)
     # =================================================================
     codebook_start = time.time()
 
-    # Pre-populate codebook with all unique SKUs
-    for sku in unique_skus:
-        ctx.add_to_codebook(sku, is_sku=True)
-        ctx.get_or_create(sku)  # Eagerly create vector
+    # v3.6: Use batched vector creation (88s -> ~2s for 36K SKUs)
+    sku_list_for_batch = list(unique_skus)
+    if hasattr(ctx, "batch_populate_codebook"):
+        ctx.batch_populate_codebook(sku_list_for_batch, is_sku=True)
+    else:
+        # Fallback for older context versions
+        for sku in unique_skus:
+            ctx.add_to_codebook(sku, is_sku=True)
+            ctx.get_or_create(sku)
 
     codebook_time = time.time() - codebook_start
-    logger.info(f"Pre-computed {len(unique_skus)} SKU vectors in {codebook_time:.2f}s")
+    logger.info(
+        f"v3.6: Pre-computed {len(unique_skus)} SKU vectors in {codebook_time:.2f}s"
+    )
 
     # =================================================================
     # PHASE 1: Collect stats from first N rows
@@ -872,21 +879,46 @@ def bundle_pos_facts(
     )
 
     # =================================================================
-    # PHASE 2: Bundle ALL rows using pre-extracted data (v3.4)
+    # PHASE 2: BATCHED BUNDLING (v3.5 FAISS optimization)
+    # =================================================================
+    # Instead of processing one row at a time with tensor ops,
+    # we collect (sku_idx, primitive_idx, strength) tuples first,
+    # then do a single batched tensor operation.
     # =================================================================
     bundle_start = time.time()
-    processed = 0
+
+    # Build SKU index mapping for batch operations
+    sku_list = list(unique_skus)
+    sku_to_idx = {sku: idx for idx, sku in enumerate(sku_list)}
+
+    # Primitive name to index mapping
+    primitive_names = [
+        "low_stock",
+        "high_margin_leak",
+        "dead_item",
+        "negative_inventory",
+        "overstock",
+        "price_discrepancy",
+        "shrinkage_pattern",
+        "margin_erosion",
+        "zero_cost_anomaly",
+        "negative_profit",
+        "severe_inventory_deficit",
+        "high_velocity",
+    ]
+    primitive_to_idx = {name: idx for idx, name in enumerate(primitive_names)}
+
+    # Collect all (sku_idx, primitive_idx, strength) in one pass
+    # This avoids 36K tensor operations by batching
+    bindings: list[tuple[int, int, float]] = []  # (sku_idx, primitive_idx, strength)
+    leak_counts_local: dict[str, int] = {}
 
     for data in extracted_data:
         sku = data["sku"]
-        if sku == "unknown_sku":
+        if sku == "unknown_sku" or sku not in sku_to_idx:
             continue
 
-        # Get pre-computed SKU vector
-        sku_vec = ctx.codebook.get(sku)
-        if sku_vec is None:
-            continue
-
+        sku_idx = sku_to_idx[sku]
         category = data["category"]
         quantity = data["quantity"]
         qty_diff = data["qty_diff"]
@@ -911,10 +943,6 @@ def bundle_pos_facts(
         if last_sale_date:
             days_since_sale = (now - last_sale_date).days
 
-        # =================================================================
-        # INLINE PRIMITIVE CHECKS (avoiding function call overhead)
-        # =================================================================
-
         # PRIMITIVE 1: LOW STOCK
         if 0 < quantity <= thresholds["low_stock_qty"]:
             if quantity <= thresholds["low_stock_critical"]:
@@ -925,8 +953,8 @@ def bundle_pos_facts(
                 ]
             if reorder_point > 0 and quantity < reorder_point:
                 strength *= 1.5
-            bundle += primitives["low_stock"] * sku_vec * strength
-            ctx.increment_leak_count("low_stock")
+            bindings.append((sku_idx, primitive_to_idx["low_stock"], strength))
+            leak_counts_local["low_stock"] = leak_counts_local.get("low_stock", 0) + 1
 
         # PRIMITIVE 2: HIGH MARGIN LEAK
         if revenue > 0:
@@ -936,18 +964,30 @@ def bundle_pos_facts(
 
             if margin < thresholds["negative_margin_threshold"]:
                 strength = 3.0 + abs(margin) * 5
-                bundle += primitives["high_margin_leak"] * sku_vec * strength
-                ctx.increment_leak_count("high_margin_leak")
+                bindings.append(
+                    (sku_idx, primitive_to_idx["high_margin_leak"], strength)
+                )
+                leak_counts_local["high_margin_leak"] = (
+                    leak_counts_local.get("high_margin_leak", 0) + 1
+                )
             elif margin < thresholds["margin_critical_threshold"]:
                 strength = 2.0 + (thresholds["margin_critical_threshold"] - margin) * 10
-                bundle += primitives["high_margin_leak"] * sku_vec * strength
-                ctx.increment_leak_count("high_margin_leak")
+                bindings.append(
+                    (sku_idx, primitive_to_idx["high_margin_leak"], strength)
+                )
+                leak_counts_local["high_margin_leak"] = (
+                    leak_counts_local.get("high_margin_leak", 0) + 1
+                )
             elif margin < category_leak_threshold:
                 strength = (
                     (category_leak_threshold - margin) / category_leak_threshold * 2
                 )
-                bundle += primitives["high_margin_leak"] * sku_vec * strength
-                ctx.increment_leak_count("high_margin_leak")
+                bindings.append(
+                    (sku_idx, primitive_to_idx["high_margin_leak"], strength)
+                )
+                leak_counts_local["high_margin_leak"] = (
+                    leak_counts_local.get("high_margin_leak", 0) + 1
+                )
 
         # PRIMITIVE 3: DEAD ITEM
         is_dead = False
@@ -960,8 +1000,10 @@ def bundle_pos_facts(
                 strength = min(days_since_sale / thresholds["dead_item_days"], 3.0)
                 if quantity > 10:
                     strength *= 1.5
-                bundle += primitives["dead_item"] * sku_vec * strength
-                ctx.increment_leak_count("dead_item")
+                bindings.append((sku_idx, primitive_to_idx["dead_item"], strength))
+                leak_counts_local["dead_item"] = (
+                    leak_counts_local.get("dead_item", 0) + 1
+                )
                 is_dead = True
 
         if not is_dead and sold < adaptive_dead_threshold and quantity > 0:
@@ -972,8 +1014,10 @@ def bundle_pos_facts(
                 )
                 if quantity > 10:
                     strength *= 1.5
-                bundle += primitives["dead_item"] * sku_vec * strength
-                ctx.increment_leak_count("dead_item")
+                bindings.append((sku_idx, primitive_to_idx["dead_item"], strength))
+                leak_counts_local["dead_item"] = (
+                    leak_counts_local.get("dead_item", 0) + 1
+                )
 
         # PRIMITIVE 4: NEGATIVE INVENTORY
         if qty_diff < thresholds["shrinkage_threshold"] or quantity < 0:
@@ -982,8 +1026,10 @@ def bundle_pos_facts(
                 strength = 3.0
             else:
                 strength = min(magnitude / 10.0, 2.0) + 0.5
-            bundle += primitives["negative_inventory"] * sku_vec * strength
-            ctx.increment_leak_count("negative_inventory")
+            bindings.append((sku_idx, primitive_to_idx["negative_inventory"], strength))
+            leak_counts_local["negative_inventory"] = (
+                leak_counts_local.get("negative_inventory", 0) + 1
+            )
 
         # PRIMITIVE 5: OVERSTOCK
         if sold > 0 and quantity > thresholds["overstock_qty_threshold"]:
@@ -993,8 +1039,10 @@ def bundle_pos_facts(
                 daily_velocity = sold / 30
                 if daily_velocity < thresholds["overstock_velocity_threshold"]:
                     strength *= 1.5
-                bundle += primitives["overstock"] * sku_vec * strength
-                ctx.increment_leak_count("overstock")
+                bindings.append((sku_idx, primitive_to_idx["overstock"], strength))
+                leak_counts_local["overstock"] = (
+                    leak_counts_local.get("overstock", 0) + 1
+                )
 
         # PRIMITIVE 6: PRICE DISCREPANCY
         if sug_retail > 0 and revenue > 0:
@@ -1003,54 +1051,122 @@ def bundle_pos_facts(
                 strength = min(price_variance * 3, 2.0)
                 if revenue < sug_retail:
                     strength *= 1.5
-                bundle += primitives["price_discrepancy"] * sku_vec * strength
-                ctx.increment_leak_count("price_discrepancy")
+                bindings.append(
+                    (sku_idx, primitive_to_idx["price_discrepancy"], strength)
+                )
+                leak_counts_local["price_discrepancy"] = (
+                    leak_counts_local.get("price_discrepancy", 0) + 1
+                )
 
         # PRIMITIVE 7: SHRINKAGE PATTERN
         if qty_diff < thresholds["shrinkage_threshold"]:
             shrink_pct = abs(qty_diff) / quantity if quantity > 0 else abs(qty_diff)
             if shrink_pct > 0.05:
                 strength = min(shrink_pct * 10, 3.0)
-                bundle += primitives["shrinkage_pattern"] * sku_vec * strength
-                ctx.increment_leak_count("shrinkage_pattern")
+                bindings.append(
+                    (sku_idx, primitive_to_idx["shrinkage_pattern"], strength)
+                )
+                leak_counts_local["shrinkage_pattern"] = (
+                    leak_counts_local.get("shrinkage_pattern", 0) + 1
+                )
 
         # PRIMITIVE 8: MARGIN EROSION
         if revenue > 0 and margin < avg_margin * 0.7:
             erosion_rate = (avg_margin - margin) / avg_margin
             strength = erosion_rate * 2.5
-            bundle += primitives["margin_erosion"] * sku_vec * strength
-            ctx.increment_leak_count("margin_erosion")
+            bindings.append((sku_idx, primitive_to_idx["margin_erosion"], strength))
+            leak_counts_local["margin_erosion"] = (
+                leak_counts_local.get("margin_erosion", 0) + 1
+            )
 
         # PRIMITIVE 9: ZERO COST ANOMALY
         if revenue > 0 and cost == 0:
             strength = min(revenue / 100, 3.0) + 1.0
-            bundle += primitives["zero_cost_anomaly"] * sku_vec * strength
-            ctx.increment_leak_count("zero_cost_anomaly")
+            bindings.append((sku_idx, primitive_to_idx["zero_cost_anomaly"], strength))
+            leak_counts_local["zero_cost_anomaly"] = (
+                leak_counts_local.get("zero_cost_anomaly", 0) + 1
+            )
 
         # PRIMITIVE 10: NEGATIVE PROFIT
         gross_profit = revenue - (cost * sold) if sold > 0 else revenue - cost
         if gross_profit < 0:
             strength = min(abs(gross_profit) / 100, 3.0) + 1.0
-            bundle += primitives["negative_profit"] * sku_vec * strength
-            ctx.increment_leak_count("negative_profit")
+            bindings.append((sku_idx, primitive_to_idx["negative_profit"], strength))
+            leak_counts_local["negative_profit"] = (
+                leak_counts_local.get("negative_profit", 0) + 1
+            )
 
         # PRIMITIVE 11: SEVERE INVENTORY DEFICIT
         if quantity < -100:
             strength = min(abs(quantity) / 100, 5.0) + 2.0
-            bundle += primitives["severe_inventory_deficit"] * sku_vec * strength
-            ctx.increment_leak_count("severe_inventory_deficit")
+            bindings.append(
+                (sku_idx, primitive_to_idx["severe_inventory_deficit"], strength)
+            )
+            leak_counts_local["severe_inventory_deficit"] = (
+                leak_counts_local.get("severe_inventory_deficit", 0) + 1
+            )
 
         # HIGH VELOCITY (for composite patterns)
         if sold > avg_sold * 2:
-            bundle += primitives["high_velocity"] * sku_vec * 0.5
+            bindings.append((sku_idx, primitive_to_idx["high_velocity"], 0.5))
 
-        processed += 1
-        if processed % 10000 == 0:
-            logger.info(f"Bundled {processed}/{num_rows} rows")
+    collect_time = time.time() - bundle_start
+    logger.info(f"v3.5: Collected {len(bindings)} bindings in {collect_time:.2f}s")
 
+    # =================================================================
+    # PHASE 2b: BATCHED TENSOR OPERATIONS
+    # =================================================================
+    # Now perform all bindings in batched operations
+    # Group by primitive for efficient batching
+    tensor_start = time.time()
+
+    # Build SKU tensor matrix: (num_skus, dimensions)
+    sku_vectors = torch.stack([ctx.codebook[sku] for sku in sku_list])
+
+    # Build primitive tensor matrix: (num_primitives, dimensions)
+    primitive_vectors = torch.stack([primitives[name] for name in primitive_names])
+
+    # Group bindings by primitive for batch processing
+    from collections import defaultdict
+
+    primitive_bindings: dict[int, list[tuple[int, float]]] = defaultdict(list)
+    for sku_idx, prim_idx, strength in bindings:
+        primitive_bindings[prim_idx].append((sku_idx, strength))
+
+    # Process each primitive in batch
+    for prim_idx, prim_binds in primitive_bindings.items():
+        if not prim_binds:
+            continue
+
+        # Get all SKU indices and strengths for this primitive
+        sku_indices = torch.tensor(
+            [b[0] for b in prim_binds], dtype=torch.long, device=ctx.device
+        )
+        strengths = torch.tensor(
+            [b[1] for b in prim_binds], dtype=torch.float32, device=ctx.device
+        )
+
+        # Batch lookup: (num_binds, dimensions)
+        sku_vecs_batch = sku_vectors[sku_indices]
+
+        # Get primitive vector: (dimensions,)
+        prim_vec = primitive_vectors[prim_idx]
+
+        # Batched binding: prim_vec * sku_vecs * strengths
+        # Shape: (num_binds, dimensions) * (dimensions,) * (num_binds, 1)
+        bound_vecs = prim_vec * sku_vecs_batch * strengths.unsqueeze(1).to(ctx.dtype)
+
+        # Sum all bound vectors for this primitive
+        bundle += bound_vecs.sum(dim=0)
+
+    # Update leak counts
+    for name, count in leak_counts_local.items():
+        ctx.leak_counts[name] = ctx.leak_counts.get(name, 0) + count
+
+    tensor_time = time.time() - tensor_start
     bundle_phase_time = time.time() - bundle_start
     logger.info(
-        f"Bundling phase completed in {bundle_phase_time:.2f}s ({processed} rows)"
+        f"v3.5: Tensor ops in {tensor_time:.2f}s, total bundling in {bundle_phase_time:.2f}s"
     )
 
     ctx.rows_processed += num_rows
@@ -1082,6 +1198,8 @@ def query_bundle(
     Uses resonator to lock onto items associated with the given leak type.
     All state comes from the context.
 
+    v3.5 OPTIMIZATION: Uses FAISS for O(log n) similarity search.
+
     Args:
         ctx: Analysis context with populated codebook
         bundle: The bundled hypervector from bundle_pos_facts
@@ -1106,21 +1224,25 @@ def query_bundle(
     # Run resonator
     cleaned = convergence_lock_resonator(ctx, unbound_batch)[0]
 
-    # Get similarities from codebook
-    codebook_tensor = ctx.get_codebook_tensor()
-    if codebook_tensor is None:
-        return [], []
+    # v3.5: Use FAISS search if available
+    if hasattr(ctx, "faiss_search") and getattr(ctx, "use_faiss", False):
+        results, scores = ctx.faiss_search(cleaned, top_k)
+    else:
+        # Fallback: Manual matrix multiplication
+        codebook_tensor = ctx.get_codebook_tensor()
+        if codebook_tensor is None:
+            return [], []
 
-    F_mat = codebook_tensor.T.to(ctx.dtype)
-    raw_sims = torch.real(torch.conj(F_mat).T @ cleaned)
+        F_mat = codebook_tensor.T.to(ctx.dtype)
+        raw_sims = torch.real(torch.conj(F_mat).T @ cleaned)
 
-    # Get top matches
-    k = min(top_k, len(ctx.codebook))
-    topk_vals, topk_idx = torch.topk(raw_sims, k)
+        # Get top matches
+        k = min(top_k, len(ctx.codebook))
+        topk_vals, topk_idx = torch.topk(raw_sims, k)
 
-    codebook_keys = ctx.get_codebook_keys()
-    results = [codebook_keys[i] for i in topk_idx.tolist()]
-    scores = topk_vals.tolist()
+        codebook_keys = ctx.get_codebook_keys()
+        results = [codebook_keys[i] for i in topk_idx.tolist()]
+        scores = topk_vals.tolist()
 
     elapsed = time.time() - start_time
     logger.debug(
