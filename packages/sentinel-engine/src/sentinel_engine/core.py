@@ -29,10 +29,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
 
 if TYPE_CHECKING:
-    from context import AnalysisContext, DiracVector
+    from .context import AnalysisContext, DiracVector
 
 logger = logging.getLogger(__name__)
 
@@ -717,7 +718,7 @@ def bundle_pos_facts(
     - SKIP NON-SKU CODEBOOK: Don't track description/vendor/category vectors
     - SINGLE PASS bundling after stats collection
 
-    Target: 36K rows in <30s on 4 vCPU Fargate
+    Target: 36K rows in <10s on 4 vCPU Fargate
 
     Args:
         ctx: Analysis context (mutated: codebook populated, leak_counts updated)
@@ -913,202 +914,218 @@ def bundle_pos_facts(
     bindings: list[tuple[int, int, float]] = []  # (sku_idx, primitive_idx, strength)
     leak_counts_local: dict[str, int] = {}
 
-    for data in extracted_data:
-        sku = data["sku"]
-        if sku == "unknown_sku" or sku not in sku_to_idx:
-            continue
+    # =====================================================================
+    # PHASE 2a: VECTORIZED BINDING COLLECTION (v3.8 numpy optimization)
+    # =====================================================================
+    # Build numpy arrays from extracted_data (one-time cost, ~1s for 36K rows)
+    n = len(extracted_data)
 
-        sku_idx = sku_to_idx[sku]
-        category = data["category"]
-        quantity = data["quantity"]
-        qty_diff = data["qty_diff"]
-        cost = data["cost"]
-        revenue = data["revenue"]
-        sold = data["sold"]
-        sug_retail = data["sug_retail"]
-        reorder_point = data["reorder_point"]
+    # Extract all fields into numpy arrays
+    skus = [d["sku"] for d in extracted_data]
+    sku_indices = np.array([sku_to_idx.get(s, -1) for s in skus], dtype=np.int32)
+    valid = sku_indices >= 0  # mask for rows with valid SKUs
 
-        # Calculate margin
-        margin_direct = data["margin_direct"]
-        if margin_direct is not None and margin_direct != 0:
-            margin = margin_direct / 100 if margin_direct > 1 else margin_direct
-        elif revenue > 0:
-            margin = (revenue - cost) / revenue
-        else:
-            margin = 0
+    quantities = np.array([d["quantity"] for d in extracted_data], dtype=np.float64)
+    qty_diffs = np.array([d["qty_diff"] for d in extracted_data], dtype=np.float64)
+    costs = np.array([d["cost"] for d in extracted_data], dtype=np.float64)
+    revenues = np.array([d["revenue"] for d in extracted_data], dtype=np.float64)
+    sold_arr = np.array([d["sold"] for d in extracted_data], dtype=np.float64)
+    sug_retails = np.array([d["sug_retail"] for d in extracted_data], dtype=np.float64)
+    reorder_points = np.array(
+        [d["reorder_point"] for d in extracted_data], dtype=np.float64
+    )
 
-        # Calculate days since sale
-        last_sale_date = data["last_sale_date"]
-        days_since_sale: float | None = None
-        if last_sale_date:
-            days_since_sale = (now - last_sale_date).days
+    # Compute margin array (vectorized)
+    margin_directs = np.array(
+        [
+            d["margin_direct"] if d["margin_direct"] is not None else 0.0
+            for d in extracted_data
+        ],
+        dtype=np.float64,
+    )
+    margins = np.where(
+        margin_directs != 0,
+        np.where(margin_directs > 1, margin_directs / 100, margin_directs),
+        np.where(revenues > 0, (revenues - costs) / np.maximum(revenues, 1e-10), 0.0),
+    )
 
-        # PRIMITIVE 1: LOW STOCK
-        if 0 < quantity <= thresholds["low_stock_qty"]:
-            if quantity <= thresholds["low_stock_critical"]:
-                strength = 2.0
-            else:
-                strength = (thresholds["low_stock_qty"] - quantity) / thresholds[
-                    "low_stock_qty"
-                ]
-            if reorder_point > 0 and quantity < reorder_point:
-                strength *= 1.5
-            bindings.append((sku_idx, primitive_to_idx["low_stock"], strength))
-            leak_counts_local["low_stock"] = leak_counts_local.get("low_stock", 0) + 1
+    # Compute days_since_sale array (-1 means no date)
+    days_arr = np.full(n, -1.0, dtype=np.float64)
+    for i, d in enumerate(extracted_data):
+        if d["last_sale_date"] is not None:
+            days_arr[i] = (now - d["last_sale_date"]).days
 
-        # PRIMITIVE 2: HIGH MARGIN LEAK
-        if revenue > 0:
-            cat_key = category.strip().lower()
-            cat_avg = category_avg_margin.get(cat_key, avg_margin)
-            category_leak_threshold = cat_avg * 0.5
+    has_date = days_arr >= 0
 
-            if margin < thresholds["negative_margin_threshold"]:
-                strength = 3.0 + abs(margin) * 5
-                bindings.append(
-                    (sku_idx, primitive_to_idx["high_margin_leak"], strength)
-                )
-                leak_counts_local["high_margin_leak"] = (
-                    leak_counts_local.get("high_margin_leak", 0) + 1
-                )
-            elif margin < thresholds["margin_critical_threshold"]:
-                strength = 2.0 + (thresholds["margin_critical_threshold"] - margin) * 10
-                bindings.append(
-                    (sku_idx, primitive_to_idx["high_margin_leak"], strength)
-                )
-                leak_counts_local["high_margin_leak"] = (
-                    leak_counts_local.get("high_margin_leak", 0) + 1
-                )
-            elif margin < category_leak_threshold:
-                strength = (
-                    (category_leak_threshold - margin) / category_leak_threshold * 2
-                )
-                bindings.append(
-                    (sku_idx, primitive_to_idx["high_margin_leak"], strength)
-                )
-                leak_counts_local["high_margin_leak"] = (
-                    leak_counts_local.get("high_margin_leak", 0) + 1
-                )
+    # Category average margin lookup (vectorized)
+    categories = [d["category"].strip().lower() for d in extracted_data]
+    cat_avg_margins = np.array(
+        [category_avg_margin.get(c, avg_margin) for c in categories], dtype=np.float64
+    )
 
-        # PRIMITIVE 3: DEAD ITEM
-        is_dead = False
-        if (
-            days_since_sale
-            and days_since_sale > thresholds["dead_item_days"]
-            and quantity > 0
-        ):
-            if sold < adaptive_dead_threshold:
-                strength = min(days_since_sale / thresholds["dead_item_days"], 3.0)
-                if quantity > 10:
-                    strength *= 1.5
-                bindings.append((sku_idx, primitive_to_idx["dead_item"], strength))
-                leak_counts_local["dead_item"] = (
-                    leak_counts_local.get("dead_item", 0) + 1
-                )
-                is_dead = True
+    # =====================================================================
+    # VECTORIZED PRIMITIVE DETECTION
+    # =====================================================================
+    def _collect(prim_name: str, mask: np.ndarray, strengths: np.ndarray) -> None:
+        """Collect bindings for one primitive from boolean mask + strength array."""
+        combined = valid & mask
+        idx = np.where(combined)[0]
+        if len(idx) == 0:
+            return
+        prim_idx = primitive_to_idx[prim_name]
+        for i in idx:
+            bindings.append((int(sku_indices[i]), prim_idx, float(strengths[i])))
+        leak_counts_local[prim_name] = leak_counts_local.get(prim_name, 0) + len(idx)
 
-        if not is_dead and sold < adaptive_dead_threshold and quantity > 0:
-            if days_since_sale is None or days_since_sale > 30:
-                strength = max(
-                    0.5,
-                    (adaptive_dead_threshold - sold) / max(adaptive_dead_threshold, 1),
-                )
-                if quantity > 10:
-                    strength *= 1.5
-                bindings.append((sku_idx, primitive_to_idx["dead_item"], strength))
-                leak_counts_local["dead_item"] = (
-                    leak_counts_local.get("dead_item", 0) + 1
-                )
+    # PRIMITIVE 1: LOW STOCK
+    low_mask = (quantities > 0) & (quantities <= thresholds["low_stock_qty"])
+    low_str = np.where(
+        quantities <= thresholds["low_stock_critical"],
+        2.0,
+        (thresholds["low_stock_qty"] - quantities) / thresholds["low_stock_qty"],
+    )
+    # Reorder point boost
+    low_str = np.where(
+        (reorder_points > 0) & (quantities < reorder_points),
+        low_str * 1.5,
+        low_str,
+    )
+    _collect("low_stock", low_mask, low_str)
 
-        # PRIMITIVE 4: NEGATIVE INVENTORY
-        if qty_diff < thresholds["shrinkage_threshold"] or quantity < 0:
-            magnitude = abs(qty_diff if qty_diff < 0 else quantity)
-            if magnitude > abs(thresholds["shrinkage_critical"]):
-                strength = 3.0
-            else:
-                strength = min(magnitude / 10.0, 2.0) + 0.5
-            bindings.append((sku_idx, primitive_to_idx["negative_inventory"], strength))
-            leak_counts_local["negative_inventory"] = (
-                leak_counts_local.get("negative_inventory", 0) + 1
-            )
+    # PRIMITIVE 2: HIGH MARGIN LEAK (3 tiers)
+    has_revenue = revenues > 0
+    cat_leak_thresh = cat_avg_margins * 0.5
 
-        # PRIMITIVE 5: OVERSTOCK
-        if sold > 0 and quantity > thresholds["overstock_qty_threshold"]:
-            qty_to_sold_ratio = quantity / sold
-            if qty_to_sold_ratio > thresholds["overstock_qty_to_sold_ratio"]:
-                strength = min(qty_to_sold_ratio / 100, 3.0)
-                daily_velocity = sold / 30
-                if daily_velocity < thresholds["overstock_velocity_threshold"]:
-                    strength *= 1.5
-                bindings.append((sku_idx, primitive_to_idx["overstock"], strength))
-                leak_counts_local["overstock"] = (
-                    leak_counts_local.get("overstock", 0) + 1
-                )
+    # Tier 1: negative margin
+    neg_margin_mask = has_revenue & (margins < thresholds["negative_margin_threshold"])
+    neg_margin_str = 3.0 + np.abs(margins) * 5
+    _collect("high_margin_leak", neg_margin_mask, neg_margin_str)
 
-        # PRIMITIVE 6: PRICE DISCREPANCY
-        if sug_retail > 0 and revenue > 0:
-            price_variance = abs(revenue - sug_retail) / sug_retail
-            if price_variance > thresholds["price_discrepancy_threshold"]:
-                strength = min(price_variance * 3, 2.0)
-                if revenue < sug_retail:
-                    strength *= 1.5
-                bindings.append(
-                    (sku_idx, primitive_to_idx["price_discrepancy"], strength)
-                )
-                leak_counts_local["price_discrepancy"] = (
-                    leak_counts_local.get("price_discrepancy", 0) + 1
-                )
+    # Tier 2: critical margin (exclude already-caught tier 1)
+    crit_margin_mask = (
+        has_revenue
+        & ~neg_margin_mask
+        & (margins < thresholds["margin_critical_threshold"])
+    )
+    crit_margin_str = 2.0 + (thresholds["margin_critical_threshold"] - margins) * 10
+    _collect("high_margin_leak", crit_margin_mask, crit_margin_str)
 
-        # PRIMITIVE 7: SHRINKAGE PATTERN
-        if qty_diff < thresholds["shrinkage_threshold"]:
-            shrink_pct = abs(qty_diff) / quantity if quantity > 0 else abs(qty_diff)
-            if shrink_pct > 0.05:
-                strength = min(shrink_pct * 10, 3.0)
-                bindings.append(
-                    (sku_idx, primitive_to_idx["shrinkage_pattern"], strength)
-                )
-                leak_counts_local["shrinkage_pattern"] = (
-                    leak_counts_local.get("shrinkage_pattern", 0) + 1
-                )
+    # Tier 3: below category average (exclude tier 1 and 2)
+    cat_margin_mask = (
+        has_revenue & ~neg_margin_mask & ~crit_margin_mask & (margins < cat_leak_thresh)
+    )
+    cat_margin_str = np.where(
+        cat_leak_thresh > 0,
+        (cat_leak_thresh - margins) / np.maximum(cat_leak_thresh, 1e-10) * 2,
+        0.0,
+    )
+    _collect("high_margin_leak", cat_margin_mask, cat_margin_str)
 
-        # PRIMITIVE 8: MARGIN EROSION
-        if revenue > 0 and margin < avg_margin * 0.7:
-            erosion_rate = (avg_margin - margin) / avg_margin
-            strength = erosion_rate * 2.5
-            bindings.append((sku_idx, primitive_to_idx["margin_erosion"], strength))
-            leak_counts_local["margin_erosion"] = (
-                leak_counts_local.get("margin_erosion", 0) + 1
-            )
+    # PRIMITIVE 3: DEAD ITEM (two paths)
+    # Path A: has date, days > threshold, low sold, qty > 0
+    dead_a_mask = (
+        has_date
+        & (days_arr > thresholds["dead_item_days"])
+        & (quantities > 0)
+        & (sold_arr < adaptive_dead_threshold)
+    )
+    dead_a_str = np.minimum(days_arr / thresholds["dead_item_days"], 3.0)
+    dead_a_str = np.where(quantities > 10, dead_a_str * 1.5, dead_a_str)
+    _collect("dead_item", dead_a_mask, dead_a_str)
 
-        # PRIMITIVE 9: ZERO COST ANOMALY
-        if revenue > 0 and cost == 0:
-            strength = min(revenue / 100, 3.0) + 1.0
-            bindings.append((sku_idx, primitive_to_idx["zero_cost_anomaly"], strength))
-            leak_counts_local["zero_cost_anomaly"] = (
-                leak_counts_local.get("zero_cost_anomaly", 0) + 1
-            )
+    # Path B: no date or date > 30 days, low sold, qty > 0, NOT already caught by path A
+    dead_b_mask = (
+        ~dead_a_mask
+        & (sold_arr < adaptive_dead_threshold)
+        & (quantities > 0)
+        & (~has_date | (days_arr > 30))
+    )
+    dead_b_str = np.maximum(
+        0.5,
+        (adaptive_dead_threshold - sold_arr) / np.maximum(adaptive_dead_threshold, 1.0),
+    )
+    dead_b_str = np.where(quantities > 10, dead_b_str * 1.5, dead_b_str)
+    _collect("dead_item", dead_b_mask, dead_b_str)
 
-        # PRIMITIVE 10: NEGATIVE PROFIT
-        gross_profit = revenue - (cost * sold) if sold > 0 else revenue - cost
-        if gross_profit < 0:
-            strength = min(abs(gross_profit) / 100, 3.0) + 1.0
-            bindings.append((sku_idx, primitive_to_idx["negative_profit"], strength))
-            leak_counts_local["negative_profit"] = (
-                leak_counts_local.get("negative_profit", 0) + 1
-            )
+    # PRIMITIVE 4: NEGATIVE INVENTORY
+    neg_inv_mask = (qty_diffs < thresholds["shrinkage_threshold"]) | (quantities < 0)
+    magnitudes = np.where(qty_diffs < 0, np.abs(qty_diffs), np.abs(quantities))
+    neg_inv_str = np.where(
+        magnitudes > abs(thresholds["shrinkage_critical"]),
+        3.0,
+        np.minimum(magnitudes / 10.0, 2.0) + 0.5,
+    )
+    _collect("negative_inventory", neg_inv_mask, neg_inv_str)
 
-        # PRIMITIVE 11: SEVERE INVENTORY DEFICIT
-        if quantity < -100:
-            strength = min(abs(quantity) / 100, 5.0) + 2.0
-            bindings.append(
-                (sku_idx, primitive_to_idx["severe_inventory_deficit"], strength)
-            )
-            leak_counts_local["severe_inventory_deficit"] = (
-                leak_counts_local.get("severe_inventory_deficit", 0) + 1
-            )
+    # PRIMITIVE 5: OVERSTOCK
+    qty_to_sold = np.where(sold_arr > 0, quantities / np.maximum(sold_arr, 1e-10), 0.0)
+    overstock_mask = (
+        (sold_arr > 0)
+        & (quantities > thresholds["overstock_qty_threshold"])
+        & (qty_to_sold > thresholds["overstock_qty_to_sold_ratio"])
+    )
+    daily_velocity = sold_arr / 30.0
+    overstock_str = np.minimum(qty_to_sold / 100, 3.0)
+    overstock_str = np.where(
+        daily_velocity < thresholds["overstock_velocity_threshold"],
+        overstock_str * 1.5,
+        overstock_str,
+    )
+    _collect("overstock", overstock_mask, overstock_str)
 
-        # HIGH VELOCITY (for composite patterns)
-        if sold > avg_sold * 2:
-            bindings.append((sku_idx, primitive_to_idx["high_velocity"], 0.5))
+    # PRIMITIVE 6: PRICE DISCREPANCY
+    price_var = np.where(
+        (sug_retails > 0) & (revenues > 0),
+        np.abs(revenues - sug_retails) / np.maximum(sug_retails, 1e-10),
+        0.0,
+    )
+    price_mask = (
+        (sug_retails > 0)
+        & (revenues > 0)
+        & (price_var > thresholds["price_discrepancy_threshold"])
+    )
+    price_str = np.minimum(price_var * 3, 2.0)
+    price_str = np.where(revenues < sug_retails, price_str * 1.5, price_str)
+    _collect("price_discrepancy", price_mask, price_str)
+
+    # PRIMITIVE 7: SHRINKAGE PATTERN
+    shrink_pct = np.where(
+        quantities > 0,
+        np.abs(qty_diffs) / np.maximum(quantities, 1e-10),
+        np.abs(qty_diffs),
+    )
+    shrink_mask = (qty_diffs < thresholds["shrinkage_threshold"]) & (shrink_pct > 0.05)
+    shrink_str = np.minimum(shrink_pct * 10, 3.0)
+    _collect("shrinkage_pattern", shrink_mask, shrink_str)
+
+    # PRIMITIVE 8: MARGIN EROSION
+    erosion_mask = has_revenue & (margins < avg_margin * 0.7)
+    erosion_rate = np.where(avg_margin > 0, (avg_margin - margins) / avg_margin, 0.0)
+    erosion_str = erosion_rate * 2.5
+    _collect("margin_erosion", erosion_mask, erosion_str)
+
+    # PRIMITIVE 9: ZERO COST ANOMALY
+    zero_cost_mask = has_revenue & (costs == 0)
+    zero_cost_str = np.minimum(revenues / 100, 3.0) + 1.0
+    _collect("zero_cost_anomaly", zero_cost_mask, zero_cost_str)
+
+    # PRIMITIVE 10: NEGATIVE PROFIT
+    gross_profit = np.where(
+        sold_arr > 0, revenues - (costs * sold_arr), revenues - costs
+    )
+    neg_profit_mask = gross_profit < 0
+    neg_profit_str = np.minimum(np.abs(gross_profit) / 100, 3.0) + 1.0
+    _collect("negative_profit", neg_profit_mask, neg_profit_str)
+
+    # PRIMITIVE 11: SEVERE INVENTORY DEFICIT
+    severe_mask = quantities < -100
+    severe_str = np.minimum(np.abs(quantities) / 100, 5.0) + 2.0
+    _collect("severe_inventory_deficit", severe_mask, severe_str)
+
+    # HIGH VELOCITY (composite signal)
+    hv_mask = sold_arr > avg_sold * 2
+    hv_str = np.full(n, 0.5)
+    _collect("high_velocity", hv_mask, hv_str)
 
     collect_time = time.time() - bundle_start
     logger.info(f"v3.5: Collected {len(bindings)} bindings in {collect_time:.2f}s")
@@ -1127,7 +1144,7 @@ def bundle_pos_facts(
         primitive_bindings[prim_idx].append((sku_idx, strength))
 
     # Process each primitive - lookup SKU vectors directly from codebook
-    # This avoids creating a 36K x 16K tensor (4.7GB) in memory
+    # This avoids creating a 36K x 4K tensor (1.2GB) in memory
     for prim_idx, prim_binds in primitive_bindings.items():
         if not prim_binds:
             continue
@@ -2317,7 +2334,7 @@ def dirac_causal_bind(
         >>> cause = dvsa.seed_hash("price_drop")
         >>> recovered_effect = dvsa.unbind_cause(binding, cause)
     """
-    from context import DiracVector
+    from .context import DiracVector
 
     dvsa = ctx.get_dirac_vsa()
     cause = dvsa.seed_hash(cause_name)
@@ -2365,7 +2382,7 @@ def dirac_multi_hop_query(
         >>> # hops[1] = stockout → lost_sales binding
         >>> # hops[2] = lost_sales → margin_loss binding
     """
-    from context import DiracVector
+    from .context import DiracVector
 
     dvsa = ctx.get_dirac_vsa()
     results = []
@@ -2418,7 +2435,7 @@ def dirac_validate_causal_claim(
         ... )
         >>> # Should be valid since this exact relationship is known
     """
-    from context import VALIDATION_THRESHOLDS
+    from .context import VALIDATION_THRESHOLDS
 
     dvsa = ctx.get_dirac_vsa()
 
@@ -2552,7 +2569,7 @@ def seed_hash(string: str, d: int = 16384) -> torch.Tensor:
     DEPRECATED: Use ctx.seed_hash() instead.
     """
     _show_compat_warning()
-    from context import create_analysis_context
+    from .context import create_analysis_context
 
     ctx = create_analysis_context(dimensions=d, use_gpu=True)
     return ctx.seed_hash(string)

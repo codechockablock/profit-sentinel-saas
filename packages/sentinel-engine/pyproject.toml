@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 # Dorian is self-contained - no external VSA dependencies
-# Old vsa-core and reasoning packages are in legacy/ for reference only
+# Old agent code is in legacy/ for reference only
 dependencies = [
     # Core ML
     "torch>=2.2.0",

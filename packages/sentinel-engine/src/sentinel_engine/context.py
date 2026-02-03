@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 VALIDATION_THRESHOLDS = {
-    "noise_floor": 0.01,  # ~1/√d for d=16384
+    "noise_floor": 0.016,  # ~1/√d for d=4096
     "rejection_threshold": 0.10,  # Below this = reject claim
     "low_confidence": 0.25,  # Flag for review
     "moderate_confidence": 0.40,  # Acceptable for suggestions
@@ -67,8 +67,8 @@ VALIDATION_THRESHOLDS = {
     "very_high_confidence": 0.80,  # Definitive statements
 }
 
-# Default VSA dimensions (2^14 = 16384)
-DEFAULT_DIMENSIONS = 16384
+# Default VSA dimensions (2^12 = 4096)
+DEFAULT_DIMENSIONS = 4096
 
 # Default codebook size limit before hierarchical encoding kicks in
 DEFAULT_MAX_CODEBOOK_SIZE = 100_000
@@ -248,7 +248,7 @@ class SparseVSA:
     This enables O(K) complexity for most operations where K << D.
     """
 
-    def __init__(self, dimensions: int = 16384, default_sparsity: int = 1638):
+    def __init__(self, dimensions: int = 4096, default_sparsity: int = 410):
         """
         Initialize SparseVSA.
 
@@ -691,7 +691,7 @@ class DiracVSA:
 
     def __init__(
         self,
-        dimensions: int = 16384,
+        dimensions: int = 4096,
         device: torch.device | None = None,
         dtype: torch.dtype = torch.complex64,
     ):
@@ -1077,7 +1077,7 @@ class AnalysisContext:
     """
 
     # Core configuration
-    dimensions: int = 16384
+    dimensions: int = 4096
     dtype: torch.dtype = field(default=torch.complex64)
     device: torch.device = field(default_factory=lambda: torch.device("cpu"))
 
@@ -1166,9 +1166,9 @@ class AnalysisContext:
         v3.6 OPTIMIZATION: Instead of calling seed_hash() N times (88s for 36K SKUs),
         this generates vectors in chunks to balance speed vs memory.
 
-        Memory calculation for 36K SKUs x 16384 dims:
-        - Full batch: ~4.8 GB (too large for 16GB Fargate)
-        - Chunk of 1000: ~130 MB per chunk (safe)
+        Memory calculation for 36K SKUs x 4096 dims:
+        - Full batch: ~1.2 GB (still large)
+        - Chunk of 1000: ~32 MB per chunk (safe)
 
         Args:
             strings: List of strings to hash
@@ -1182,7 +1182,7 @@ class AnalysisContext:
             return torch.zeros(0, self.dimensions, dtype=self.dtype, device=self.device)
 
         # Process in chunks to avoid memory issues
-        # Each chunk: 1000 x 16384 x 8 bytes (complex64) = ~130 MB
+        # Each chunk: 1000 x 4096 x 8 bytes (complex64) = ~32 MB
         CHUNK_SIZE = 1000
         chunks = []
 
@@ -2489,7 +2489,7 @@ def confidence_to_label(similarity: float) -> str:
 
 
 def create_sparse_vsa(
-    dimensions: int = 16384,
+    dimensions: int = 4096,
     sparsity_ratio: float = 0.1,
 ) -> SparseVSA:
     """
@@ -2510,7 +2510,7 @@ def create_sparse_vsa(
 
 
 def create_dirac_vsa(
-    dimensions: int = 16384,
+    dimensions: int = 4096,
     device: torch.device | None = None,
     dtype: torch.dtype = torch.complex64,
 ) -> DiracVSA:
@@ -2540,7 +2540,7 @@ def create_dirac_vsa(
 
 
 def create_analysis_context(
-    dimensions: int = 16384,
+    dimensions: int = 4096,
     use_gpu: bool = True,
     dtype: torch.dtype | str = torch.complex64,
     alpha: float = 0.85,
@@ -2557,7 +2557,7 @@ def create_analysis_context(
     Each analysis request should get its own context instance.
 
     Args:
-        dimensions: VSA dimensionality (default 16384 = 2^14)
+        dimensions: VSA dimensionality (default 4096 = 2^12)
         use_gpu: Whether to use GPU if available
         dtype: Torch data type (default complex64 for phasor VSA)
         alpha: Resonator blending factor

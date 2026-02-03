@@ -99,10 +99,10 @@ else:
     generate_report_from_session = None
 
 # =============================================================================
-# Legacy Context API (v2.1 - Deprecated, use Dorian)
+# Context API (v2.1+)
 # =============================================================================
 if _CONTEXT_AVAILABLE:
-    from .legacy.context import AnalysisContext, create_analysis_context
+    from .context import AnalysisContext, create_analysis_context
 else:
     AnalysisContext = None
     create_analysis_context = None

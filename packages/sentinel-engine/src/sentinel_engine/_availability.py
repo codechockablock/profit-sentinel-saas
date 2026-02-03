@@ -16,14 +16,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Legacy context-based API (v2.1 - Deprecated)
+# Context-based API (v2.1+)
 _CONTEXT_AVAILABLE = False
 try:
-    from .legacy.context import AnalysisContext, create_analysis_context  # noqa: F401
+    from .context import AnalysisContext, create_analysis_context  # noqa: F401
 
     _CONTEXT_AVAILABLE = True
 except ImportError:
-    logger.debug("Legacy context module not available - using Dorian")
+    logger.debug("Context module not available - using Dorian")
 
 # Core analysis functions
 _CORE_AVAILABLE = False

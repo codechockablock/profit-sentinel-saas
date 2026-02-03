@@ -383,7 +383,7 @@ async def analyze_upload(
         s3_client = get_s3_client()
         s3_service = S3Service(s3_client, settings.s3_bucket_name)
 
-        # Check GuardDuty scan status before processing (C6 - malware scanning)
+        # Validate file before processing (C6 - file validation)
         scanner = get_virus_scanner()
         if scanner.is_available:
             scan_result = await scanner.check_scan_status(
@@ -620,7 +620,7 @@ async def analyze_multi_reports(
         s3_client = get_s3_client()
         s3_service = S3Service(s3_client, settings.s3_bucket_name)
 
-        # Check GuardDuty scan status for all files before processing (C6)
+        # Validate all files before processing (C6 - file validation)
         scanner = get_virus_scanner()
         if scanner.is_available:
             for key in keys:

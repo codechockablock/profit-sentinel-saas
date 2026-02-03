@@ -209,7 +209,7 @@ class WriteResult:
 try:
     import torch
 
-    from ..legacy.context import AnalysisContext, create_analysis_context
+    from ..context import AnalysisContext, create_analysis_context
 
     TORCH_AVAILABLE = True
 except ImportError:
@@ -227,7 +227,7 @@ class VSAEngine:
     Key improvements:
     - bind() uses phasor multiplication: e^(iθ₁) * e^(iθ₂) = e^(i(θ₁+θ₂))
     - unbind() uses conjugate: a ⊗ b ⊗ b* = a (exact recovery)
-    - Consistent with the rest of the codebase (16384-dim complex phasors)
+    - Consistent with the rest of the codebase (4096-dim complex phasors)
 
     Backward compatibility:
     - API remains the same (numpy arrays in, numpy arrays out)

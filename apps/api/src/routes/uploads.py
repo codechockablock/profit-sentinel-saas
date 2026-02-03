@@ -206,7 +206,7 @@ async def suggest_mapping(
     mapping_service = MappingService()
 
     try:
-        # Check GuardDuty scan status before processing (C6 - malware scanning)
+        # Validate file before processing (C6 - file validation)
         scanner = get_virus_scanner()
         if scanner.is_available:
             scan_result = await scanner.check_scan_status(
