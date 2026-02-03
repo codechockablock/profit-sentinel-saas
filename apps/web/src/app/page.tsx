@@ -1,5 +1,6 @@
 // src/app/page.tsx
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function Home() {
   return (
@@ -8,11 +9,14 @@ export default function Home() {
       <section className="relative py-20 md:py-32">
         <div className="max-w-6xl mx-auto px-4 text-center">
           {/* Logo */}
-          <div className="mb-8">
-            <img
+          <div className="mb-8 relative h-40 md:h-56">
+            <Image
               src="https://i.imgur.com/68NbW7U.png"
               alt="Profit Sentinel"
-              className="mx-auto h-40 md:h-56 object-contain drop-shadow-[0_0_40px_rgba(16,185,129,0.5)]"
+              fill
+              priority
+              sizes="(max-width: 768px) 160px, 224px"
+              className="object-contain drop-shadow-[0_0_40px_rgba(16,185,129,0.5)]"
             />
           </div>
 

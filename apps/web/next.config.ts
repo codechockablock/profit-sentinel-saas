@@ -35,7 +35,16 @@ const nextConfig: NextConfig = {
 
   // Image optimization
   images: {
-    domains: ["profitsentinel.com"],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'profitsentinel.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'i.imgur.com',
+      },
+    ],
   },
 
   // Redirects for legacy URLs
