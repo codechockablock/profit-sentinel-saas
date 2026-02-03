@@ -21,9 +21,11 @@ from slowapi.util import get_remote_address
 
 from ..config import get_settings
 from ..dependencies import get_current_user, get_s3_client
+
+# v3.7: Replaced GuardDuty with lightweight file validator
+from ..services.file_validator import get_file_validator as get_virus_scanner
 from ..services.mapping import MappingService
 from ..services.s3 import S3Service
-from ..services.virus_scan import get_virus_scanner
 
 router = APIRouter()
 

@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 
 from .causes import CauseVectors, create_cause_vectors, get_cause_metadata
 from .encoder import EvidenceEncoder, create_evidence_encoder
+from .knowledge import CAUSE_CATEGORIES, KnowledgeGraph, create_knowledge_graph
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,7 @@ class CauseScorer:
     3. Rank causes by accumulated evidence
     4. Detect ambiguity (multiple high scores)
     5. Route to cold path if needed
+    6. (v3.7) Trace causal chains using retail knowledge graph
 
     Thread-safe: Uses context-isolated state.
     """
@@ -125,6 +127,7 @@ class CauseScorer:
     ctx: AnalysisContext
     encoder: EvidenceEncoder = field(default=None, repr=False)
     cause_vectors: CauseVectors = field(default=None, repr=False)
+    knowledge_graph: KnowledgeGraph = field(default=None, repr=False)
 
     # Routing thresholds (from validated research)
     confidence_threshold: float = 0.6  # Below this -> cold path
@@ -132,12 +135,17 @@ class CauseScorer:
     min_evidence_count: int = 2  # Below this -> cold path
     severity_cold_path: bool = True  # High severity always routes to cold path
 
+    # Knowledge graph settings
+    use_knowledge_graph: bool = True  # Enable causal chain tracing
+
     def __post_init__(self):
-        """Initialize encoder and cause vectors."""
+        """Initialize encoder, cause vectors, and knowledge graph."""
         if self.encoder is None:
             self.encoder = create_evidence_encoder(self.ctx)
         if self.cause_vectors is None:
             self.cause_vectors = create_cause_vectors(self.ctx)
+        if self.knowledge_graph is None and self.use_knowledge_graph:
+            self.knowledge_graph = create_knowledge_graph(self.ctx)
 
     def score_facts(
         self,
@@ -363,6 +371,104 @@ class CauseScorer:
             cold_path_reason=reason,
             evidence_summary={"error": reason},
         )
+
+    def trace_causal_chain(
+        self,
+        symptom: str,
+        max_root_causes: int = 3,
+    ) -> dict[str, Any]:
+        """
+        Trace causal chains from a symptom to root causes.
+
+        Uses the retail knowledge graph to find:
+        1. Root causes that lead to the symptom
+        2. Complete causal paths from each root cause
+
+        Args:
+            symptom: The observed symptom (e.g., "profit_leak", "margin_erosion")
+            max_root_causes: Maximum number of root causes to return
+
+        Returns:
+            Dict with:
+            - root_causes: List of root cause entities
+            - causal_chains: Dict mapping root_cause -> path to symptom
+            - category: Category of the symptom
+            - explanation: Human-readable explanation
+        """
+        if self.knowledge_graph is None:
+            return {
+                "root_causes": [],
+                "causal_chains": {},
+                "category": None,
+                "explanation": "Knowledge graph not loaded",
+            }
+
+        # Find root causes
+        root_causes = self.knowledge_graph.find_root_causes(symptom)[:max_root_causes]
+
+        # Trace chain from each root cause
+        causal_chains = {}
+        for rc in root_causes:
+            path = self.knowledge_graph.trace_causal_chain(symptom, rc)
+            if path:
+                causal_chains[rc] = path
+
+        # Get category
+        category = self.knowledge_graph.get_category(symptom)
+
+        # Generate explanation
+        if causal_chains:
+            explanations = []
+            for rc, path in causal_chains.items():
+                path_str = self.knowledge_graph.explain_path(path)
+                explanations.append(f"• {path_str}")
+            explanation = (
+                f"Possible causes of {symptom.replace('_', ' ')}:\n"
+                + "\n".join(explanations)
+            )
+        else:
+            explanation = f"No known causal chains found for {symptom}"
+
+        return {
+            "root_causes": root_causes,
+            "causal_chains": causal_chains,
+            "category": category,
+            "explanation": explanation,
+        }
+
+    def enrich_result_with_causality(
+        self,
+        result: ScoringResult,
+    ) -> ScoringResult:
+        """
+        Enrich a scoring result with causal chain information.
+
+        For the top cause, traces back to find root causes and
+        adds this information to the evidence_summary.
+
+        Args:
+            result: The scoring result to enrich
+
+        Returns:
+            Enriched ScoringResult with causal_trace in evidence_summary
+        """
+        if not result.top_cause or self.knowledge_graph is None:
+            return result
+
+        # Trace causal chain for top cause
+        causal_info = self.trace_causal_chain(result.top_cause)
+
+        # Add to evidence_summary
+        result.evidence_summary["causal_trace"] = causal_info
+
+        # Also add to top cause metadata
+        for score in result.scores:
+            if score.cause == result.top_cause:
+                score.metadata["root_causes"] = causal_info.get("root_causes", [])
+                score.metadata["causal_chains"] = causal_info.get("causal_chains", {})
+                break
+
+        return result
 
 
 # =============================================================================

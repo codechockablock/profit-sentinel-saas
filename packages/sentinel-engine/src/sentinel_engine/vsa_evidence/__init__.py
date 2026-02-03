@@ -48,6 +48,13 @@ from .encoder import (
     create_evidence_encoder,
     create_hierarchical_encoder,
 )
+from .knowledge import (
+    CAUSE_CATEGORIES,
+    RETAIL_KNOWLEDGE,
+    KnowledgeGraph,
+    create_knowledge_graph,
+    get_retail_knowledge,
+)
 from .rules import (
     RETAIL_EVIDENCE_RULES,
     EvidenceRule,
@@ -89,6 +96,12 @@ __all__ = [
     "BatchScorer",
     "create_cause_scorer",
     "create_batch_scorer",
+    # Knowledge (v3.7)
+    "RETAIL_KNOWLEDGE",
+    "CAUSE_CATEGORIES",
+    "KnowledgeGraph",
+    "create_knowledge_graph",
+    "get_retail_knowledge",
 ]
 
 __version__ = "1.0.0"

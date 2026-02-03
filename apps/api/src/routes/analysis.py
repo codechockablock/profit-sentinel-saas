@@ -22,8 +22,10 @@ from ..config import SUPPORTED_POS_SYSTEMS, get_settings
 from ..dependencies import get_current_user, get_s3_client, require_pro_tier
 from ..services.analysis import AnalysisService
 from ..services.anonymization import get_anonymization_service
+
+# v3.7: Replaced GuardDuty with lightweight file validator
+from ..services.file_validator import get_file_validator as get_virus_scanner
 from ..services.s3 import S3Service
-from ..services.virus_scan import get_virus_scanner
 
 router = APIRouter()
 

@@ -1102,6 +1102,9 @@ class AnalysisContext:
     _faiss_dirty: bool = field(default=True, repr=False)
     use_faiss: bool = field(default=True)  # Enable FAISS by default
 
+    # Relation store for chain inference (v3.7)
+    _relations: dict[str, torch.Tensor] | None = field(default=None, repr=False)
+
     # Statistics (updated during bundling)
     avg_qty: float = 20.0
     avg_margin: float = 0.3
@@ -2045,6 +2048,356 @@ class AnalysisContext:
         return a.similarity(b)
 
     # =========================================================================
+    # CHAIN INFERENCE (Causal Reasoning)
+    # =========================================================================
+
+    def _get_relations(self) -> dict[str, torch.Tensor]:
+        """Get or create the relations store."""
+        if self._relations is None:
+            self._relations = {}
+        return self._relations
+
+    def add_relation(
+        self,
+        subject: str,
+        predicate: str,
+        obj: str,
+        confidence: float = 1.0,
+    ) -> str:
+        """
+        Add a causal relation using asymmetric phasor binding.
+
+        Encodes: subject --predicate--> object
+        Uses permutation for asymmetry: bind(permute(predicate), bind(subject, object))
+
+        This creates a relation vector where:
+        - subject and object are bound together
+        - predicate is permuted then bound, making relation directional
+        - unbinding predicate recovers the subject-object binding
+        - unbinding subject from that recovers object (and vice versa)
+
+        Args:
+            subject: The cause entity (e.g., "pricing_error")
+            predicate: The relation type (e.g., "causes")
+            obj: The effect entity (e.g., "margin_erosion")
+            confidence: Optional confidence weight (default 1.0)
+
+        Returns:
+            Relation key for later lookup
+
+        Example:
+            >>> ctx = create_analysis_context()
+            >>> ctx.add_relation("pricing_error", "causes", "margin_erosion")
+            >>> ctx.add_relation("margin_erosion", "causes", "profit_leak")
+            >>> path = ctx.find_causal_path("pricing_error", "profit_leak")
+            >>> # Returns: ["pricing_error", "margin_erosion", "profit_leak"]
+        """
+        relations = self._get_relations()
+
+        # Get or create vectors for each component
+        subject_vec = self.get_or_create(subject)
+        predicate_vec = self.get_or_create(f"rel_{predicate}")
+        object_vec = self.get_or_create(obj)
+
+        # Create asymmetric relation encoding:
+        # 1. Bind subject and object: subject ⊗ object
+        subject_object = self.bind(subject_vec, object_vec)
+
+        # 2. Permute predicate for asymmetry: permute(predicate)
+        permuted_pred = self.permute(predicate_vec)
+
+        # 3. Bind permuted predicate with subject-object binding
+        relation_vec = self.bind(permuted_pred, subject_object)
+
+        # 4. Apply confidence weighting
+        if confidence != 1.0:
+            relation_vec = relation_vec * confidence
+
+        # Store with normalized key
+        relation_key = f"{subject.lower()}|{predicate.lower()}|{obj.lower()}"
+        relations[relation_key] = self.normalize(relation_vec)
+
+        # Also store in codebook for similarity search
+        self.codebook[relation_key] = relations[relation_key]
+        self._codebook_dirty = True
+        self._faiss_dirty = True
+
+        return relation_key
+
+    def chain_inference(
+        self,
+        query_subject: str,
+        query_predicate: str,
+        max_hops: int = 3,
+        min_similarity: float = 0.3,
+    ) -> list[tuple[str, float]]:
+        """
+        Perform multi-hop inference following causal chains.
+
+        Given a subject and predicate, finds all entities reachable
+        through chains of the predicate relation.
+
+        Algorithm:
+        1. Start with query_subject
+        2. Find all direct relations (query_subject, predicate, X)
+        3. For each X found, recursively find (X, predicate, Y)
+        4. Continue until max_hops or no more relations found
+
+        Args:
+            query_subject: Starting entity
+            query_predicate: Relation to follow (e.g., "causes")
+            max_hops: Maximum chain length (default 3)
+            min_similarity: Minimum similarity threshold (default 0.3)
+
+        Returns:
+            List of (entity, cumulative_similarity) tuples ordered by similarity
+
+        Example:
+            >>> ctx = create_analysis_context()
+            >>> ctx.add_relation("overstock", "causes", "dead_inventory")
+            >>> ctx.add_relation("dead_inventory", "causes", "margin_erosion")
+            >>> ctx.add_relation("margin_erosion", "causes", "profit_leak")
+            >>> results = ctx.chain_inference("overstock", "causes", max_hops=3)
+            >>> # Returns: [("dead_inventory", 0.9), ("margin_erosion", 0.7), ("profit_leak", 0.5)]
+        """
+        relations = self._get_relations()
+        if not relations:
+            return []
+
+        # Track visited to avoid cycles
+        visited = {query_subject.lower()}
+        results = []
+
+        # BFS with similarity tracking
+        frontier = [(query_subject, 1.0, 0)]  # (entity, cumulative_sim, hops)
+
+        while frontier:
+            current_entity, current_sim, hops = frontier.pop(0)
+
+            if hops >= max_hops:
+                continue
+
+            # Find all relations starting from current_entity with query_predicate
+            predicate_lower = query_predicate.lower()
+
+            for rel_key, rel_vec in relations.items():
+                parts = rel_key.split("|")
+                if len(parts) != 3:
+                    continue
+
+                subj, pred, obj = parts
+
+                # Check if this relation matches our query
+                if subj == current_entity.lower() and pred == predicate_lower:
+                    if obj not in visited:
+                        # Compute similarity to verify the relation is valid
+                        obj_vec = self.get_or_create(obj)
+                        sim = self.similarity(rel_vec, obj_vec)
+
+                        if sim >= min_similarity:
+                            cumulative_sim = current_sim * sim
+                            results.append((obj, cumulative_sim))
+                            visited.add(obj)
+                            frontier.append((obj, cumulative_sim, hops + 1))
+
+        # Sort by cumulative similarity descending
+        results.sort(key=lambda x: -x[1])
+        return results
+
+    def find_causal_path(
+        self,
+        start: str,
+        end: str,
+        predicate: str = "causes",
+        max_hops: int = 5,
+    ) -> list[str] | None:
+        """
+        Find the causal path from start to end entity.
+
+        Uses BFS to find the shortest path through the relation graph.
+
+        Args:
+            start: Starting entity
+            end: Target entity
+            predicate: Relation type to follow (default "causes")
+            max_hops: Maximum path length (default 5)
+
+        Returns:
+            List of entities forming the path, or None if no path found
+
+        Example:
+            >>> ctx = create_analysis_context()
+            >>> ctx.add_relation("pricing_error", "causes", "margin_erosion")
+            >>> ctx.add_relation("margin_erosion", "causes", "profit_leak")
+            >>> path = ctx.find_causal_path("pricing_error", "profit_leak")
+            >>> # Returns: ["pricing_error", "margin_erosion", "profit_leak"]
+        """
+        relations = self._get_relations()
+        if not relations:
+            return None
+
+        start_lower = start.lower()
+        end_lower = end.lower()
+        predicate_lower = predicate.lower()
+
+        if start_lower == end_lower:
+            return [start]
+
+        # Build adjacency from relations
+        adjacency: dict[str, list[str]] = {}
+        for rel_key in relations.keys():
+            parts = rel_key.split("|")
+            if len(parts) != 3:
+                continue
+            subj, pred, obj = parts
+            if pred == predicate_lower:
+                if subj not in adjacency:
+                    adjacency[subj] = []
+                adjacency[subj].append(obj)
+
+        # BFS for shortest path
+        visited = {start_lower}
+        queue = [(start_lower, [start])]  # (current, path)
+
+        while queue:
+            current, path = queue.pop(0)
+
+            if len(path) > max_hops:
+                continue
+
+            for neighbor in adjacency.get(current, []):
+                if neighbor == end_lower:
+                    return path + [end]
+
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append((neighbor, path + [neighbor]))
+
+        return None
+
+    def get_all_effects(
+        self,
+        cause: str,
+        predicate: str = "causes",
+        max_hops: int = 3,
+    ) -> dict[str, list[str]]:
+        """
+        Get all effects of a cause, organized by hop distance.
+
+        Args:
+            cause: The cause entity
+            predicate: Relation type (default "causes")
+            max_hops: Maximum chain length (default 3)
+
+        Returns:
+            Dict mapping hop_distance -> list of effect entities
+
+        Example:
+            >>> effects = ctx.get_all_effects("pricing_error")
+            >>> # Returns: {1: ["margin_erosion"], 2: ["profit_leak"]}
+        """
+        relations = self._get_relations()
+        if not relations:
+            return {}
+
+        cause_lower = cause.lower()
+        predicate_lower = predicate.lower()
+
+        result: dict[int, list[str]] = {}
+        visited = {cause_lower}
+
+        # BFS with hop tracking
+        frontier = [(cause_lower, 0)]
+
+        while frontier:
+            current, hops = frontier.pop(0)
+
+            if hops >= max_hops:
+                continue
+
+            for rel_key in relations.keys():
+                parts = rel_key.split("|")
+                if len(parts) != 3:
+                    continue
+
+                subj, pred, obj = parts
+                if subj == current and pred == predicate_lower:
+                    if obj not in visited:
+                        visited.add(obj)
+                        hop_distance = hops + 1
+                        if hop_distance not in result:
+                            result[hop_distance] = []
+                        result[hop_distance].append(obj)
+                        frontier.append((obj, hop_distance))
+
+        return result
+
+    def get_all_causes(
+        self,
+        effect: str,
+        predicate: str = "causes",
+        max_hops: int = 3,
+    ) -> dict[str, list[str]]:
+        """
+        Get all causes of an effect, organized by hop distance.
+
+        This traces the causal chain backwards.
+
+        Args:
+            effect: The effect entity
+            predicate: Relation type (default "causes")
+            max_hops: Maximum chain length (default 3)
+
+        Returns:
+            Dict mapping hop_distance -> list of cause entities
+
+        Example:
+            >>> causes = ctx.get_all_causes("profit_leak")
+            >>> # Returns: {1: ["margin_erosion"], 2: ["pricing_error"]}
+        """
+        relations = self._get_relations()
+        if not relations:
+            return {}
+
+        effect_lower = effect.lower()
+        predicate_lower = predicate.lower()
+
+        # Build reverse adjacency
+        reverse_adj: dict[str, list[str]] = {}
+        for rel_key in relations.keys():
+            parts = rel_key.split("|")
+            if len(parts) != 3:
+                continue
+            subj, pred, obj = parts
+            if pred == predicate_lower:
+                if obj not in reverse_adj:
+                    reverse_adj[obj] = []
+                reverse_adj[obj].append(subj)
+
+        result: dict[int, list[str]] = {}
+        visited = {effect_lower}
+
+        # BFS backwards
+        frontier = [(effect_lower, 0)]
+
+        while frontier:
+            current, hops = frontier.pop(0)
+
+            if hops >= max_hops:
+                continue
+
+            for cause_entity in reverse_adj.get(current, []):
+                if cause_entity not in visited:
+                    visited.add(cause_entity)
+                    hop_distance = hops + 1
+                    if hop_distance not in result:
+                        result[hop_distance] = []
+                    result[hop_distance].append(cause_entity)
+                    frontier.append((cause_entity, hop_distance))
+
+        return result
+
+    # =========================================================================
     # STATE MANAGEMENT
     # =========================================================================
 
@@ -2066,7 +2419,7 @@ class AnalysisContext:
         """
         Reset context state for reuse.
 
-        Clears codebook, leak counts, and statistics.
+        Clears codebook, leak counts, statistics, and relations.
         Primitives are kept (they are deterministic).
         """
         self.codebook.clear()
@@ -2074,6 +2427,7 @@ class AnalysisContext:
         self._codebook_tensor = None
         self._codebook_keys = None
         self._codebook_dirty = True
+        self._relations = None  # Clear relations
 
         self.avg_qty = 20.0
         self.avg_margin = 0.3

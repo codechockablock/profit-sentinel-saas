@@ -136,14 +136,24 @@ class Settings(BaseSettings):
         description="Redis URL for distributed rate limiting (e.g., redis://localhost:6379)",
     )
 
-    # Virus/Malware Scanning via AWS GuardDuty (C6)
+    # File Validation (C6) - v3.7: Replaced GuardDuty with lightweight validation
+    # GuardDuty settings are deprecated but kept for backward compatibility
     guardduty_scan_enabled: bool = Field(
-        default=True,
-        description="Enable GuardDuty malware scanning on S3 uploads",
+        default=False,  # v3.7: Disabled by default, using FileValidator instead
+        description="[Deprecated] Enable GuardDuty malware scanning on S3 uploads",
     )
     guardduty_scan_timeout: int = Field(
         default=30,
-        description="Max seconds to wait for GuardDuty scan to complete",
+        description="[Deprecated] Max seconds to wait for GuardDuty scan to complete",
+    )
+    # New lightweight file validation (v3.7)
+    file_validation_enabled: bool = Field(
+        default=True,
+        description="Enable lightweight file validation (replaces GuardDuty)",
+    )
+    max_file_size_mb: int = Field(
+        default=100,
+        description="Maximum file size in MB for uploads",
     )
 
     @property

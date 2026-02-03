@@ -44,7 +44,8 @@ For internal/advanced use, import from submodules directly:
 __version__ = "5.0.0"  # Dorian integration
 
 # Default constants (used by legacy API and Dorian)
-DEFAULT_DIMENSIONS = 10000
+# v3.7: Changed from 10000 to 4096 for Dorian (faster, still effective)
+DEFAULT_DIMENSIONS = 4096
 DEFAULT_MAX_CODEBOOK_SIZE = 100000
 HIERARCHICAL_CODEBOOK_THRESHOLD = 10000
 
