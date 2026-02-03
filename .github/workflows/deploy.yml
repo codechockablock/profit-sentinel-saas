@@ -141,17 +141,49 @@ jobs:
           echo "image_tag=$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "::notice::Docker image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA"
 
+      - name: Update ECS task definition with new image
+        id: task-def
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          SHORT_SHA=$(echo $IMAGE_TAG | cut -c1-7)
+          NEW_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA"
+
+          echo "Updating task definition to use image: $NEW_IMAGE"
+
+          # Get current task definition
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition profitsentinel-dev-api \
+            --query 'taskDefinition' \
+            --output json)
+
+          # Update the image in the container definition
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$NEW_IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE |
+             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+
+          # Register new task definition
+          NEW_REVISION=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query 'taskDefinition.revision' \
+            --output text)
+
+          echo "Registered new task definition revision: $NEW_REVISION"
+          echo "revision=$NEW_REVISION" >> $GITHUB_OUTPUT
+
       - name: Deploy to ECS
         run: |
-          echo "Forcing new deployment on ECS..."
+          echo "Deploying task definition revision ${{ steps.task-def.outputs.revision }}..."
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE \
+            --task-definition profitsentinel-dev-api:${{ steps.task-def.outputs.revision }} \
             --force-new-deployment \
             --query 'service.deployments[0].status' \
             --output text
 
-          echo "::notice::ECS deployment initiated for cluster: $ECS_CLUSTER"
+          echo "::notice::ECS deployment initiated with new image for cluster: $ECS_CLUSTER"
 
       - name: Wait for ECS deployment stability
         run: |
