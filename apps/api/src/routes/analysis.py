@@ -1,7 +1,7 @@
 """
 Analysis endpoints - Aggressive Profit Leak Detection.
 
-Handles profit leak analysis using VSA resonator with 8 detection primitives.
+Handles profit leak analysis using VSA resonator with 11 detection primitives.
 Supports data from any major POS system (Paladin, Square, Lightspeed, etc.).
 
 Privacy features:
@@ -343,7 +343,7 @@ async def analyze_upload(
         Comprehensive analysis results with:
         - leaks: Dict of detected leak types with items, scores, metadata
         - summary: Overall statistics and estimated $ impact
-        - primitives_used: List of 8 detection primitives used
+        - primitives_used: List of 11 detection primitives used
         - warnings: Any mapping warnings
     """
     # Parse mapping
@@ -431,7 +431,7 @@ async def analyze_upload(
             f"in {time.time() - records_start:.2f}s"
         )
 
-        # Run analysis with all 8 primitives
+        # Run analysis with all 11 primitives
         analysis_service = AnalysisService()
         result = analysis_service.analyze(rows)
 
@@ -496,7 +496,7 @@ async def list_primitives() -> dict:
     """
     List all available analysis primitives.
 
-    Returns metadata about each of the 8 leak detection primitives.
+    Returns metadata about each of the 11 leak detection primitives.
     """
     analysis_service = AnalysisService()
     primitives = {}

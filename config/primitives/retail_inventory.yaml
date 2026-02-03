@@ -5,7 +5,7 @@
 # Paladin, Square, Lightspeed, Clover, Shopify, NCR Counterpoint,
 # Microsoft Dynamics RMS, Epicor Eagle, and generic exports.
 #
-# 8 Core Detection Primitives + Composite Patterns
+# 11 Core Detection Primitives + Composite Patterns
 #
 # USAGE:
 #   loader = PrimitiveLoader()
@@ -70,7 +70,7 @@ thresholds:
     variance_threshold: 0.15  # 15% off suggested
 
 # =============================================================================
-# PRIMITIVE DEFINITIONS - 8 Core Detection Patterns
+# PRIMITIVE DEFINITIONS - 11 Core Detection Patterns
 # =============================================================================
 primitives:
   # ---------------------------------------------------------------------------
@@ -180,6 +180,36 @@ primitives:
         - "Audit void/return transactions"
       impact_formula: "abs(quantity) * cost"
 
+    severe_inventory_deficit:
+      seed: "primitive_severe_inventory_deficit_v1"
+      description: "Nearly out of stock with high demand - imminent stockout risk"
+      category: anomaly
+      severity: critical
+      priority: 4
+      root_causes:
+        - code: DEMAND_SURGE
+          description: "Unexpected demand increase outpacing supply"
+          likelihood: 0.4
+        - code: REORDER_FAILURE
+          description: "Reorder point too low or not triggered"
+          likelihood: 0.3
+        - code: SUPPLY_DISRUPTION
+          description: "Vendor unable to fulfill orders"
+          likelihood: 0.3
+      detection_hints:
+        conditions:
+          - field: quantity
+            operator: "<="
+            threshold: 3
+          - field: sold
+            operator: ">"
+            threshold: 50
+      recommendations:
+        - "Emergency reorder immediately"
+        - "Check if stock is misplaced in store/warehouse"
+        - "Contact vendor for expedited shipping"
+      impact_formula: "revenue * margin_percent * estimated_lost_sales"
+
   # ---------------------------------------------------------------------------
   # MARGIN/PRICING ANOMALIES
   # ---------------------------------------------------------------------------
@@ -255,6 +285,37 @@ primitives:
         - "Check for promotional frequency issues"
       impact_formula: "margin_drop * revenue"
 
+    negative_profit:
+      seed: "primitive_negative_profit_v1"
+      description: "Cost exceeds retail price - selling at a loss"
+      category: anomaly
+      severity: critical
+      priority: 2
+      root_causes:
+        - code: COST_INCREASE
+          description: "Vendor cost increased without price adjustment"
+          likelihood: 0.4
+        - code: PRICING_ERROR
+          description: "Retail price set incorrectly"
+          likelihood: 0.35
+        - code: UNAUTHORIZED_DISCOUNT
+          description: "Discount applied below cost threshold"
+          likelihood: 0.25
+      detection_hints:
+        conditions:
+          - computed_field: profit
+            computation: "revenue - cost"
+            operator: "<"
+            threshold: 0
+          - field: revenue
+            operator: ">"
+            threshold: 0
+      recommendations:
+        - "Immediately raise prices or stop selling"
+        - "Verify cost and price data are correct"
+        - "Check for pricing errors or unauthorized discounts"
+      impact_formula: "(cost - revenue) * sold"
+
   # ---------------------------------------------------------------------------
   # NEW: OVERSTOCK DETECTION
   # ---------------------------------------------------------------------------
@@ -323,6 +384,36 @@ primitives:
         - "Update suggested retail if outdated"
         - "Review price change authorization logs"
       impact_formula: "(suggested_retail - actual_retail) * sold_qty"
+
+    zero_cost_anomaly:
+      seed: "primitive_zero_cost_anomaly_v1"
+      description: "Item has zero cost but positive retail - missing cost data"
+      category: anomaly
+      severity: high
+      priority: 5
+      root_causes:
+        - code: RECEIVING_ERROR
+          description: "Item received without cost entry"
+          likelihood: 0.4
+        - code: DATA_MIGRATION
+          description: "Cost data lost during system migration"
+          likelihood: 0.35
+        - code: VENDOR_SETUP
+          description: "New vendor item without cost setup"
+          likelihood: 0.25
+      detection_hints:
+        conditions:
+          - field: cost
+            operator: "="
+            threshold: 0
+          - field: revenue
+            operator: ">"
+            threshold: 0
+      recommendations:
+        - "Update cost data from recent vendor invoices"
+        - "Check if items were received without cost entry"
+        - "Review vendor price lists for current costs"
+      impact_formula: "unknown - cannot calculate without cost"
 
   # ---------------------------------------------------------------------------
   # NEW: SHRINKAGE PATTERN DETECTION
@@ -525,16 +616,23 @@ aliases:
   price_disc: "pricing.price_discrepancy"
   shrinkage: "shrinkage.shrinkage_pattern"
   erosion: "margin.margin_erosion"
+  # v2.1 - Additional primitives
+  deficit: "inventory.severe_inventory_deficit"
+  neg_profit: "margin.negative_profit"
+  zero_cost: "pricing.zero_cost_anomaly"
 
 # =============================================================================
 # PRIORITY ORDER - For Display/Processing
 # =============================================================================
 priority_order:
-  - "high_margin_leak"      # 1 - Critical: Direct profit loss
-  - "negative_inventory"    # 2 - Critical: Data integrity / theft
-  - "low_stock"             # 3 - High: Lost sales risk
-  - "shrinkage_pattern"     # 4 - High: Inventory loss
-  - "margin_erosion"        # 5 - High: Profitability trend
-  - "dead_item"             # 6 - Medium: Capital tied up
-  - "overstock"             # 7 - Medium: Cash flow
-  - "price_discrepancy"     # 8 - Warning: Pricing integrity
+  - "high_margin_leak"           # 1 - Critical: Direct profit loss
+  - "negative_inventory"         # 2 - Critical: Data integrity / theft
+  - "negative_profit"            # 3 - Critical: Selling at loss
+  - "severe_inventory_deficit"   # 4 - Critical: Imminent stockout
+  - "low_stock"                  # 5 - High: Lost sales risk
+  - "shrinkage_pattern"          # 6 - High: Inventory loss
+  - "margin_erosion"             # 7 - High: Profitability trend
+  - "zero_cost_anomaly"          # 8 - High: Missing cost data
+  - "dead_item"                  # 9 - Medium: Capital tied up
+  - "overstock"                  # 10 - Medium: Cash flow
+  - "price_discrepancy"          # 11 - Warning: Pricing integrity

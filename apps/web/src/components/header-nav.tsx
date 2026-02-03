@@ -19,6 +19,7 @@ export function HeaderNav({ currentPath }: HeaderNavProps) {
 
   const navLinks = [
     { href: '/about', label: 'About' },
+    { href: '/diagnostic', label: 'Shrinkage Diagnostic' },
     { href: '/roadmap', label: 'Roadmap' },
     { href: '/privacy', label: 'Privacy' },
   ]
@@ -43,7 +44,7 @@ export function HeaderNav({ currentPath }: HeaderNavProps) {
 
         {/* CTA Button */}
         <Link
-          href="/diagnostic"
+          href="/analyze"
           className="ml-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-bold rounded-lg hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-105 shadow-lg shadow-emerald-500/25"
         >
           Analyze Free
@@ -82,7 +83,7 @@ export function HeaderNav({ currentPath }: HeaderNavProps) {
           ))}
           <div className="border-t border-slate-700 p-3">
             <Link
-              href="/diagnostic"
+              href="/analyze"
               onClick={() => setMobileMenuOpen(false)}
               className="block w-full text-center px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-bold rounded-lg hover:from-emerald-600 hover:to-emerald-700 transition"
             >

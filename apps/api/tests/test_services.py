@@ -263,17 +263,20 @@ class TestAnalysisService:
             if not service._engine_available:
                 result = service.analyze([])
 
-                # Should return mock results with all 8 primitives
+                # Should return mock results with all 11 primitives
                 assert "leaks" in result
                 leaks = result["leaks"]
 
-                # All 8 primitives should be present
+                # All 11 primitives should be present
                 expected_primitives = [
                     "high_margin_leak",
                     "negative_inventory",
+                    "negative_profit",
+                    "severe_inventory_deficit",
                     "low_stock",
                     "shrinkage_pattern",
                     "margin_erosion",
+                    "zero_cost_anomaly",
                     "dead_item",
                     "overstock",
                     "price_discrepancy",
@@ -284,16 +287,19 @@ class TestAnalysisService:
                     assert "scores" in leaks[primitive]
 
     def test_analysis_primitives_defined(self):
-        """Test all 8 expected primitives are defined."""
+        """Test all 11 expected primitives are defined."""
         from src.services.analysis import AnalysisService
 
-        # All 8 detection primitives
+        # All 11 detection primitives
         expected = [
             "high_margin_leak",
             "negative_inventory",
+            "negative_profit",
+            "severe_inventory_deficit",
             "low_stock",
             "shrinkage_pattern",
             "margin_erosion",
+            "zero_cost_anomaly",
             "dead_item",
             "overstock",
             "price_discrepancy",
@@ -310,7 +316,7 @@ class TestAnalysisService:
         # If engine not available, test mock path
         if not service._engine_available:
             result = service.analyze(sample_pos_records)
-            # Result should have leaks structure with all 8 primitives
+            # Result should have leaks structure with all 11 primitives
             assert "leaks" in result
             assert "low_stock" in result["leaks"]
             assert "high_margin_leak" in result["leaks"]

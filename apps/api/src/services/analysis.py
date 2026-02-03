@@ -1,7 +1,7 @@
 """
 Analysis Service - Aggressive Profit Leak Detection.
 
-Runs VSA-based profit leak detection with 8 primitives, $ impact estimation,
+Runs VSA-based profit leak detection with 11 primitives, $ impact estimation,
 and actionable recommendations. Supports data from any POS system.
 
 v4.0: Adds VSA-grounded evidence retrieval for cause diagnosis:
@@ -107,6 +107,24 @@ LEAK_DISPLAY = {
         "color": "#ec4899",  # pink
         "priority": 8,
     },
+    "zero_cost_anomaly": {
+        "title": "Zero Cost Anomaly",
+        "icon": "alert-triangle",
+        "color": "#eab308",  # yellow
+        "priority": 9,
+    },
+    "negative_profit": {
+        "title": "Negative Profit",
+        "icon": "alert-circle",
+        "color": "#dc2626",  # red-600
+        "priority": 10,
+    },
+    "severe_inventory_deficit": {
+        "title": "Severe Inventory Deficit",
+        "icon": "alert-circle",
+        "color": "#d946ef",  # fuchsia
+        "priority": 11,
+    },
 }
 
 # Impact calculation caps - prevent data anomalies from inflating totals
@@ -121,15 +139,18 @@ MAX_OTHER_IMPACT = 2000  # $2K max per SKU
 
 
 class AnalysisService:
-    """Service for VSA-based profit leak analysis with 8 detection primitives."""
+    """Service for VSA-based profit leak analysis with 11 detection primitives."""
 
-    # All 8 analysis primitives - ordered by typical impact severity
+    # All 11 analysis primitives - ordered by typical impact severity
     PRIMITIVES = [
         "high_margin_leak",  # Critical - direct profit loss
         "negative_inventory",  # Critical - data integrity / theft
+        "negative_profit",  # Critical - selling below cost
+        "severe_inventory_deficit",  # Critical - imminent stockout
         "low_stock",  # High - lost sales
         "shrinkage_pattern",  # High - inventory loss
         "margin_erosion",  # High - profitability trend
+        "zero_cost_anomaly",  # High - missing cost data
         "dead_item",  # Medium - capital tied up
         "overstock",  # Medium - cash flow
         "price_discrepancy",  # Warning - pricing integrity
@@ -163,7 +184,7 @@ class AnalysisService:
             self._leak_metadata = LEAK_METADATA if LEAK_METADATA else {}
             self._engine_available = True
             logger.info(
-                "Sentinel engine loaded successfully (8 primitives, context-isolated)"
+                "Sentinel engine loaded successfully (11 primitives, context-isolated)"
             )
         except ImportError as e:
             logger.warning(f"Sentinel engine not available: {e}")
@@ -173,7 +194,7 @@ class AnalysisService:
 
     def analyze(self, rows: list[dict]) -> dict:
         """
-        Analyze POS data for profit leaks using all 8 primitives.
+        Analyze POS data for profit leaks using all 11 primitives.
 
         CRITICAL: Creates a fresh AnalysisContext for each call.
         This ensures complete isolation between concurrent requests.
@@ -201,9 +222,7 @@ class AnalysisService:
             # This populates ctx.leak_counts with actual detection counts
             # Note: bundle return value unused - we use heuristics for specific items
             bundle_start = time.time()
-            _ = self._bundle_pos_facts(
-                ctx, rows
-            )  # noqa: F841 - populates ctx.leak_counts
+            _ = self._bundle_pos_facts(ctx, rows)  # noqa: F841 - populates ctx.leak_counts
             bundle_time = time.time() - bundle_start
 
             # Get leak counts from context (populated during bundling)
@@ -574,6 +593,25 @@ class AnalysisService:
                 impact = (sug_retail - revenue) * max(sold, 1)
                 return min(impact, MAX_OTHER_IMPACT)
 
+        elif primitive == "zero_cost_anomaly":
+            # Impact unknown - can't estimate loss without cost data
+            # Use capped estimate based on revenue
+            return min(revenue * 0.1, MAX_OTHER_IMPACT)
+
+        elif primitive == "negative_profit":
+            # Impact = loss per unit × units sold (capped)
+            if cost > revenue:
+                loss_per_unit = cost - revenue
+                impact = loss_per_unit * max(sold, 1)
+                return min(impact, MAX_MARGIN_IMPACT)
+
+        elif primitive == "severe_inventory_deficit":
+            # Impact = estimated lost sales × margin
+            margin_per_unit = (revenue - cost) if revenue > cost else revenue * 0.3
+            estimated_lost_sales = min(sold * 0.1, 50)  # 10% of sold or 50 units max
+            impact = margin_per_unit * estimated_lost_sales
+            return min(impact, MAX_OTHER_IMPACT)
+
         return 0.0
 
     def _should_use_vsa_grounding(self) -> bool:
@@ -814,17 +852,21 @@ class AnalysisService:
 
         # Calculate summary stats
         total_items_flagged = sum(leaks[p]["count"] for p in leaks)
+        critical_primitives = [
+            "high_margin_leak",
+            "negative_inventory",
+            "negative_profit",
+            "severe_inventory_deficit",
+        ]
         critical_count = sum(
             leaks[p]["count"]
             for p in leaks
-            if leaks[p]["severity"] == "high"
-            and p in ["high_margin_leak", "negative_inventory"]
+            if leaks[p]["severity"] == "high" and p in critical_primitives
         )
         high_count = sum(
             leaks[p]["count"]
             for p in leaks
-            if leaks[p]["severity"] == "high"
-            and p not in ["high_margin_leak", "negative_inventory"]
+            if leaks[p]["severity"] == "high" and p not in critical_primitives
         )
 
         # Estimate impact based on flagged items
@@ -914,10 +956,35 @@ class AnalysisService:
 
             elif primitive == "price_discrepancy":
                 # Flag items with unusual margin patterns
+                # Use calculated margin instead of CSV margin field (Paladin margin unreliable)
                 if margin == 100 and cost == 0:
                     score = 0.70  # Suspicious zero cost
-                elif margin < 0:
-                    score = 0.85  # Selling below cost
+                elif revenue > 0 and cost > 0 and cost > revenue:
+                    # Use calculated margin instead of CSV margin field
+                    score = 0.85  # Actually selling below cost
+
+            elif primitive == "zero_cost_anomaly":
+                # Items with no cost data but actively selling
+                if cost == 0 and revenue > 0:
+                    score = 0.70
+                    if sold > 0:
+                        score = 0.85  # Actively selling with no cost = urgent
+
+            elif primitive == "negative_profit":
+                # Items where cost ACTUALLY exceeds revenue (selling at a loss)
+                # Use calculated margin, NOT the CSV margin field (Paladin margin unreliable)
+                if revenue > 0 and cost > revenue:
+                    loss_ratio = (cost - revenue) / revenue
+                    score = min(0.95, 0.5 + loss_ratio)
+
+            elif primitive == "severe_inventory_deficit":
+                # Nearly out of stock with high demand — imminent stockout
+                if 0 < quantity <= 3 and sold > 50:
+                    score = min(0.95, sold / 200)
+                elif 0 < quantity <= 5 and sold > 100:
+                    urgency = (5 - quantity) / 5
+                    velocity = min(1.0, sold / 200)
+                    score = min(0.90, urgency * velocity)
 
             if score > 0.1:  # Threshold for relevance
                 flagged.append({"sku": sku, "score": round(score, 2)})
@@ -968,6 +1035,21 @@ class AnalysisService:
                 "Verify cost and price data accuracy",
                 "Check for promotional pricing errors",
                 "Review vendor pricing agreements",
+            ],
+            "zero_cost_anomaly": [
+                "Update cost data from recent vendor invoices",
+                "Check if items were received without cost entry",
+                "Review vendor price lists for current costs",
+            ],
+            "negative_profit": [
+                "Immediately raise prices or stop selling",
+                "Verify cost and price data are correct",
+                "Check for pricing errors or unauthorized discounts",
+            ],
+            "severe_inventory_deficit": [
+                "Emergency reorder immediately",
+                "Check if stock is misplaced in store/warehouse",
+                "Contact vendor for expedited shipping",
             ],
         }
         return recommendations.get(primitive, ["Review flagged items"])
@@ -1049,12 +1131,37 @@ class AnalysisService:
                     f"Zero cost recorded but retail is ${revenue:.2f}. "
                     f"QOH: {qty:.0f}. Verify cost data is correct."
                 )
-            if margin < 0:
+            if revenue > 0 and cost > revenue:
                 return (
                     f"Selling BELOW cost! Cost: ${cost:.2f}, Retail: ${revenue:.2f}. "
                     f"QOH: {qty:.0f}, Sold: {sold:.0f}. Fix pricing immediately."
                 )
             return f"Price data anomaly detected. QOH: {qty:.0f}."
+
+        elif primitive == "zero_cost_anomaly":
+            return (
+                f"Cost is $0.00 but selling at ${revenue:.2f}. "
+                f"QOH: {qty:.0f}, Sold: {sold:.0f}. "
+                f"Cannot calculate true margin without cost data."
+            )
+
+        elif primitive == "negative_profit":
+            loss_per_unit = cost - revenue
+            return (
+                f"Selling at a LOSS: Cost ${cost:.2f} > Retail ${revenue:.2f} "
+                f"(losing ${loss_per_unit:.2f}/unit). "
+                f"QOH: {qty:.0f}, Sold: {sold:.0f}."
+            )
+
+        elif primitive == "severe_inventory_deficit":
+            if sold > 0:
+                days_left = qty / (sold / 365) if sold > 0 else 999
+                return (
+                    f"Only {qty:.0f} units left, sold {sold:.0f} in period. "
+                    f"Estimated {days_left:.0f} days until stockout. "
+                    f"Reorder immediately."
+                )
+            return f"Only {qty:.0f} units remaining with high demand."
 
         return f"QOH: {qty:.0f}, Cost: ${cost:.2f}, Sold: {sold:.0f}."
 
@@ -1373,7 +1480,12 @@ class AnalysisService:
             unified["total_impact_estimate"]["high"] += impact.get("high_estimate", 0)
 
             # Collect critical items
-            for primitive in ["high_margin_leak", "negative_inventory"]:
+            for primitive in [
+                "high_margin_leak",
+                "negative_inventory",
+                "negative_profit",
+                "severe_inventory_deficit",
+            ]:
                 if primitive in leaks:
                     for item in leaks[primitive].get("item_details", [])[:5]:
                         sku = item.get("sku", "")
@@ -1388,7 +1500,7 @@ class AnalysisService:
                             seen_skus.add(sku)
 
             # Collect high priority items
-            for primitive in ["low_stock", "shrinkage_pattern"]:
+            for primitive in ["low_stock", "shrinkage_pattern", "zero_cost_anomaly"]:
                 if primitive in leaks:
                     for item in leaks[primitive].get("item_details", [])[:5]:
                         sku = item.get("sku", "")

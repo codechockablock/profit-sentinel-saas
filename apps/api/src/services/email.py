@@ -677,6 +677,9 @@ class EmailService:
             "dead_item": "#6b7280",
             "overstock": "#3b82f6",
             "price_discrepancy": "#8b5cf6",
+            "zero_cost_anomaly": "#eab308",
+            "negative_profit": "#dc2626",
+            "severe_inventory_deficit": "#d946ef",
         }
         return colors.get(leak_type, "#6b7280")
 

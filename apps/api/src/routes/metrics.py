@@ -142,6 +142,9 @@ async def primitive_metrics() -> dict:
             "low_stock": 0.71,
             "margin_erosion": 0.705,
             "price_discrepancy": 0.646,
+            "zero_cost_anomaly": None,
+            "negative_profit": None,
+            "severe_inventory_deficit": None,
         }
 
         primitive_data = {}
@@ -282,7 +285,9 @@ async def dashboard() -> dict:
         "health_status": (
             "healthy"
             if health_score >= 80
-            else "degraded" if health_score >= 50 else "unhealthy"
+            else "degraded"
+            if health_score >= 50
+            else "unhealthy"
         ),
         "engine": engine,
         "primitives": primitives,
