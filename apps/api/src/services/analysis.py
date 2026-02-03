@@ -265,35 +265,31 @@ class AnalysisService:
                 f"Prepared {len(items_with_data)} items in {items_prep_time:.2f}s"
             )
 
-            # PERF v3.9: Skip VSA bundling entirely - it's too slow (~30s for 36K rows)
-            # Heuristic detection provides all leak detection results.
-            # VSA bundling was only needed for cause diagnosis, which is disabled.
-            # TODO: Re-enable when VSA bundling is optimized to <5s
+            # PERF: Run VSA bundling in background thread while doing heuristics
+            # VSA counts are used for logging/metrics but heuristics identify items
             vsa_leak_counts = {}
             bundle_time = 0.0
-            # vsa_future = None  # No VSA future to wait on (variable unused)
 
-            # DISABLED: VSA bundling is expensive and not needed for leak detection
-            # def run_vsa_bundling():
-            #     """Run VSA bundling in background (slow but doesn't block heuristics)."""
-            #     nonlocal vsa_leak_counts, bundle_time
-            #     bundle_start = time.time()
-            #     try:
-            #         self._bundle_pos_facts(ctx, rows)
-            #         ctx_summary = ctx.get_summary()
-            #         vsa_leak_counts = ctx_summary.get("leak_counts", {})
-            #         bundle_time = time.time() - bundle_start
-            #         logger.info(
-            #             f"VSA bundling complete in {bundle_time:.2f}s - "
-            #             f"leak counts: {vsa_leak_counts}"
-            #         )
-            #     except Exception as e:
-            #         logger.warning(f"VSA bundling failed (using heuristics only): {e}")
-            #         bundle_time = time.time() - bundle_start
-            #
-            # # Start VSA bundling in background
-            # with ThreadPoolExecutor(max_workers=1) as vsa_executor:
-            #     vsa_future = vsa_executor.submit(run_vsa_bundling)
+            def run_vsa_bundling():
+                """Run VSA bundling in background (slow but doesn't block heuristics)."""
+                nonlocal vsa_leak_counts, bundle_time
+                bundle_start = time.time()
+                try:
+                    self._bundle_pos_facts(ctx, rows)
+                    ctx_summary = ctx.get_summary()
+                    vsa_leak_counts = ctx_summary.get("leak_counts", {})
+                    bundle_time = time.time() - bundle_start
+                    logger.info(
+                        f"VSA bundling complete in {bundle_time:.2f}s - "
+                        f"leak counts: {vsa_leak_counts}"
+                    )
+                except Exception as e:
+                    logger.warning(f"VSA bundling failed (using heuristics only): {e}")
+                    bundle_time = time.time() - bundle_start
+
+            # Start VSA bundling in background
+            with ThreadPoolExecutor(max_workers=1) as vsa_executor:
+                vsa_future = vsa_executor.submit(run_vsa_bundling)
 
             # Use heuristic detection to identify specific items per primitive
             # VSA provides accurate counts, heuristics identify which items
@@ -386,17 +382,20 @@ class AnalysisService:
             # Calculate estimated $ impact (simplified - based on available data)
             estimated_impact = self._estimate_total_impact(rows, leaks)
 
-            # PERF: v3.9 - VSA bundling is skipped entirely (was 30s blocking wait)
-            # If VSA is re-enabled in the future, uncomment the wait below:
-            # try:
-            #     vsa_future.result(timeout=300)  # 5 min max wait
-            # except Exception as e:
-            #     logger.warning(f"VSA bundling timed out or failed: {e}")
-            pass  # No VSA future to wait on
+            # PERF: Wait for VSA bundling to complete (for cause diagnosis)
+            # This runs in parallel with heuristics, so total time is max(heuristics, VSA)
+            try:
+                vsa_future.result(timeout=300)  # 5 min max wait
+            except Exception as e:
+                logger.warning(f"VSA bundling timed out or failed: {e}")
 
             total_time = time.time() - start_time
             logger.info(
-                f"Full analysis complete in {total_time:.2f}s (VSA: {bundle_time:.2f}s parallel)"
+                f"TIMING BREAKDOWN: total={total_time:.2f}s | "
+                f"items_prep={items_prep_time:.2f}s | "
+                f"vsa_bundling={bundle_time:.2f}s | "
+                f"heuristics={detection_time:.2f}s | "
+                f"context_dimensions={ctx.dimensions}"
             )
 
             # Record metrics (best-effort)
@@ -410,20 +409,18 @@ class AnalysisService:
             )
 
             # VSA Evidence Grounding - Cause Diagnosis (v4.0)
-            # DISABLED in v3.9: VSA bundling is too slow (~30s for 36K rows)
-            # Heuristic detection provides all leak results without VSA overhead.
-            # TODO: Re-enable when VSA bundling is optimized to <5s
+            # Only run if VSA bundling completed successfully
             cause_diagnosis = None
-            # if self._should_use_vsa_grounding() and vsa_leak_counts:
-            #     try:
-            #         cause_diagnosis = self._perform_cause_diagnosis(ctx, rows, leaks)
-            #         logger.info(
-            #             f"VSA grounding: top_cause={cause_diagnosis.get('top_cause')}, "
-            #             f"confidence={cause_diagnosis.get('confidence', 0):.2f}"
-            #         )
-            #     except Exception as e:
-            #         logger.warning(f"VSA grounding failed (falling back): {e}")
-            #         cause_diagnosis = {"error": str(e), "fallback": True}
+            if self._should_use_vsa_grounding() and vsa_leak_counts:
+                try:
+                    cause_diagnosis = self._perform_cause_diagnosis(ctx, rows, leaks)
+                    logger.info(
+                        f"VSA grounding: top_cause={cause_diagnosis.get('top_cause')}, "
+                        f"confidence={cause_diagnosis.get('confidence', 0):.2f}"
+                    )
+                except Exception as e:
+                    logger.warning(f"VSA grounding failed (falling back): {e}")
+                    cause_diagnosis = {"error": str(e), "fallback": True}
 
             result = {
                 "leaks": leaks,

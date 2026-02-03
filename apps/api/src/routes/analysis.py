@@ -383,7 +383,8 @@ async def analyze_upload(
         s3_client = get_s3_client()
         s3_service = S3Service(s3_client, settings.s3_bucket_name)
 
-        # Validate file before processing (C6 - file validation)
+        # File validation (replaced GuardDuty with lightweight validator)
+        scan_start = time.time()
         scanner = get_virus_scanner()
         if scanner.is_available:
             scan_result = await scanner.check_scan_status(
@@ -397,6 +398,8 @@ async def analyze_upload(
                     status_code=400,
                     detail="File rejected: security scan detected a threat. Please upload a clean file.",
                 )
+        scan_time = time.time() - scan_start
+        logger.info(f"TIMING file_validation={scan_time:.2f}s")
 
         # Load full DataFrame
         load_start = time.time()

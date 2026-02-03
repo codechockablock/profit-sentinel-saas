@@ -2575,6 +2575,8 @@ def create_analysis_context(
         >>> bundle = bundle_pos_facts(ctx, rows)
         >>> results, scores = query_bundle(ctx, bundle, "low_stock")
     """
+    logger.info(f"DIAG: Creating AnalysisContext with dimensions={dimensions}")
+
     # Determine device
     if use_gpu and torch.cuda.is_available():
         device = torch.device("cuda")
