@@ -147,7 +147,22 @@ export async function suggestMapping(
   return res.json();
 }
 
-/** Step 4: Run analysis */
+/** Get API base URL - use direct API for long-running requests */
+function getApiBaseUrl(): string {
+  // In browser, check if we're in production
+  if (typeof window !== "undefined") {
+    // Production: use direct API to avoid Vercel proxy timeouts
+    if (window.location.hostname === "profitsentinel.com" ||
+        window.location.hostname === "www.profitsentinel.com" ||
+        window.location.hostname.includes("vercel.app")) {
+      return "https://api.profitsentinel.com";
+    }
+  }
+  // Development: use local proxy
+  return "";
+}
+
+/** Step 4: Run analysis - uses direct API to avoid proxy timeouts */
 export async function runAnalysis(
   key: string,
   mapping: Record<string, string>
@@ -156,7 +171,11 @@ export async function runAnalysis(
   formData.append("key", key);
   formData.append("mapping", JSON.stringify(mapping));
 
-  const res = await fetch("/api/analysis/analyze", {
+  // Use direct API URL for analysis (can take 2+ minutes for large files)
+  const apiBase = getApiBaseUrl();
+  // Direct API uses /analysis/analyze, proxy uses /api/analysis/analyze
+  const endpoint = apiBase ? `${apiBase}/analysis/analyze` : "/api/analysis/analyze";
+  const res = await fetch(endpoint, {
     method: "POST",
     body: formData,
   });
