@@ -4,7 +4,11 @@ import { Inter } from 'next/font/google'
 import Providers from '@/components/theme-provider'
 import { AppShell } from '@/components/app-shell'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  preload: true,
+})
 
 export const metadata = {
   title: 'Profit Sentinel | Find Hidden Profit Leaks in Your Inventory',
