@@ -8,7 +8,7 @@ Covers diagnosis requests/responses, solutions, employees, and gamification.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, field_validator
 # =============================================================================
 
 
-class ProblemStatus(str, Enum):
+class ProblemStatus(StrEnum):
     """Status of a repair problem through the diagnosis flow."""
 
     PENDING = "pending"
@@ -28,7 +28,7 @@ class ProblemStatus(str, Enum):
     CORRECTED = "corrected"
 
 
-class QueryType(str, Enum):
+class QueryType(StrEnum):
     """Type of employee/customer query."""
 
     DIAGNOSE = "diagnose"
@@ -37,7 +37,7 @@ class QueryType(str, Enum):
     FIND_PARTS = "find_parts"
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     """Types of learning events for gamification."""
 
     ASSIST = "assist"
@@ -47,7 +47,7 @@ class EventType(str, Enum):
     STREAK_EXTENDED = "streak_extended"
 
 
-class BadgeType(str, Enum):
+class BadgeType(StrEnum):
     """Types of badges employees can earn."""
 
     FIRST_HELPER = "first_helper"
