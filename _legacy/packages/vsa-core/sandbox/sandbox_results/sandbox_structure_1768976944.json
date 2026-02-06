@@ -1,0 +1,103 @@
+{
+  "timestamp": 1768976924.822838,
+  "config": {
+    "dimensions": 2048,
+    "device": "auto",
+    "test": "structure"
+  },
+  "tests": {
+    "structure_learning": {
+      "max_iterations": 40,
+      "accuracy_trajectory": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "primitive_count_trajectory": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        3,
+        3,
+        3,
+        3,
+        3
+      ],
+      "phase_trajectory": [
+        "initial",
+        "primitive_opt",
+        "codebook_opt",
+        "primitive_opt",
+        "codebook_opt",
+        "primitive_opt",
+        "codebook_opt",
+        "structure_merge",
+        "primitive_opt",
+        "codebook_opt",
+        "primitive_opt",
+        "codebook_opt"
+      ],
+      "structure_changes": [
+        {
+          "operation": "merge",
+          "step": 3,
+          "primitives_before": [
+            "redundant_1",
+            "redundant_2",
+            "overloaded",
+            "correct_b"
+          ],
+          "primitives_after": [
+            "redundant_1",
+            "overloaded",
+            "correct_b"
+          ],
+          "details": {
+            "merged_into": "redundant_1",
+            "removed": "redundant_2",
+            "similarity": 0.7098550200462341,
+            "co_firing_rate": 1.0
+          },
+          "accuracy_before": 1.0,
+          "accuracy_after": 1.0,
+          "reason": "High similarity (0.710) and co-firing (1.000)",
+          "timestamp": 1768976943.634183
+        }
+      ],
+      "merge_candidates_evaluated": 1,
+      "split_candidates_evaluated": 0,
+      "add_candidates_evaluated": 0,
+      "initial_primitives": [
+        "redundant_1",
+        "redundant_2",
+        "overloaded",
+        "correct_b"
+      ],
+      "final_primitives": [
+        "redundant_1",
+        "overloaded",
+        "correct_b"
+      ],
+      "final_accuracy": 1.0,
+      "best_accuracy": 1.0,
+      "converged": true,
+      "convergence_reason": "No improvement for 10 iterations",
+      "total_iterations": 5,
+      "start_time": 1768976924.9189901,
+      "end_time": 1768976944.968513
+    }
+  }
+}
