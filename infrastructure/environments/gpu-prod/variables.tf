@@ -24,6 +24,19 @@ variable "environment" {
 variable "supabase_url" {
   description = "Supabase project URL"
   type        = string
+  sensitive   = true
+}
+
+variable "ecr_repository_url" {
+  description = "ECR repository URL for container images"
+  type        = string
+  sensitive   = true
+}
+
+variable "acm_certificate_arn" {
+  description = "ARN of the ACM certificate for HTTPS/TLS"
+  type        = string
+  sensitive   = true
 }
 
 # -----------------------------------------------------------------------------

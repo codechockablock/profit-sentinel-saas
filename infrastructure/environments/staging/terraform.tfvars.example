@@ -1,0 +1,8 @@
+# Copy this to terraform.tfvars and fill in real values
+# NEVER commit terraform.tfvars — it is in .gitignore
+
+acm_certificate_arn             = "arn:aws:acm:REGION:ACCOUNT_ID:certificate/CERT_ID"
+anthropic_api_key_secret_arn    = "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:SECRET_NAME"
+supabase_url                    = "https://YOUR_PROJECT.supabase.co"
+supabase_service_key_secret_arn = "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:SECRET_NAME"
+resend_api_key_secret_arn       = "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:SECRET_NAME"

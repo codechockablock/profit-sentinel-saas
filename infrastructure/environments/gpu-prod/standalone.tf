@@ -393,7 +393,7 @@ module "gpu_asg" {
   alb_arn_suffix          = aws_lb.main.arn_suffix
 
   # Container Registry
-  ecr_repository_url = "PLACEHOLDER_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/profit-sentinel-gpu"
+  ecr_repository_url = var.ecr_repository_url
   image_tag          = var.image_tag
 
   # Storage
@@ -454,7 +454,7 @@ output "alb_dns_name" {
 
 output "alb_url" {
   description = "Full ALB URL"
-  value       = "http://${aws_lb.main.dns_name}"
+  value       = "https://${aws_lb.main.dns_name}"
 }
 
 output "asg_name" {
@@ -469,5 +469,6 @@ output "s3_bucket" {
 
 output "ecr_repository" {
   description = "ECR repository URL"
-  value       = "PLACEHOLDER_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/profit-sentinel-gpu"
+  value       = var.ecr_repository_url
+  sensitive   = true
 }
