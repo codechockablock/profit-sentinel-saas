@@ -1,0 +1,43 @@
+# Copy this to terraform.tfvars and fill in real values
+# NEVER commit terraform.tfvars — it is in .gitignore
+
+# Core
+aws_region  = "us-east-1"
+name_prefix = "profitsentinel"
+environment = "prod"
+
+# Sensitive — set via TF_VAR_ env vars or terraform.tfvars (gitignored)
+supabase_url        = "https://YOUR_PROJECT.supabase.co"
+ecr_repository_url  = "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/REPO_NAME"
+acm_certificate_arn = "arn:aws:acm:REGION:ACCOUNT_ID:certificate/CERT_ID"
+
+# Instance Configuration
+instance_type    = "g4dn.xlarge"
+desired_capacity = 1
+min_size         = 0
+max_size         = 2
+
+# Cost Optimization
+on_demand_base_capacity = 0
+on_demand_percentage    = 0
+
+# Storage
+root_volume_size = 50
+
+# Logging
+log_group_name     = "/profitsentinel/gpu-api"
+log_retention_days = 7
+
+# Security
+enable_ssh      = false
+ssh_cidr_blocks = []
+
+# Alerting
+enable_alerts = true
+
+# Tags
+tags = {
+  Team        = "MLOps"
+  CostCenter  = "Engineering"
+  Application = "ProfitSentinel"
+}

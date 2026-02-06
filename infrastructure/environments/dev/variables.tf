@@ -13,6 +13,7 @@ variable "anthropic_api_key_secret_arn" {
 variable "supabase_url" {
   description = "Supabase project URL"
   type        = string
+  sensitive   = true
   default     = ""
 }
 
