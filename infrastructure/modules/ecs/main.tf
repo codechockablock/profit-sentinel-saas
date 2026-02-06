@@ -34,12 +34,6 @@ variable "s3_bucket_name" {
   type        = string
 }
 
-variable "xai_api_key_secret_arn" {
-  description = "ARN of the Secrets Manager secret containing XAI_API_KEY"
-  type        = string
-  default     = ""
-}
-
 variable "supabase_url" {
   description = "Supabase project URL"
   type        = string
@@ -176,7 +170,7 @@ resource "aws_iam_role_policy" "ecs_task_s3" {
 
 # Policy to allow execution role to read secrets
 resource "aws_iam_role_policy" "ecs_execution_secrets" {
-  count = var.xai_api_key_secret_arn != "" || var.supabase_service_key_secret_arn != "" || var.resend_api_key_secret_arn != "" || var.anthropic_api_key_secret_arn != "" ? 1 : 0
+  count = var.supabase_service_key_secret_arn != "" || var.resend_api_key_secret_arn != "" || var.anthropic_api_key_secret_arn != "" ? 1 : 0
   name  = "${var.name_prefix}-ecs-execution-secrets"
   role  = aws_iam_role.ecs_task_execution.id
 
@@ -189,7 +183,6 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
           "secretsmanager:GetSecretValue"
         ]
         Resource = compact([
-          var.xai_api_key_secret_arn,
           var.supabase_service_key_secret_arn,
           var.resend_api_key_secret_arn,
           var.anthropic_api_key_secret_arn
@@ -246,12 +239,6 @@ resource "aws_ecs_task_definition" "api" {
         }
       ], var.extra_environment)
       secrets = concat(
-        var.xai_api_key_secret_arn != "" ? [
-          {
-            name      = "XAI_API_KEY"
-            valueFrom = var.xai_api_key_secret_arn
-          }
-        ] : [],
         var.supabase_service_key_secret_arn != "" ? [
           {
             name      = "SUPABASE_SERVICE_KEY"
