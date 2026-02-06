@@ -831,7 +831,7 @@ class TestSidecarExplainEndpoints:
     @pytest.fixture
     def client_with_digest(self, client):
         """Populate the digest cache with a sample issue."""
-        import sentinel_agent.sidecar as sidecar_module
+        from sentinel_agent.routes.state import DigestCacheEntry
 
         # Build a sample digest and cache it
         issue = _make_theft_issue()
@@ -849,15 +849,16 @@ class TestSidecarExplainEndpoints:
                 issues_filtered_out=4,
             ),
         )
-        # Inject into cache
-        entry = sidecar_module._DigestCacheEntry(digest, 3600)
-        sidecar_module._digest_cache["default-store:5"] = entry
-        sidecar_module._digest_cache[":5"] = entry  # Default cache key
+        # Inject into cache via app state
+        state = client.app.extra["sentinel_state"]
+        entry = DigestCacheEntry(digest, 3600)
+        state.digest_cache["default-store:5"] = entry
+        state.digest_cache[":5"] = entry  # Default cache key
 
         yield client
 
         # Cleanup
-        sidecar_module._digest_cache.clear()
+        state.digest_cache.clear()
 
     def test_health_version(self, client):
         """Health endpoint should report version 0.13.0."""
