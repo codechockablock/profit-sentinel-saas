@@ -359,7 +359,7 @@ class SalesDataAdapter(BaseAdapter):
                 header_line = f.readline()
             headers = [h.strip() for h in header_line.split(",")]
             return _is_sales_csv(headers)
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             return False
 
     def ingest(
