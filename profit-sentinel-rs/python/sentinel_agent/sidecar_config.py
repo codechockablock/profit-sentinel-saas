@@ -56,6 +56,12 @@ class SidecarSettings(BaseSettings):
         description="Supabase service role key.",
     )
 
+    # ----- LLM (Anthropic Claude) -----
+    anthropic_api_key: str = Field(
+        default="",
+        description="Anthropic API key for Claude-powered AI features.",
+    )
+
     # ----- Cache -----
     digest_cache_ttl_seconds: int = Field(
         default=300,
