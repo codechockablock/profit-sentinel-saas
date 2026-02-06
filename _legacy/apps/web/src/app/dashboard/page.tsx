@@ -14,13 +14,25 @@ import {
   ArrowDownRight,
   Minus,
   UserPlus,
+  Mail,
+  Send,
+  Trash2,
+  Bell,
+  BellOff,
 } from "lucide-react";
 import Link from "next/link";
 import {
   fetchDigest,
+  subscribeDigest,
+  listSubscriptions,
+  unsubscribeDigest,
+  sendDigestNow,
+  fetchSchedulerStatus,
   type DigestResponse,
   type Issue,
   type TaskPriority,
+  type Subscription,
+  type SchedulerStatus,
 } from "@/lib/sentinel-api";
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -163,6 +175,9 @@ export default function DigestPage() {
             />
           </div>
 
+          {/* Email Digest Section */}
+          <EmailDigestSection />
+
           {/* Issue list */}
           <div className="space-y-3">
             {data.digest.issues.map((issue) => (
@@ -178,6 +193,214 @@ export default function DigestPage() {
             )}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// ─── Email Digest ───────────────────────────────────────────
+
+function EmailDigestSection() {
+  const [expanded, setExpanded] = useState(false);
+  const [subs, setSubs] = useState<Subscription[]>([]);
+  const [status, setStatus] = useState<SchedulerStatus | null>(null);
+  const [email, setEmail] = useState("");
+  const [sendHour, setSendHour] = useState(6);
+  const [tz, setTz] = useState("America/New_York");
+  const [sending, setSending] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [subsRes, statusRes] = await Promise.all([
+        listSubscriptions(),
+        fetchSchedulerStatus(),
+      ]);
+      setSubs(subsRes.subscriptions);
+      setStatus(statusRes);
+    } catch {
+      // Non-critical — fail silently
+    }
+  }, []);
+
+  useEffect(() => {
+    if (expanded) loadData();
+  }, [expanded, loadData]);
+
+  const handleSubscribe = async () => {
+    if (!email) return;
+    setSubscribing(true);
+    setMsg(null);
+    try {
+      await subscribeDigest({ email, send_hour: sendHour, timezone: tz });
+      setMsg(`Subscribed ${email}`);
+      setEmail("");
+      await loadData();
+    } catch (err) {
+      setMsg(`Error: ${(err as Error).message}`);
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
+  const handleUnsubscribe = async (e: string) => {
+    try {
+      await unsubscribeDigest(e);
+      setMsg(`Unsubscribed ${e}`);
+      await loadData();
+    } catch (err) {
+      setMsg(`Error: ${(err as Error).message}`);
+    }
+  };
+
+  const handleSendNow = async (e: string) => {
+    setSending(true);
+    setMsg(null);
+    try {
+      const res = await sendDigestNow(e);
+      setMsg(res.message);
+    } catch (err) {
+      setMsg(`Error: ${(err as Error).message}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="mb-8">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+      >
+        <Mail size={14} className="text-emerald-400" />
+        <span className="font-medium">Email Digest</span>
+        {status && status.subscribers > 0 && (
+          <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] rounded-full border border-emerald-500/20">
+            {status.subscribers} subscriber{status.subscribers !== 1 ? "s" : ""}
+          </span>
+        )}
+        <ChevronRight
+          size={12}
+          className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+        />
+      </button>
+
+      {expanded && (
+        <div className="mt-3 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4">
+          {/* Status */}
+          {status && (
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              {status.enabled ? (
+                <span className="flex items-center gap-1 text-emerald-400">
+                  <Bell size={12} /> Scheduler active
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-slate-500">
+                  <BellOff size={12} /> Scheduler disabled
+                </span>
+              )}
+              <span>&middot;</span>
+              <span>{status.subscribers} subscriber{status.subscribers !== 1 ? "s" : ""}</span>
+              <span>&middot;</span>
+              <span>Default hour: {status.send_hour}:00</span>
+            </div>
+          )}
+
+          {/* Subscribe form */}
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="block text-[10px] text-slate-500 mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="manager@store.com"
+                className="w-full bg-slate-900/50 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div className="w-20">
+              <label className="block text-[10px] text-slate-500 mb-1">Hour</label>
+              <select
+                value={sendHour}
+                onChange={(e) => setSendHour(Number(e.target.value))}
+                className="w-full bg-slate-900/50 border border-slate-700 text-slate-300 text-sm rounded-lg px-2 py-2"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>
+                    {i === 0 ? "12 AM" : i < 12 ? `${i} AM` : i === 12 ? "12 PM" : `${i - 12} PM`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-40">
+              <label className="block text-[10px] text-slate-500 mb-1">Timezone</label>
+              <select
+                value={tz}
+                onChange={(e) => setTz(e.target.value)}
+                className="w-full bg-slate-900/50 border border-slate-700 text-slate-300 text-sm rounded-lg px-2 py-2"
+              >
+                <option value="America/New_York">Eastern</option>
+                <option value="America/Chicago">Central</option>
+                <option value="America/Denver">Mountain</option>
+                <option value="America/Los_Angeles">Pacific</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </div>
+            <button
+              onClick={handleSubscribe}
+              disabled={subscribing || !email}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {subscribing ? "..." : "Subscribe"}
+            </button>
+          </div>
+
+          {/* Message */}
+          {msg && (
+            <p className={`text-xs ${msg.startsWith("Error") ? "text-red-400" : "text-emerald-400"}`}>
+              {msg}
+            </p>
+          )}
+
+          {/* Subscriber list */}
+          {subs.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500 uppercase font-medium">Active Subscribers</p>
+              {subs.map((sub) => (
+                <div
+                  key={sub.email}
+                  className="flex items-center justify-between px-3 py-2 bg-slate-900/30 rounded-lg"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-300 truncate">{sub.email}</p>
+                    <p className="text-[10px] text-slate-600">
+                      {sub.send_hour}:00 {sub.timezone.split("/")[1]?.replace("_", " ")}
+                      {sub.stores.length > 0 && ` · ${sub.stores.join(", ")}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => handleSendNow(sub.email)}
+                      disabled={sending}
+                      title="Send now"
+                      className="p-1.5 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors"
+                    >
+                      <Send size={12} />
+                    </button>
+                    <button
+                      onClick={() => handleUnsubscribe(sub.email)}
+                      title="Unsubscribe"
+                      className="p-1.5 hover:bg-red-500/10 rounded-lg text-red-400 transition-colors"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

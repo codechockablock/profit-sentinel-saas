@@ -22,12 +22,18 @@ Auth model:
         POST /api/v1/diagnostic/{id}/answer
         GET  /api/v1/diagnostic/{id}/summary
         GET  /api/v1/diagnostic/{id}/report
+        POST /api/v1/digest/subscribe
+        GET  /api/v1/digest/subscriptions
+        DELETE /api/v1/digest/subscribe/{email}
+        POST /api/v1/digest/send
+        GET  /api/v1/digest/scheduler-status
 """
 
 from __future__ import annotations
 
 import logging
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -49,9 +55,15 @@ from .api_models import (
     DiagnosticStartResponse,
     DiagnosticSummaryResponse,
     DigestResponse,
+    DigestSendRequest,
+    DigestSendResponse,
     ErrorResponse,
     ExplainResponse,
     HealthResponse,
+    SchedulerStatusResponse,
+    SubscribeRequest,
+    SubscribeResponse,
+    SubscriptionListResponse,
     TaskListResponse,
     TaskResponse,
     TaskStatus,
@@ -59,6 +71,15 @@ from .api_models import (
     VendorCallResponse,
 )
 from .delegation import DelegationManager
+from .digest_scheduler import (
+    DigestScheduler,
+    add_subscription,
+    get_subscription,
+    list_subscriptions,
+    pause_subscription,
+    remove_subscription,
+    resume_subscription,
+)
 from .diagnostics import (
     DiagnosticEngine,
     DiagnosticSession,
@@ -130,6 +151,39 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     if settings is None:
         settings = get_settings()
 
+    # Auth dependencies (dual mode — public + authenticated)
+    get_user_context = make_get_user_context(settings)
+    require_auth = make_require_auth(settings)
+
+    # Services
+    try:
+        engine = SentinelEngine(
+            binary_path=settings.sentinel_bin if settings.sentinel_bin else None,
+        )
+    except PipelineError:
+        engine = None  # Binary not found — health endpoint will report this
+
+    generator = MorningDigestGenerator(engine=engine)
+    delegation_mgr = DelegationManager()
+    vendor_assistant = VendorCallAssistant()
+
+    # Digest email scheduler
+    digest_scheduler = DigestScheduler(
+        resend_api_key=settings.resend_api_key,
+        generator=generator,
+        csv_path=settings.csv_path,
+    )
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Startup
+        if settings.digest_email_enabled:
+            digest_scheduler.start()
+            logger.info("Digest email scheduler started")
+        yield
+        # Shutdown
+        digest_scheduler.stop()
+
     app = FastAPI(
         title="Profit Sentinel Sidecar",
         version="0.13.0",
@@ -137,6 +191,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
             "Mobile-first API for Profit Sentinel — "
             "inventory intelligence for Do It Best operations."
         ),
+        lifespan=lifespan,
     )
 
     # CORS — exact origins required (CORSMiddleware does not support wildcards)
@@ -162,22 +217,6 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         allow_headers=["*"],
         expose_headers=["*"],
     )
-
-    # Auth dependencies (dual mode — public + authenticated)
-    get_user_context = make_get_user_context(settings)
-    require_auth = make_require_auth(settings)
-
-    # Services
-    try:
-        engine = SentinelEngine(
-            binary_path=settings.sentinel_bin if settings.sentinel_bin else None,
-        )
-    except PipelineError:
-        engine = None  # Binary not found — health endpoint will report this
-
-    generator = MorningDigestGenerator(engine=engine)
-    delegation_mgr = DelegationManager()
-    vendor_assistant = VendorCallAssistant()
 
     # -----------------------------------------------------------------
     # Global exception handler
@@ -685,6 +724,82 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
             items_to_investigate=report["items_to_investigate"],
             journey=report["journey"],
             rendered_text=rendered,
+        )
+
+    # -----------------------------------------------------------------
+    # Digest Email endpoints
+    # -----------------------------------------------------------------
+
+    @app.post(
+        "/api/v1/digest/subscribe",
+        response_model=SubscribeResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def subscribe_digest(body: SubscribeRequest) -> SubscribeResponse:
+        """Subscribe to morning digest emails."""
+        sub = add_subscription(
+            body.email,
+            stores=body.stores,
+            send_hour=body.send_hour,
+            tz=body.timezone,
+        )
+        return SubscribeResponse(subscription=sub, message="Subscription created")
+
+    @app.get(
+        "/api/v1/digest/subscriptions",
+        response_model=SubscriptionListResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_subscriptions() -> SubscriptionListResponse:
+        """List all active digest subscriptions."""
+        subs = list_subscriptions()
+        return SubscriptionListResponse(subscriptions=subs, total=len(subs))
+
+    @app.delete(
+        "/api/v1/digest/subscribe/{email}",
+        dependencies=[Depends(require_auth)],
+    )
+    async def unsubscribe_digest(email: str) -> dict:
+        """Remove a digest subscription."""
+        removed = remove_subscription(email)
+        if not removed:
+            raise HTTPException(status_code=404, detail=f"Subscription for '{email}' not found")
+        return {"message": f"Unsubscribed {email}"}
+
+    @app.post(
+        "/api/v1/digest/send",
+        response_model=DigestSendResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def send_digest_now(body: DigestSendRequest) -> DigestSendResponse:
+        """Send a digest email immediately (on-demand)."""
+        if not settings.resend_api_key:
+            raise HTTPException(
+                status_code=503,
+                detail="Email delivery not configured (RESEND_API_KEY not set)",
+            )
+        try:
+            result = await digest_scheduler.send_now(body.email)
+            return DigestSendResponse(
+                email_id=result.get("id"),
+                message=f"Digest sent to {body.email}",
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")
+
+    @app.get(
+        "/api/v1/digest/scheduler-status",
+        response_model=SchedulerStatusResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def scheduler_status() -> SchedulerStatusResponse:
+        """Get digest scheduler status."""
+        subs = list_subscriptions()
+        return SchedulerStatusResponse(
+            enabled=settings.digest_email_enabled,
+            running=digest_scheduler.is_running,
+            subscribers=len(subs),
+            send_hour=settings.digest_send_hour,
         )
 
     # -----------------------------------------------------------------

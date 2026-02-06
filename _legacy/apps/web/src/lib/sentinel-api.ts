@@ -468,3 +468,73 @@ export async function fetchDiagnosticSummary(sessionId: string): Promise<Diagnos
 export async function fetchDiagnosticReport(sessionId: string): Promise<DiagnosticReport> {
   return apiFetch(`/diagnostic/${sessionId}/report`);
 }
+
+// ---------------------------------------------------------------------------
+// Digest Email Subscriptions
+// ---------------------------------------------------------------------------
+
+export interface Subscription {
+  email: string;
+  stores: string[];
+  enabled: boolean;
+  send_hour: number;
+  timezone: string;
+  created_at: string;
+}
+
+export interface SubscribeRequest {
+  email: string;
+  stores?: string[];
+  send_hour?: number;
+  timezone?: string;
+}
+
+export interface SubscribeResponse {
+  subscription: Subscription;
+  message: string;
+}
+
+export interface SubscriptionListResponse {
+  subscriptions: Subscription[];
+  total: number;
+}
+
+export interface DigestSendResponse {
+  email_id: string | null;
+  message: string;
+}
+
+export interface SchedulerStatus {
+  enabled: boolean;
+  running: boolean;
+  subscribers: number;
+  send_hour: number;
+}
+
+export async function subscribeDigest(req: SubscribeRequest): Promise<SubscribeResponse> {
+  return apiFetch('/digest/subscribe', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+export async function listSubscriptions(): Promise<SubscriptionListResponse> {
+  return apiFetch('/digest/subscriptions');
+}
+
+export async function unsubscribeDigest(email: string): Promise<{ message: string }> {
+  return apiFetch(`/digest/subscribe/${encodeURIComponent(email)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function sendDigestNow(email: string): Promise<DigestSendResponse> {
+  return apiFetch('/digest/send', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function fetchSchedulerStatus(): Promise<SchedulerStatus> {
+  return apiFetch('/digest/scheduler-status');
+}
