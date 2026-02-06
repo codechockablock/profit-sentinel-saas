@@ -19,6 +19,11 @@ const roadmapItems: RoadmapItem[] = [
   },
   {
     status: 'shipped',
+    title: 'Rust-Powered Analysis (188x Faster)',
+    description: 'Rebuilt the analysis engine in Rust. 36K SKUs analyzed in under 3 seconds (was 10+ seconds). Sub-second for most files.',
+  },
+  {
+    status: 'shipped',
     title: 'Large File Support',
     description: 'Process 156,000+ SKUs in seconds with sub-second analysis.',
   },
@@ -48,12 +53,38 @@ const roadmapItems: RoadmapItem[] = [
     description: 'Upload up to 200 vendor invoices. Cross-reference to find short ships & cost variances.',
     eta: 'Premium Preview',
   },
+  {
+    status: 'shipped',
+    title: 'Executive Dashboard',
+    description: 'Morning Digest with prioritized issues, task delegation, vendor call prep, co-op intelligence, and symbolic reasoning with proof trees.',
+  },
+  {
+    status: 'shipped',
+    title: 'Shrinkage Diagnostic Wizard',
+    description: 'Guided walkthrough to classify negative inventory into process issues vs real losses. Industry-validated 4-tier classification.',
+  },
+  {
+    status: 'shipped',
+    title: 'Symbolic Reasoning & Proof Trees',
+    description: 'Transparent AI explanations showing exactly why each issue was flagged, with evidence weights and competing hypotheses.',
+  },
+  {
+    status: 'shipped',
+    title: 'Co-op Intelligence',
+    description: 'Track rebate tier progress, patronage leakage, dead stock alerts, and category mix analysis against NHPA benchmarks.',
+  },
 
   // In Progress
   {
     status: 'in-progress',
     title: 'Cross-Report Pattern Detection',
     description: 'Identify patterns across multiple analyses to spot recurring issues.',
+    eta: 'Q1 2026',
+  },
+  {
+    status: 'in-progress',
+    title: 'Morning Digest Email',
+    description: 'Daily email briefing with your top priority issues, delivered before you open the store.',
     eta: 'Q1 2026',
   },
 
