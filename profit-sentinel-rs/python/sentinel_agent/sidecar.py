@@ -139,13 +139,19 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         ),
     )
 
-    # CORS
+    # CORS — exact origins required (CORSMiddleware does not support wildcards)
     origins = (
         ["*"]
         if settings.sidecar_dev_mode
         else [
-            "https://*.profitsentinel.com",
+            "https://www.profitsentinel.com",
+            "https://profitsentinel.com",
+            "https://profit-sentinel-saas.vercel.app",
+            "https://profit-sentinel.vercel.app",
             "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
         ]
     )
     app.add_middleware(
@@ -154,6 +160,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
 
     # Auth dependencies (dual mode — public + authenticated)
