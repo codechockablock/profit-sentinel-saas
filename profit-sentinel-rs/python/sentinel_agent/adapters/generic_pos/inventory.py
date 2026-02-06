@@ -89,7 +89,7 @@ class GenericPosAdapter(BaseAdapter):
                 header = f.readline()
             columns = {c.strip().strip('"') for c in header.split(",")}
             return bool(columns & _CUSTOM1_COLUMNS) or bool(columns & _SHLP_COLUMNS)
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             return False
 
     def ingest(self, path: Path, store_id: str = "default-store") -> AdapterResult:
@@ -174,7 +174,7 @@ class GenericPosAdapter(BaseAdapter):
                 reader = csv.reader(f)
                 header = next(reader, [])
             return {c.strip() for c in header}
-        except Exception:
+        except (OSError, UnicodeDecodeError, StopIteration):
             return set()
 
     def _parse_inventory_csv(

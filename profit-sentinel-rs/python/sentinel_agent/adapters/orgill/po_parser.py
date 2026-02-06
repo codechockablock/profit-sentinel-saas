@@ -71,7 +71,7 @@ class OrgillPOAdapter(BaseAdapter):
             with open(path, encoding="utf-8", errors="replace") as f:
                 first_line = f.readline()
             return first_line.strip().startswith(_ORGILL_SIGNATURE)
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             return False
 
     def ingest(self, path: Path, store_id: str = "default-store") -> AdapterResult:

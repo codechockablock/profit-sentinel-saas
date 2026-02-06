@@ -275,7 +275,7 @@ def _parse_date(val) -> date | None:
         ts = pd.Timestamp(s)
         if not pd.isna(ts):
             return ts.date()
-    except Exception:
+    except (ValueError, TypeError, OverflowError):
         pass
     return None
 
