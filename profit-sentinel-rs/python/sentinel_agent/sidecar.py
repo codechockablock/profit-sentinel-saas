@@ -27,6 +27,11 @@ Auth model:
         DELETE /api/v1/digest/subscribe/{email}
         POST /api/v1/digest/send
         GET  /api/v1/digest/scheduler-status
+        GET  /api/v1/analyses
+        POST /api/v1/analyses/compare
+        GET  /api/v1/analyses/{id}
+        PATCH /api/v1/analyses/{id}
+        DELETE /api/v1/analyses/{id}
 """
 
 from __future__ import annotations
@@ -42,6 +47,11 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api_models import (
+    AnalysisCompareRequest,
+    AnalysisCompareResponse,
+    AnalysisDetailResponse,
+    AnalysisListResponse,
+    AnalysisRenameRequest,
     BackwardChainRequest,
     BackwardChainResponse,
     CoopReportResponse,
@@ -82,6 +92,16 @@ from .digest_scheduler import (
     resume_subscription,
 )
 from .subscription_store import create_store
+from .analysis_store import (
+    create_analysis_store,
+    delete_analysis,
+    get_analysis,
+    init_analysis_store,
+    list_user_analyses,
+    rename_analysis,
+    get_comparison_pair,
+)
+from .cross_report import compare_analyses
 from .diagnostics import (
     DiagnosticEngine,
     DiagnosticSession,
@@ -89,7 +109,7 @@ from .diagnostics import (
     render_diagnostic_summary,
 )
 from .digest import MorningDigestGenerator
-from .dual_auth import make_get_user_context, make_require_auth
+from .dual_auth import UserContext, make_get_user_context, make_require_auth
 from .engine import PipelineError, SentinelEngine
 from .llm_layer import (
     render_call_prep,
@@ -175,6 +195,13 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         supabase_service_key=settings.supabase_service_key,
     )
     init_subscription_store(sub_store)
+
+    # Analysis store (Supabase if configured, else in-memory)
+    analysis_store = create_analysis_store(
+        supabase_url=settings.supabase_url,
+        supabase_service_key=settings.supabase_service_key,
+    )
+    init_analysis_store(analysis_store)
 
     # Digest email scheduler
     digest_scheduler = DigestScheduler(
@@ -816,6 +843,107 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
             journey=report["journey"],
             rendered_text=rendered,
         )
+
+    # -----------------------------------------------------------------
+    # Analysis History endpoints
+    # -----------------------------------------------------------------
+
+    @app.get(
+        "/api/v1/analyses",
+        response_model=AnalysisListResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_analyses(
+        request: Request,
+        limit: int = Query(default=20, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+        ctx: UserContext = Depends(require_auth),
+    ) -> AnalysisListResponse:
+        """List saved analyses for the current user."""
+        analyses = list_user_analyses(ctx.user_id, limit=limit, offset=offset)
+        return AnalysisListResponse(analyses=analyses, total=len(analyses))
+
+    # IMPORTANT: compare must be registered BEFORE /analyses/{analysis_id}
+    # to prevent FastAPI from matching "compare" as an analysis_id.
+
+    @app.post(
+        "/api/v1/analyses/compare",
+        response_model=AnalysisCompareResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def compare_analyses_endpoint(
+        body: AnalysisCompareRequest,
+        ctx: UserContext = Depends(require_auth),
+    ) -> AnalysisCompareResponse:
+        """Compare two saved analyses for cross-report pattern detection."""
+        current = get_analysis(body.current_id, ctx.user_id)
+        if not current:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Current analysis '{body.current_id}' not found",
+            )
+        previous = get_analysis(body.previous_id, ctx.user_id)
+        if not previous:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Previous analysis '{body.previous_id}' not found",
+            )
+
+        comparison = compare_analyses(current, previous)
+        return AnalysisCompareResponse(**comparison.to_dict())
+
+    @app.get(
+        "/api/v1/analyses/{analysis_id}",
+        response_model=AnalysisDetailResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_analysis_detail(
+        analysis_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> AnalysisDetailResponse:
+        """Get a single saved analysis with full result."""
+        record = get_analysis(analysis_id, ctx.user_id)
+        if not record:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Analysis '{analysis_id}' not found",
+            )
+        return AnalysisDetailResponse(**record)
+
+    @app.patch(
+        "/api/v1/analyses/{analysis_id}",
+        dependencies=[Depends(require_auth)],
+    )
+    async def rename_analysis_endpoint(
+        analysis_id: str,
+        body: AnalysisRenameRequest,
+        ctx: UserContext = Depends(require_auth),
+    ) -> dict:
+        """Rename a saved analysis."""
+        updated = rename_analysis(analysis_id, ctx.user_id, body.label)
+        if not updated:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Analysis '{analysis_id}' not found",
+            )
+        return {"message": "Analysis renamed", "analysis_id": analysis_id}
+
+    @app.delete(
+        "/api/v1/analyses/{analysis_id}",
+        dependencies=[Depends(require_auth)],
+    )
+    async def delete_analysis_endpoint(
+        analysis_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> dict:
+        """Delete a saved analysis."""
+        deleted = delete_analysis(analysis_id, ctx.user_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Analysis '{analysis_id}' not found",
+            )
+        return {"message": "Analysis deleted", "analysis_id": analysis_id}
 
     # -----------------------------------------------------------------
     # Legacy-compatible upload & analysis routes (production frontend)

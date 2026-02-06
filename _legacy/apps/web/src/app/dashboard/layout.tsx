@@ -10,6 +10,7 @@ import {
   TrendingUp,
   Brain,
   Stethoscope,
+  History,
   ChevronLeft,
   ChevronRight,
   Lock,
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/coop", label: "Co-op Intel", icon: TrendingUp, description: "Rebate & patronage" },
   { href: "/dashboard/explain", label: "Explain", icon: Brain, description: "Symbolic reasoning" },
   { href: "/dashboard/diagnostic", label: "Diagnostic", icon: Stethoscope, description: "Shrinkage wizard" },
+  { href: "/dashboard/history", label: "History", icon: History, description: "Track & compare" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

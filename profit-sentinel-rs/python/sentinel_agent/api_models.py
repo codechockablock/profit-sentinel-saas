@@ -311,3 +311,72 @@ class SchedulerStatusResponse(BaseModel):
     running: bool
     subscribers: int
     send_hour: int
+
+
+# ---------------------------------------------------------------------------
+# Analysis History
+# ---------------------------------------------------------------------------
+
+
+class AnalysisListItem(BaseModel):
+    """Summary of a saved analysis (without full_result)."""
+
+    id: str
+    analysis_label: str | None = None
+    original_filename: str | None = None
+    file_row_count: int = 0
+    file_column_count: int | None = None
+    detection_counts: dict = Field(default_factory=dict)
+    total_impact_estimate_low: float = 0
+    total_impact_estimate_high: float = 0
+    processing_time_seconds: float | None = None
+    has_full_result: bool = False
+    created_at: str | None = None
+
+
+class AnalysisListResponse(BaseModel):
+    """Response for GET /api/v1/analyses."""
+
+    analyses: list[AnalysisListItem]
+    total: int
+
+
+class AnalysisDetailResponse(BaseModel):
+    """Response for GET /api/v1/analyses/{id} — includes full_result."""
+
+    id: str
+    analysis_label: str | None = None
+    original_filename: str | None = None
+    file_row_count: int = 0
+    file_column_count: int | None = None
+    detection_counts: dict = Field(default_factory=dict)
+    total_impact_estimate_low: float = 0
+    total_impact_estimate_high: float = 0
+    processing_time_seconds: float | None = None
+    full_result: dict | None = None
+    created_at: str | None = None
+
+
+class AnalysisRenameRequest(BaseModel):
+    """Request body for PATCH /api/v1/analyses/{id}."""
+
+    label: str = Field(description="New analysis label")
+
+
+class AnalysisCompareRequest(BaseModel):
+    """Request body for POST /api/v1/analyses/compare."""
+
+    current_id: str = Field(description="ID of the current (newer) analysis")
+    previous_id: str = Field(description="ID of the previous (older) analysis")
+
+
+class AnalysisCompareResponse(BaseModel):
+    """Response for POST /api/v1/analyses/compare."""
+
+    summary: dict
+    leak_trends: list[dict]
+    new_leaks: list[str]
+    resolved_leaks: list[str]
+    worsening_leaks: list[str]
+    improving_leaks: list[str]
+    metadata: dict

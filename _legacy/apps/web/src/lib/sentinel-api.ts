@@ -538,3 +538,105 @@ export async function sendDigestNow(email: string): Promise<DigestSendResponse> 
 export async function fetchSchedulerStatus(): Promise<SchedulerStatus> {
   return apiFetch('/digest/scheduler-status');
 }
+
+// ---------------------------------------------------------------------------
+// Analysis History
+// ---------------------------------------------------------------------------
+
+export interface AnalysisListItem {
+  id: string;
+  analysis_label: string | null;
+  original_filename: string | null;
+  file_row_count: number;
+  file_column_count: number | null;
+  detection_counts: Record<string, number>;
+  total_impact_estimate_low: number;
+  total_impact_estimate_high: number;
+  processing_time_seconds: number | null;
+  has_full_result: boolean;
+  created_at: string | null;
+}
+
+export interface AnalysisListResponse {
+  analyses: AnalysisListItem[];
+  total: number;
+}
+
+export interface AnalysisDetail extends AnalysisListItem {
+  full_result: Record<string, unknown> | null;
+}
+
+export interface LeakTrend {
+  leak_key: string;
+  current_count: number;
+  previous_count: number;
+  count_delta: number;
+  current_impact: number;
+  previous_impact: number;
+  impact_delta: number;
+  status: 'new' | 'resolved' | 'worsening' | 'improving' | 'stable';
+  severity: 'critical' | 'warning' | 'success' | 'info' | 'neutral';
+}
+
+export interface ComparisonSummary {
+  overall_trend: 'improving' | 'worsening' | 'stable';
+  issues_delta: number;
+  current_total_issues: number;
+  previous_total_issues: number;
+  impact_delta_low: number;
+  impact_delta_high: number;
+  new_leak_count: number;
+  resolved_leak_count: number;
+  worsening_leak_count: number;
+  improving_leak_count: number;
+  current_rows: number;
+  previous_rows: number;
+}
+
+export interface CompareResponse {
+  summary: ComparisonSummary;
+  leak_trends: LeakTrend[];
+  new_leaks: string[];
+  resolved_leaks: string[];
+  worsening_leaks: string[];
+  improving_leaks: string[];
+  metadata: {
+    current_analysis_id: string | null;
+    previous_analysis_id: string | null;
+    current_label: string | null;
+    previous_label: string | null;
+    current_created_at: string | null;
+    previous_created_at: string | null;
+  };
+}
+
+export async function listAnalyses(limit = 20, offset = 0): Promise<AnalysisListResponse> {
+  return apiFetch(`/analyses?limit=${limit}&offset=${offset}`);
+}
+
+export async function fetchAnalysis(id: string): Promise<AnalysisDetail> {
+  return apiFetch(`/analyses/${id}`);
+}
+
+export async function renameAnalysis(id: string, label: string): Promise<{ message: string }> {
+  return apiFetch(`/analyses/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function deleteAnalysis(id: string): Promise<{ message: string }> {
+  return apiFetch(`/analyses/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function compareAnalyses(
+  currentId: string,
+  previousId: string
+): Promise<CompareResponse> {
+  return apiFetch('/analyses/compare', {
+    method: 'POST',
+    body: JSON.stringify({ current_id: currentId, previous_id: previousId }),
+  });
+}

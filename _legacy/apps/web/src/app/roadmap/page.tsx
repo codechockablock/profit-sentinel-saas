@@ -76,10 +76,9 @@ const roadmapItems: RoadmapItem[] = [
 
   // In Progress
   {
-    status: 'in-progress',
+    status: 'shipped',
     title: 'Cross-Report Pattern Detection',
-    description: 'Identify patterns across multiple analyses to spot recurring issues.',
-    eta: 'Q1 2026',
+    description: 'Compare analyses over time — track new, resolved, worsening, and improving issues with the History dashboard.',
   },
   {
     status: 'shipped',

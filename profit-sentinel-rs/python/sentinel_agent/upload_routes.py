@@ -14,6 +14,7 @@ Auth mode:    Authenticated users get 100 analyses/hour, 50 MB limit,
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
@@ -21,6 +22,7 @@ import time
 import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 
+from .analysis_store import save_analysis
 from .column_adapter import ColumnAdapter
 from .dual_auth import UserContext, build_upgrade_prompt, check_rate_limit
 from .engine import PipelineError, SentinelEngine
@@ -380,6 +382,31 @@ def create_upload_router(
                 f"({len(df)} rows, {result['summary']['total_items_flagged']} issues, "
                 f"auth={ctx.is_authenticated})"
             )
+
+            # Persist analysis for authenticated users
+            if ctx.is_authenticated:
+                try:
+                    # Compute file hash from the S3 key (deterministic per upload)
+                    file_hash = hashlib.sha256(key.encode()).hexdigest()
+                    # Extract filename from S3 key (last path component)
+                    original_filename = key.rsplit("/", 1)[-1] if "/" in key else key
+
+                    saved = save_analysis(
+                        user_id=ctx.user_id,
+                        result=result,
+                        file_hash=file_hash,
+                        file_row_count=len(df),
+                        file_column_count=len(df.columns),
+                        original_filename=original_filename,
+                        processing_time_seconds=round(total_time, 2),
+                    )
+                    result["analysis_id"] = saved.get("id")
+                    logger.info(
+                        f"Analysis persisted: {saved.get('id')} for {ctx.user_id}"
+                    )
+                except Exception as e:
+                    # Persistence failure should NOT block the analysis response
+                    logger.warning(f"Failed to persist analysis: {e}", exc_info=True)
 
             # Schedule S3 file cleanup (60s delay for retries)
             async def _cleanup_file():
