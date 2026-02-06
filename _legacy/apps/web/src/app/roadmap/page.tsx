@@ -82,10 +82,9 @@ const roadmapItems: RoadmapItem[] = [
     eta: 'Q1 2026',
   },
   {
-    status: 'in-progress',
+    status: 'shipped',
     title: 'Morning Digest Email',
-    description: 'Daily email briefing with your top priority issues, delivered before you open the store.',
-    eta: 'Q1 2026',
+    description: 'Daily email briefing with your top priority issues, delivered before you open the store. Subscribe from the Dashboard.',
   },
 
   // Planned

@@ -3,8 +3,14 @@
 In-process scheduler that sends morning digest emails at configured times.
 Uses asyncio tasks — no external dependencies (no Celery, no Redis).
 
+Subscription storage is pluggable:
+    - InMemoryStore  for dev/testing (default)
+    - SupabaseStore  for production (when SUPABASE_URL + key are set)
+
 Usage:
-    scheduler = DigestScheduler(settings, generator)
+    store = create_store(supabase_url, service_key)
+    init_subscription_store(store)
+    scheduler = DigestScheduler(resend_api_key=..., generator=..., csv_path=...)
     scheduler.start()  # Non-blocking — spawns background task
     scheduler.stop()
 """
@@ -15,15 +21,32 @@ import asyncio
 import logging
 from datetime import datetime, time, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from .email_service import send_digest_email
 from .llm_layer import render_digest
+from .subscription_store import InMemoryStore, SubscriptionStore, create_store
 
 logger = logging.getLogger("sentinel.scheduler")
 
-# In-memory subscription store (production would use Supabase)
-_subscriptions: dict[str, dict[str, Any]] = {}
-# Key: email, Value: {email, stores, enabled, send_hour, timezone}
+# ---------------------------------------------------------------------------
+# Global store — initialized at app startup via init_subscription_store()
+# ---------------------------------------------------------------------------
+
+_store: SubscriptionStore = InMemoryStore()
+
+
+def init_subscription_store(store: SubscriptionStore) -> None:
+    """Set the global subscription store (called once at app startup)."""
+    global _store
+    _store = store
+    logger.info("Subscription store initialized: %s", type(store).__name__)
+
+
+# ---------------------------------------------------------------------------
+# Module-level CRUD functions (delegate to the global store)
+# ---------------------------------------------------------------------------
+# Kept as thin wrappers for backward compatibility — sidecar.py imports these.
 
 
 def add_subscription(
@@ -34,54 +57,37 @@ def add_subscription(
     tz: str = "America/New_York",
 ) -> dict:
     """Add or update a digest subscription."""
-    sub = {
-        "email": email,
-        "stores": stores or [],
-        "enabled": True,
-        "send_hour": send_hour,
-        "timezone": tz,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    _subscriptions[email] = sub
-    logger.info("Subscription added/updated: %s", email)
-    return sub
+    return _store.add(email, stores=stores, send_hour=send_hour, tz=tz)
 
 
 def remove_subscription(email: str) -> bool:
     """Remove a digest subscription."""
-    if email in _subscriptions:
-        del _subscriptions[email]
-        logger.info("Subscription removed: %s", email)
-        return True
-    return False
+    return _store.remove(email)
 
 
 def get_subscription(email: str) -> dict | None:
     """Get a single subscription."""
-    return _subscriptions.get(email)
+    return _store.get(email)
 
 
 def list_subscriptions() -> list[dict]:
     """List all active subscriptions."""
-    return [s for s in _subscriptions.values() if s.get("enabled")]
+    return _store.list_active()
 
 
 def pause_subscription(email: str) -> bool:
     """Pause a subscription without deleting it."""
-    sub = _subscriptions.get(email)
-    if sub:
-        sub["enabled"] = False
-        return True
-    return False
+    return _store.pause(email)
 
 
 def resume_subscription(email: str) -> bool:
     """Resume a paused subscription."""
-    sub = _subscriptions.get(email)
-    if sub:
-        sub["enabled"] = True
-        return True
-    return False
+    return _store.resume(email)
+
+
+# ---------------------------------------------------------------------------
+# Scheduler
+# ---------------------------------------------------------------------------
 
 
 class DigestScheduler:
@@ -154,18 +160,15 @@ class DigestScheduler:
             if email in self._sent_today:
                 continue
 
-            # Check if it's the right hour (UTC-based for simplicity)
+            # Check if it's the right hour in the subscriber's timezone
             send_hour = sub.get("send_hour", 6)
-            # Simple offset: Eastern = UTC-5 (approximate)
-            tz_offsets = {
-                "America/New_York": -5,
-                "America/Chicago": -6,
-                "America/Denver": -7,
-                "America/Los_Angeles": -8,
-                "UTC": 0,
-            }
-            offset = tz_offsets.get(sub.get("timezone", "America/New_York"), -5)
-            local_hour = (now.hour + offset) % 24
+            try:
+                tz_name = sub.get("timezone", "America/New_York")
+                local_now = now.astimezone(ZoneInfo(tz_name))
+                local_hour = local_now.hour
+            except (KeyError, Exception):
+                # Fallback to UTC if timezone is invalid
+                local_hour = now.hour
 
             if local_hour == send_hour:
                 await self._send_digest_to(sub)
