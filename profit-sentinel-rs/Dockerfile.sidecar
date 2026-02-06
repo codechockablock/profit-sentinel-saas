@@ -1,0 +1,79 @@
+# Profit Sentinel Sidecar — Multi-stage Rust + Python build
+#
+# Stage 1: Build the Rust sentinel-server binary
+# Stage 2: Python runtime with sentinel-agent[sidecar]
+#
+# Usage:
+#   docker build -f Dockerfile.sidecar -t sentinel-sidecar .
+#   docker run -p 8001:8001 -e SIDECAR_DEV_MODE=true sentinel-sidecar
+
+# ---- Stage 1: Rust builder ----
+FROM rust:1.84-bookworm AS rust-builder
+
+WORKDIR /build
+
+# Copy workspace manifests for dependency caching
+COPY Cargo.toml Cargo.lock ./
+COPY sentinel-pipeline/Cargo.toml sentinel-pipeline/Cargo.toml
+COPY sentinel-vsa/Cargo.toml sentinel-vsa/Cargo.toml
+COPY sentinel-server/Cargo.toml sentinel-server/Cargo.toml
+
+# Create dummy source files for dependency caching
+RUN mkdir -p sentinel-pipeline/src sentinel-vsa/src sentinel-server/src && \
+    echo "fn main() {}" > sentinel-server/src/main.rs && \
+    echo "" > sentinel-pipeline/src/lib.rs && \
+    echo "" > sentinel-vsa/src/lib.rs
+
+# Build dependencies only (cached layer)
+RUN cargo build --release -p sentinel-server 2>/dev/null || true
+
+# Copy actual source code
+COPY sentinel-pipeline/ sentinel-pipeline/
+COPY sentinel-vsa/ sentinel-vsa/
+COPY sentinel-server/ sentinel-server/
+
+# Touch source files to force rebuild with real code
+RUN touch sentinel-server/src/main.rs && \
+    touch sentinel-pipeline/src/lib.rs && \
+    touch sentinel-vsa/src/lib.rs
+
+# Build release binary
+RUN cargo build --release -p sentinel-server
+
+# ---- Stage 2: Python runtime ----
+FROM python:3.13-slim-bookworm
+
+WORKDIR /app
+
+# Install system deps
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy Rust binary from builder
+COPY --from=rust-builder /build/target/release/sentinel-server /app/sentinel-server
+RUN chmod +x /app/sentinel-server
+
+# Copy Python package
+COPY python/pyproject.toml /app/pyproject.toml
+COPY python/sentinel_agent/ /app/sentinel_agent/
+COPY python/static/ /app/static/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir "/app[sidecar]"
+
+# Copy fixture data (for dev/demo)
+COPY fixtures/ /app/fixtures/
+
+# Environment
+ENV SENTINEL_BIN=/app/sentinel-server
+ENV CSV_PATH=/app/fixtures/sample_inventory.csv
+ENV SIDECAR_HOST=0.0.0.0
+ENV SIDECAR_PORT=8001
+
+EXPOSE 8001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+CMD ["python", "-m", "sentinel_agent"]

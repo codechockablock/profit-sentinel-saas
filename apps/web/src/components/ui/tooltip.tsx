@@ -7,6 +7,8 @@ interface TooltipProps {
   content: React.ReactNode
   position?: 'top' | 'bottom' | 'left' | 'right'
   maxWidth?: string
+  /** Delay in ms before showing tooltip (prevents flicker on sweep) */
+  delay?: number
 }
 
 /**
@@ -17,9 +19,31 @@ export function Tooltip({
   children,
   content,
   position = 'top',
-  maxWidth = '320px'
+  maxWidth = '320px',
+  delay = 0,
 }: TooltipProps) {
+  const [isHovered, setIsHovered] = React.useState(false)
   const [isVisible, setIsVisible] = React.useState(false)
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  React.useEffect(() => {
+    if (isHovered) {
+      if (delay > 0) {
+        timerRef.current = setTimeout(() => setIsVisible(true), delay)
+      } else {
+        setIsVisible(true)
+      }
+    } else {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+      setIsVisible(false)
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [isHovered, delay])
 
   const positionClasses = {
     top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
@@ -38,16 +62,16 @@ export function Tooltip({
   return (
     <div
       className="relative inline-flex items-center"
-      onMouseEnter={() => setIsVisible(true)}
-      onMouseLeave={() => setIsVisible(false)}
-      onFocus={() => setIsVisible(true)}
-      onBlur={() => setIsVisible(false)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocus={() => setIsHovered(true)}
+      onBlur={() => setIsHovered(false)}
     >
       {children}
 
       {isVisible && content && (
         <div
-          className={`absolute z-50 ${positionClasses[position]}`}
+          className={`absolute z-50 ${positionClasses[position]} transition-all duration-150 ease-out`}
           style={{ maxWidth }}
           role="tooltip"
         >

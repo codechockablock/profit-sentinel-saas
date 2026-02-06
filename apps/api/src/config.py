@@ -82,6 +82,28 @@ class Settings(BaseSettings):
         default=True, description="Include VSA cause diagnosis in results"
     )
 
+    # New Engine (M1-M6 Migration)
+    # When True, uses Rust pipeline via sentinel-server subprocess
+    # When False, uses legacy Python heuristic engine
+    use_new_engine: bool = Field(
+        default=False,
+        description="Enable Rust analysis engine (M1 migration). "
+        "Falls back to legacy engine on error.",
+    )
+    sentinel_bin: str = Field(
+        default="sentinel-server",
+        description="Path to sentinel-server binary. "
+        "Set to absolute path in Docker (e.g., /app/sentinel-server).",
+    )
+    sentinel_default_store: str = Field(
+        default="default",
+        description="Default store_id for single-store analysis.",
+    )
+    sentinel_top_k: int = Field(
+        default=20,
+        description="Number of top issues per type for Rust pipeline output.",
+    )
+
     # CORS - All allowed origins for frontend requests
     # Includes production domains, Vercel previews, and local development
     cors_origins: list[str] = Field(

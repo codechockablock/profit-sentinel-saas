@@ -22,9 +22,11 @@ from ..config import SUPPORTED_POS_SYSTEMS, get_settings
 from ..dependencies import get_current_user, get_s3_client, require_pro_tier
 from ..services.analysis import AnalysisService
 from ..services.anonymization import get_anonymization_service
+from ..services.column_adapter import ColumnAdapter
 
 # v3.7: Replaced GuardDuty with lightweight file validator
 from ..services.file_validator import get_file_validator as get_virus_scanner
+from ..services.result_adapter import RustResultAdapter
 from ..services.s3 import S3Service
 
 router = APIRouter()
@@ -313,6 +315,76 @@ def _clean_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _run_rust_engine(
+    df: pd.DataFrame,
+    rows: list[dict],
+    settings,
+    overall_start: float,
+) -> tuple[dict, str]:
+    """Run analysis through Rust sentinel-server pipeline.
+
+    Returns:
+        Tuple of (result_dict, engine_name).
+
+    Raises:
+        Exception on any failure (caller will fall back to legacy).
+    """
+    import json as _json
+    import subprocess
+
+    adapter_start = time.time()
+    col_adapter = ColumnAdapter(
+        default_store_id=settings.sentinel_default_store,
+    )
+
+    try:
+        csv_path = col_adapter.to_rust_csv(df)
+        adapter_time = time.time() - adapter_start
+        logger.info(
+            f"Column adapter: {len(df)} rows → {csv_path} in {adapter_time:.2f}s"
+        )
+
+        # Run sentinel-server subprocess
+        rust_start = time.time()
+        proc = subprocess.run(
+            [
+                settings.sentinel_bin,
+                str(csv_path),
+                "--json",
+                "--top",
+                str(settings.sentinel_top_k),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 min max
+        )
+        rust_time = time.time() - rust_start
+
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"sentinel-server exited {proc.returncode}: {proc.stderr[:500]}"
+            )
+
+        logger.info(f"Rust pipeline: {rust_time:.2f}s")
+
+        digest = _json.loads(proc.stdout)
+
+        # Transform Rust output → legacy API format
+        total_time = time.time() - overall_start
+        result_adapter = RustResultAdapter()
+        result = result_adapter.transform(
+            digest=digest,
+            total_rows=len(df),
+            analysis_time=total_time,
+            original_rows=rows,
+        )
+
+        return result, "rust"
+
+    finally:
+        col_adapter.cleanup()
+
+
 @router.post("/analyze")
 @limiter.limit("10/minute")
 async def analyze_upload(
@@ -436,12 +508,34 @@ async def analyze_upload(
             f"in {time.time() - records_start:.2f}s"
         )
 
-        # Run analysis with all 11 primitives
-        analysis_service = AnalysisService()
-        result = analysis_service.analyze(rows)
+        # Run analysis — dual engine: Rust (new) or Python (legacy)
+        result = None
+        engine_used = "legacy"
+
+        if settings.use_new_engine:
+            try:
+                result, engine_used = _run_rust_engine(
+                    df, rows, settings, overall_start
+                )
+            except Exception as e:
+                logger.warning(
+                    "Rust engine failed, falling back to legacy: %s",
+                    e,
+                    exc_info=True,
+                )
+                result = None
+
+        if result is None:
+            # Legacy Python engine (default path)
+            analysis_service = AnalysisService()
+            result = analysis_service.analyze(rows)
+            engine_used = "legacy"
 
         total_time = time.time() - overall_start
-        logger.info(f"Full analysis pipeline completed in {total_time:.2f}s")
+        logger.info(
+            f"Full analysis pipeline completed in {total_time:.2f}s "
+            f"(engine={engine_used})"
+        )
 
         # Add status and warnings to response
         result["status"] = "success"
