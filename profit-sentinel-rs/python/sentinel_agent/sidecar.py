@@ -3,25 +3,25 @@
 FastAPI application serving the Profit Sentinel interface.
 Bridges the Rust pipeline and Python agent layer to REST endpoints.
 
-Endpoints (Mobile/Executive):
-    GET  /health                      — health check
-    GET  /api/v1/digest               — morning digest
-    GET  /api/v1/digest/{store_id}    — single-store digest
-    POST /api/v1/delegate             — create task from issue
-    GET  /api/v1/tasks                — list delegated tasks
-    GET  /api/v1/tasks/{task_id}      — single task detail
-    PATCH /api/v1/tasks/{task_id}     — update task status
-    GET  /api/v1/vendor-call/{issue_id} — vendor call prep
-    GET  /api/v1/coop/{store_id}      — co-op intelligence report
-    GET  /api/v1/explain/{issue_id}   — proof tree for issue root cause
-    POST /api/v1/explain/{issue_id}/why — backward-chain from a goal
-
-Endpoints (Legacy-compatible — production frontend):
-    POST /uploads/presign             — generate S3 presigned URLs
-    POST /uploads/suggest-mapping     — AI column mapping suggestions
-    POST /analysis/analyze            — run Rust analysis pipeline
-    GET  /analysis/primitives         — list detection primitives
-    GET  /analysis/supported-pos      — list supported POS systems
+Auth model:
+    Public (anonymous OK):
+        POST /uploads/presign, /uploads/suggest-mapping, /analysis/analyze
+        GET  /analysis/primitives, /analysis/supported-pos
+        GET  /health
+    Authenticated only:
+        GET  /api/v1/digest, /api/v1/digest/{store_id}
+        POST /api/v1/delegate
+        GET  /api/v1/tasks, /api/v1/tasks/{task_id}
+        PATCH /api/v1/tasks/{task_id}
+        GET  /api/v1/vendor-call/{issue_id}
+        GET  /api/v1/coop/{store_id}
+        GET  /api/v1/explain/{issue_id}
+        POST /api/v1/explain/{issue_id}/why
+        POST /api/v1/diagnostic/start
+        GET  /api/v1/diagnostic/{id}/question
+        POST /api/v1/diagnostic/{id}/answer
+        GET  /api/v1/diagnostic/{id}/summary
+        GET  /api/v1/diagnostic/{id}/report
 """
 
 from __future__ import annotations
@@ -66,6 +66,7 @@ from .diagnostics import (
     render_diagnostic_summary,
 )
 from .digest import MorningDigestGenerator
+from .dual_auth import make_get_user_context, make_require_auth
 from .engine import PipelineError, SentinelEngine
 from .llm_layer import (
     render_call_prep,
@@ -109,54 +110,14 @@ _diagnostic_sessions: dict[str, dict] = (
 
 
 # ---------------------------------------------------------------------------
-# Auth dependency
+# Auth dependencies — built from dual_auth module
 # ---------------------------------------------------------------------------
-
-
-def _get_auth_dependency(settings: SidecarSettings):
-    """Create auth dependency based on settings.
-
-    In dev mode, returns a dummy user. In production, validates
-    Supabase JWT tokens following the pattern from
-    apps/api/src/dependencies.py.
-    """
-
-    async def verify_token(request: Request) -> str:
-        if settings.sidecar_dev_mode:
-            return "dev-user"
-
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            raise HTTPException(
-                status_code=401,
-                detail="Missing or invalid Authorization header",
-            )
-
-        token = auth_header[7:]
-
-        try:
-            from supabase import create_client
-
-            supabase = create_client(
-                settings.supabase_url,
-                settings.supabase_service_key,
-            )
-            user_response = supabase.auth.get_user(token)
-
-            if not user_response or not user_response.user:
-                raise HTTPException(status_code=401, detail="Invalid token")
-
-            return user_response.user.id
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error("Auth error: %s", e)
-            raise HTTPException(
-                status_code=401,
-                detail="Authentication failed",
-            )
-
-    return verify_token
+# Two dependency flavours are created at app startup:
+#
+#   get_user_context  — allows anonymous; returns UserContext for any request
+#   require_auth      — raises 401 for anonymous; used on executive/diagnostic
+#                       endpoints that need a logged-in user
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -195,8 +156,9 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Auth dependency
-    verify_token = _get_auth_dependency(settings)
+    # Auth dependencies (dual mode — public + authenticated)
+    get_user_context = make_get_user_context(settings)
+    require_auth = make_require_auth(settings)
 
     # Services
     try:
@@ -323,7 +285,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/digest",
         response_model=DigestResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def get_digest(
         stores: str | None = Query(
@@ -349,7 +311,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/digest/{store_id}",
         response_model=DigestResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def get_store_digest(
         store_id: str,
@@ -370,7 +332,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.post(
         "/api/v1/delegate",
         response_model=DelegateResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def delegate_issue(body: DelegateRequest) -> DelegateResponse:
         """Create a delegated task from a pipeline issue."""
@@ -403,7 +365,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/tasks",
         response_model=TaskListResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def list_tasks(
         store_id: str | None = Query(default=None),
@@ -425,7 +387,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/tasks/{task_id}",
         response_model=TaskResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def get_task(task_id: str) -> TaskResponse:
         """Get a single task by ID."""
@@ -437,7 +399,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.patch(
         "/api/v1/tasks/{task_id}",
         response_model=TaskResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def update_task(
         task_id: str,
@@ -459,7 +421,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/vendor-call/{issue_id}",
         response_model=VendorCallResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def vendor_call_prep(issue_id: str) -> VendorCallResponse:
         """Prepare a vendor call brief for an issue."""
@@ -476,7 +438,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/coop/{store_id}",
         response_model=CoopReportResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def coop_report(store_id: str) -> CoopReportResponse:
         """Generate co-op intelligence report for a store.
@@ -524,7 +486,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/explain/{issue_id}",
         response_model=ExplainResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def explain_issue(issue_id: str) -> ExplainResponse:
         """Generate full proof tree explaining an issue's root cause.
@@ -545,7 +507,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.post(
         "/api/v1/explain/{issue_id}/why",
         response_model=BackwardChainResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def backward_chain_issue(
         issue_id: str,
@@ -575,7 +537,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.post(
         "/api/v1/diagnostic/start",
         response_model=DiagnosticStartResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def start_diagnostic(body: DiagnosticStartRequest) -> DiagnosticStartResponse:
         """Start a new conversational diagnostic session.
@@ -614,7 +576,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/diagnostic/{session_id}/question",
         response_model=DiagnosticQuestionResponse | None,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def get_diagnostic_question(
         session_id: str,
@@ -631,7 +593,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.post(
         "/api/v1/diagnostic/{session_id}/answer",
         response_model=DiagnosticAnswerResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def answer_diagnostic(
         session_id: str,
@@ -666,7 +628,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/diagnostic/{session_id}/summary",
         response_model=DiagnosticSummaryResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def get_diagnostic_summary(
         session_id: str,
@@ -693,7 +655,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     @app.get(
         "/api/v1/diagnostic/{session_id}/report",
         response_model=DiagnosticReportResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(require_auth)],
     )
     async def get_diagnostic_report(
         session_id: str,
@@ -722,7 +684,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     # Legacy-compatible upload & analysis routes (production frontend)
     # -----------------------------------------------------------------
 
-    upload_router = create_upload_router(settings, engine, verify_token)
+    upload_router = create_upload_router(settings, engine, get_user_context)
     app.include_router(upload_router)
 
     # -----------------------------------------------------------------

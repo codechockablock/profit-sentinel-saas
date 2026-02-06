@@ -100,9 +100,19 @@ def generate_upload_urls(
     s3_client,
     bucket_name: str,
     filenames: list[str],
-    user_id: str | None,
+    s3_prefix: str | None = None,
+    *,
+    max_file_size_mb: int = MAX_FILE_SIZE_MB,
 ) -> dict:
     """Generate presigned URLs for a list of files.
+
+    Args:
+        s3_client: boto3 S3 client.
+        bucket_name: S3 bucket name.
+        filenames: List of filenames to generate URLs for.
+        s3_prefix: S3 key prefix (e.g. ``uploads/user-123`` or
+                   ``uploads/anonymous/abc123``). Falls back to ``anonymous``.
+        max_file_size_mb: Per-user file size limit (10 MB anon, 50 MB auth).
 
     Returns the legacy API response shape.
     """
@@ -114,7 +124,7 @@ def generate_upload_urls(
     if not filenames:
         raise ValueError("At least one filename required")
 
-    key_prefix = user_id if user_id else "anonymous"
+    key_prefix = s3_prefix if s3_prefix else "anonymous"
 
     presigned_urls = []
     for filename in filenames:
@@ -128,14 +138,14 @@ def generate_upload_urls(
                 "safe_filename": safe_filename,
                 "key": key,
                 "url": url,
-                "max_size_mb": MAX_FILE_SIZE_MB,
+                "max_size_mb": max_file_size_mb,
             }
         )
 
     return {
         "presigned_urls": presigned_urls,
         "limits": {
-            "max_file_size_mb": MAX_FILE_SIZE_MB,
+            "max_file_size_mb": max_file_size_mb,
             "allowed_extensions": list(ALLOWED_EXTENSIONS),
         },
     }

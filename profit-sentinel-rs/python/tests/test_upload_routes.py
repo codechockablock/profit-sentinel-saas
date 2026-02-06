@@ -130,8 +130,8 @@ class TestPresign:
             data={"filenames": ["inventory.csv"]},
         )
         key = response.json()["presigned_urls"][0]["key"]
-        # In dev mode, user_id is "dev-user"
-        assert key.startswith("dev-user/")
+        # In dev mode, user_id is "dev-user" with uploads/ prefix
+        assert key.startswith("uploads/dev-user/")
         assert "inventory.csv" in key
 
     @patch("sentinel_agent.upload_routes.get_s3_client")
@@ -178,7 +178,7 @@ class TestSuggestMapping:
         response = client.post(
             "/uploads/suggest-mapping",
             data={
-                "key": "dev-user/test-uuid-inventory.csv",
+                "key": "uploads/dev-user/test-uuid-inventory.csv",
                 "filename": "inventory.csv",
             },
         )
@@ -231,7 +231,7 @@ class TestSuggestMapping:
         response = client.post(
             "/uploads/suggest-mapping",
             data={
-                "key": "dev-user/paladin-report.csv",
+                "key": "uploads/dev-user/paladin-report.csv",
                 "filename": "paladin-report.csv",
             },
         )

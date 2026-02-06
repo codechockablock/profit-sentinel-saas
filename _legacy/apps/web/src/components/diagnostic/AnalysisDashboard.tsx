@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef, useMemo, ChangeEvent, DragEvent } from "react";
+import React, { useState, useCallback, useRef, useMemo, useEffect, ChangeEvent, DragEvent } from "react";
 import {
   Upload,
   AlertTriangle,
@@ -18,6 +18,9 @@ import {
   Tag,
   ShieldAlert,
   Boxes,
+  LogIn,
+  LogOut,
+  UserPlus,
 } from "lucide-react";
 import {
   presignUpload,
@@ -26,6 +29,7 @@ import {
   runAnalysis,
   isValidFileType,
   isValidFileSize,
+  getFileSizeLimit,
   type MappingResult,
   type AnalysisResult,
   type LeakData,
@@ -33,6 +37,9 @@ import {
 import { LEAK_METADATA, getSeverityBadge, scoreToRiskLabel, formatDollarImpact } from "@/lib/leak-metadata";
 import { buildAttributions, type ColumnAttribution } from "@/lib/column-attribution";
 import { AttributionTooltip } from "@/components/ui/AttributionTooltip";
+import { getSupabase } from "@/lib/supabase";
+import { AuthModal } from "@/components/auth/AuthModal";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 
 // Types
 type Stage = "upload" | "mapping" | "processing" | "results";
@@ -81,6 +88,57 @@ export default function AnalysisDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
 
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<"login" | "signup">("signup");
+  const [maxFileSizeMb, setMaxFileSizeMb] = useState(10); // Default to anonymous limit
+
+  // Initialize auth state and listen for changes
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    // Check initial auth state
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: { user?: { email?: string } } | null } }) => {
+      setIsAuthenticated(!!session);
+      setUserEmail(session?.user?.email ?? null);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event: string, session: { user?: { email?: string } } | null) => {
+        setIsAuthenticated(!!session);
+        setUserEmail(session?.user?.email ?? null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch file size limit based on auth state
+  useEffect(() => {
+    getFileSizeLimit().then(setMaxFileSizeMb);
+  }, [isAuthenticated]);
+
+  const handleSignOut = async () => {
+    const supabase = getSupabase();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+  };
+
+  const openSignUpModal = () => {
+    setAuthModalMode("signup");
+    setShowAuthModal(true);
+  };
+
+  const openSignInModal = () => {
+    setAuthModalMode("login");
+    setShowAuthModal(true);
+  };
+
   // Column attribution — computed once from mapping, used in result tooltips
   const attributions = useMemo(
     () => buildAttributions(confirmedMapping, mappingData?.original_columns ?? []),
@@ -115,8 +173,8 @@ export default function AnalysisDashboard() {
       return;
     }
 
-    if (!isValidFileSize(selectedFile)) {
-      setError("File size must be under 50MB");
+    if (!isValidFileSize(selectedFile, maxFileSizeMb)) {
+      setError(`File size must be under ${maxFileSizeMb}MB${!isAuthenticated ? ". Sign up for 50MB uploads." : ""}`);
       return;
     }
 
@@ -239,7 +297,37 @@ export default function AnalysisDashboard() {
   if (stage === "upload") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white">
-        <div className="max-w-xl mx-auto px-4 py-20">
+        {/* Auth header bar */}
+        <div className="max-w-xl mx-auto px-4 pt-4 flex justify-end items-center gap-3">
+          {isAuthenticated ? (
+            <>
+              <span className="text-sm text-slate-400">{userEmail}</span>
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors"
+              >
+                <LogOut size={14} /> Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={openSignInModal}
+                className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors"
+              >
+                <LogIn size={14} /> Sign in
+              </button>
+              <button
+                onClick={openSignUpModal}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
+              >
+                <UserPlus size={14} /> Sign up
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="max-w-xl mx-auto px-4 py-16">
           <div className="text-center mb-10">
             <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
               <Zap size={32} className="text-white" />
@@ -289,7 +377,7 @@ export default function AnalysisDashboard() {
                 <p className="text-slate-500 text-sm mb-4">or click to browse</p>
                 <div className="flex items-center justify-center gap-2 text-xs text-slate-600">
                   <FileSpreadsheet size={14} />
-                  <span>CSV, XLS, XLSX supported (max 50MB)</span>
+                  <span>CSV, XLS, XLSX supported (max {maxFileSizeMb}MB{!isAuthenticated ? " \u2014 sign up for 50MB" : ""})</span>
                 </div>
               </>
             )}
@@ -314,6 +402,14 @@ export default function AnalysisDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Auth Modal */}
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={() => getFileSizeLimit().then(setMaxFileSizeMb)}
+          defaultMode={authModalMode}
+        />
       </div>
     );
   }
@@ -668,7 +764,24 @@ export default function AnalysisDashboard() {
               )}
             </div>
           )}
+
+          {/* Upgrade prompt for anonymous users */}
+          {results.upgrade_prompt && (
+            <UpgradePrompt
+              message={results.upgrade_prompt.message}
+              cta={results.upgrade_prompt.cta}
+              onSignUp={openSignUpModal}
+            />
+          )}
         </main>
+
+        {/* Auth Modal */}
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={() => getFileSizeLimit().then(setMaxFileSizeMb)}
+          defaultMode={authModalMode}
+        />
       </div>
     );
   }
