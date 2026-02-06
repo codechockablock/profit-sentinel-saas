@@ -18,6 +18,7 @@ export function HeaderNav({ currentPath }: HeaderNavProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const navLinks = [
+    { href: '/dashboard', label: 'Dashboard' },
     { href: '/about', label: 'About' },
     { href: '/diagnostic', label: 'Shrinkage Diagnostic' },
     { href: '/roadmap', label: 'Roadmap' },
