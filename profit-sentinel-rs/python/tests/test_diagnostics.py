@@ -585,11 +585,8 @@ class TestDiagnosticEndpoints:
     @pytest.fixture(autouse=True)
     def setup(self):
         """Create test app and client."""
-        from sentinel_agent.sidecar import _diagnostic_sessions, create_app
+        from sentinel_agent.sidecar import create_app
         from sentinel_agent.sidecar_config import SidecarSettings
-
-        # Clear session store
-        _diagnostic_sessions.clear()
 
         settings = SidecarSettings(
             sentinel_bin="",
@@ -599,7 +596,7 @@ class TestDiagnosticEndpoints:
         )
         app = create_app(settings)
         self.client = TestClient(app)
-        self._sessions = _diagnostic_sessions
+        self._sessions = app.extra["sentinel_state"].diagnostic_sessions
 
     def test_start_diagnostic(self):
         resp = self.client.post(

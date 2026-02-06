@@ -19,7 +19,7 @@ from sentinel_agent.models import (
     Summary,
     TrendDirection,
 )
-from sentinel_agent.sidecar import _digest_cache, _task_store, create_app
+from sentinel_agent.sidecar import create_app
 from sentinel_agent.sidecar_config import SidecarSettings
 
 # ---------------------------------------------------------------------------
@@ -109,8 +109,7 @@ def _dev_settings() -> SidecarSettings:
 @pytest.fixture
 def client():
     """Create a test client with mocked engine."""
-    _digest_cache.clear()
-    _task_store.clear()
+
 
     settings = _dev_settings()
 
@@ -123,15 +122,13 @@ def client():
         app = create_app(settings)
         yield TestClient(app)
 
-    _digest_cache.clear()
-    _task_store.clear()
+
 
 
 @pytest.fixture
 def client_no_binary():
     """Create a test client where binary is not found."""
-    _digest_cache.clear()
-    _task_store.clear()
+
 
     settings = _dev_settings()
 
@@ -142,15 +139,13 @@ def client_no_binary():
         app = create_app(settings)
         yield TestClient(app)
 
-    _digest_cache.clear()
-    _task_store.clear()
+
 
 
 @pytest.fixture
 def auth_client():
     """Create a test client with auth REQUIRED (not dev mode)."""
-    _digest_cache.clear()
-    _task_store.clear()
+
 
     settings = SidecarSettings(
         sidecar_dev_mode=False,
@@ -169,8 +164,7 @@ def auth_client():
         app = create_app(settings)
         yield TestClient(app)
 
-    _digest_cache.clear()
-    _task_store.clear()
+
 
 
 # ---------------------------------------------------------------------------
