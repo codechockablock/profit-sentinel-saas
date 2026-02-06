@@ -14,6 +14,12 @@ variable "certificate_arn" {
   type = string
 }
 
+variable "target_port" {
+  description = "Port for the target group health check and traffic"
+  type        = number
+  default     = 8000
+}
+
 resource "aws_lb" "main" {
   name               = "${var.name_prefix}-alb"
   internal           = false
@@ -34,7 +40,7 @@ resource "aws_lb" "main" {
 
 resource "aws_lb_target_group" "api" {
   name        = "${var.name_prefix}-tg"
-  port        = 8000
+  port        = var.target_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
   target_type = "ip"

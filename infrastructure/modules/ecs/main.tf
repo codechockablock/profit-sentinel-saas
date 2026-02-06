@@ -58,6 +58,33 @@ variable "resend_api_key_secret_arn" {
   default     = ""
 }
 
+variable "container_port" {
+  description = "Port the container listens on"
+  type        = number
+  default     = 8000
+}
+
+variable "container_cpu" {
+  description = "CPU units for the task (1024 = 1 vCPU)"
+  type        = string
+  default     = "4096"
+}
+
+variable "container_memory" {
+  description = "Memory in MiB for the task"
+  type        = string
+  default     = "16384"
+}
+
+variable "extra_environment" {
+  description = "Additional environment variables for the container"
+  type = list(object({
+    name  = string
+    value = string
+  }))
+  default = []
+}
+
 resource "aws_ecs_cluster" "main" {
   name = "${var.name_prefix}-cluster"
 
@@ -173,8 +200,8 @@ resource "aws_ecs_task_definition" "api" {
   family                   = "${var.name_prefix}-api"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "4096"  # 4 vCPU for large file processing
-  memory                   = "16384" # 16GB for 156K+ row datasets
+  cpu                      = var.container_cpu
+  memory                   = var.container_memory
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
@@ -185,11 +212,11 @@ resource "aws_ecs_task_definition" "api" {
       essential = true
       portMappings = [
         {
-          containerPort = 8000
+          containerPort = var.container_port
           protocol      = "tcp"
         }
       ]
-      environment = [
+      environment = concat([
         {
           name  = "S3_BUCKET_NAME"
           value = var.s3_bucket_name
@@ -210,7 +237,7 @@ resource "aws_ecs_task_definition" "api" {
           name  = "INCLUDE_CAUSE_DIAGNOSIS"
           value = "true"
         }
-      ]
+      ], var.extra_environment)
       secrets = concat(
         var.xai_api_key_secret_arn != "" ? [
           {
@@ -240,7 +267,7 @@ resource "aws_ecs_task_definition" "api" {
         }
       }
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:${var.container_port}/health || exit 1"]
         interval    = 30
         timeout     = 10
         retries     = 3
@@ -261,8 +288,8 @@ resource "aws_security_group" "ecs" {
   vpc_id = var.vpc_id
 
   ingress {
-    from_port       = 8000
-    to_port         = 8000
+    from_port       = var.container_port
+    to_port         = var.container_port
     protocol        = "tcp"
     security_groups = [var.alb_sg_id]
   }
@@ -295,7 +322,7 @@ resource "aws_ecs_service" "api" {
   load_balancer {
     target_group_arn = var.alb_target_group_arn
     container_name   = "api"
-    container_port   = 8000
+    container_port   = var.container_port
   }
 
   tags = {

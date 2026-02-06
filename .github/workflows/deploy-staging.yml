@@ -1,0 +1,271 @@
+name: Deploy Staging (Rust Sidecar)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'profit-sentinel-rs/**'
+      - '.github/workflows/deploy-staging.yml'
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip test suite (emergency deploy)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: profitsentinel-staging-api
+  ECS_CLUSTER: profitsentinel-staging-cluster
+  ECS_SERVICE: profitsentinel-staging-api-service
+
+jobs:
+  # ===========================================================================
+  # SECURITY CHECK
+  # ===========================================================================
+  security-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for secrets in code
+        run: |
+          if grep -rE '(AKIA[A-Z0-9]{16}|sk-[a-zA-Z0-9]{48}|xai-[a-zA-Z0-9]{20,})' \
+            --include="*.py" --include="*.rs" --include="*.toml" \
+            --exclude-dir="tests" --exclude-dir="test" \
+            --exclude="*test*.py" --exclude="conftest.py" \
+            profit-sentinel-rs/ 2>/dev/null; then
+            echo "::error::Potential secrets found in code!"
+            exit 1
+          fi
+          echo "Security check passed"
+
+  # ===========================================================================
+  # RUST TESTS
+  # ===========================================================================
+  rust-tests:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_tests }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            profit-sentinel-rs/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('profit-sentinel-rs/Cargo.lock') }}
+
+      - name: Run Rust tests
+        working-directory: profit-sentinel-rs
+        run: cargo test --release
+
+  # ===========================================================================
+  # PYTHON TESTS
+  # ===========================================================================
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_tests }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        working-directory: profit-sentinel-rs
+        run: |
+          pip install -e "python/[dev]"
+
+      - name: Run Python tests
+        working-directory: profit-sentinel-rs
+        run: pytest python/tests/ -v --tb=short
+
+  # ===========================================================================
+  # BUILD & DEPLOY SIDECAR
+  # ===========================================================================
+  deploy-sidecar:
+    name: Deploy Sidecar to Staging
+    runs-on: ubuntu-latest
+    needs: [security-check, rust-tests, python-tests]
+    if: |
+      always() &&
+      needs.security-check.result == 'success' &&
+      (needs.rust-tests.result == 'success' || needs.rust-tests.result == 'skipped') &&
+      (needs.python-tests.result == 'success' || needs.python-tests.result == 'skipped')
+    outputs:
+      image_tag: ${{ steps.build.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          SHORT_SHA=$(echo $IMAGE_TAG | cut -c1-7)
+          echo "Building sidecar image with tag: $SHORT_SHA"
+
+          # Build from profit-sentinel-rs/ context using Dockerfile.sidecar
+          docker build \
+            -f profit-sentinel-rs/Dockerfile.sidecar \
+            --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+            --build-arg GIT_COMMIT=$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            profit-sentinel-rs/
+
+          echo "Pushing images to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          echo "image_tag=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "::notice::Sidecar image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA"
+
+      - name: Update ECS task definition
+        id: task-def
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          SHORT_SHA=$(echo $IMAGE_TAG | cut -c1-7)
+          NEW_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA"
+
+          echo "Updating task definition to use image: $NEW_IMAGE"
+
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition profitsentinel-staging-api \
+            --query 'taskDefinition' \
+            --output json)
+
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$NEW_IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE |
+             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+
+          NEW_REVISION=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query 'taskDefinition.revision' \
+            --output text)
+
+          echo "Registered new task definition revision: $NEW_REVISION"
+          echo "revision=$NEW_REVISION" >> $GITHUB_OUTPUT
+
+      - name: Deploy to ECS
+        run: |
+          echo "Deploying task definition revision ${{ steps.task-def.outputs.revision }}..."
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --task-definition profitsentinel-staging-api:${{ steps.task-def.outputs.revision }} \
+            --force-new-deployment \
+            --query 'service.deployments[0].status' \
+            --output text
+
+          echo "::notice::ECS deployment initiated for staging cluster"
+
+      - name: Wait for ECS deployment stability
+        run: |
+          echo "Waiting for ECS service to stabilize (timeout: 5 minutes)..."
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE \
+            --timeout 300 || echo "::warning::ECS stability check timed out"
+
+  # ===========================================================================
+  # STAGING HEALTH CHECKS
+  # ===========================================================================
+  staging-health-check:
+    name: Staging Health Check
+    runs-on: ubuntu-latest
+    needs: [deploy-sidecar]
+    if: needs.deploy-sidecar.result == 'success'
+    steps:
+      - name: Wait for service startup
+        run: sleep 30
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get staging ALB DNS
+        id: alb
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names profitsentinel-staging-alb \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text 2>/dev/null || echo "")
+          echo "dns=$ALB_DNS" >> $GITHUB_OUTPUT
+
+      - name: Check health endpoint
+        if: steps.alb.outputs.dns != ''
+        run: |
+          HEALTH_URL="https://${{ steps.alb.outputs.dns }}/health"
+          echo "Testing: $HEALTH_URL"
+          HTTP_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "::notice::Staging health check passed (HTTP $HTTP_STATUS)"
+          else
+            echo "::warning::Staging health check returned HTTP $HTTP_STATUS"
+          fi
+
+  # ===========================================================================
+  # DEPLOYMENT SUMMARY
+  # ===========================================================================
+  notify:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-sidecar, staging-health-check]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Staging Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.deploy-sidecar.result }}" == "success" ]; then
+            echo "| Sidecar | :white_check_mark: Success | Image: \`${{ needs.deploy-sidecar.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Sidecar | :x: Failed | Check logs |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.staging-health-check.result }}" == "success" ]; then
+            echo "| Health Check | :white_check_mark: Passed | |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Health Check | :warning: Check manually | |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Git Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

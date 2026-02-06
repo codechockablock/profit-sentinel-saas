@@ -1,5 +1,5 @@
-# Profit Sentinel API Dockerfile
-# NOTE: Build from repo root with: docker build -f apps/api/Dockerfile .
+# Profit Sentinel API Dockerfile (Legacy)
+# NOTE: Build from repo root with: docker build -f _legacy/apps/api/Dockerfile .
 FROM python:3.12-slim
 
 # Set environment variables
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for caching
-COPY apps/api/requirements.txt .
+COPY _legacy/apps/api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install PyTorch CPU-only FIRST to prevent sentinel-engine from pulling CUDA version
@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 
 # Copy and install sentinel-engine (v5.0.0 - Dorian, self-contained)
 # Using --no-deps to prevent re-installing torch with CUDA
-COPY packages/sentinel-engine /packages/sentinel-engine
+COPY _legacy/packages/sentinel-engine /packages/sentinel-engine
 RUN pip install --no-cache-dir --no-deps /packages/sentinel-engine
 
 # Install remaining sentinel-engine dependencies (without torch)
@@ -35,7 +35,7 @@ RUN pip install --no-cache-dir numpy>=1.24.0 faiss-cpu>=1.7.4 pydantic>=2.5.0 \
     reportlab>=4.0.0 requests>=2.28.0 SPARQLWrapper>=2.0.0
 
 # Copy application code
-COPY apps/api/ .
+COPY _legacy/apps/api/ .
 
 # Copy configuration files (POS mappings for column detection)
 COPY config/ /app/config/
