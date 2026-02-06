@@ -166,10 +166,11 @@ RECOMMENDATIONS: dict[str, list[str]] = {
     ],
     "negative_inventory": [
         "Immediately investigate each negative SKU",
-        "Check if receiving was skipped for recent shipments",
-        "Review POS transaction logs for voids/returns",
-        "Consider physical count to verify actual stock",
-        "Train staff on proper receiving procedures",
+        "Items -1 to -3: check recent POS voids, returns, and receiving timing",
+        "Items -4 to -10: verify vendor delivery receipts match purchase orders",
+        "Items beyond -10: cross-check vendor invoices, review security footage, conduct physical count",
+        "Train staff on proper receiving verification (count-by-piece, not approximate)",
+        "Consider enabling POS negative-stock blocking to prevent future occurrences",
     ],
     "low_stock": [
         "Place emergency orders for critical items",
@@ -283,10 +284,35 @@ def _get_issue_context(primitive: str, item: dict) -> str:
         return f"Low margin detected. QOH: {qty:.0f}, Sold: {sold:.0f}."
 
     elif primitive == "negative_inventory":
+        abs_qty = abs(qty)
+        value = abs_qty * cost
+        # Classify by severity threshold — industry-validated ranges
+        if abs_qty <= 3:
+            cause_hint = (
+                "Likely cause: POS timing error, data entry mistake, or "
+                "return processed before receiving. Verify recent transactions."
+            )
+        elif abs_qty <= 10:
+            cause_hint = (
+                "Probable cause: receiving error (short shipment not recorded), "
+                "small-scale theft, or return fraud. Check vendor delivery "
+                "receipts and POS void/return logs."
+            )
+        elif abs_qty <= 50:
+            cause_hint = (
+                "Significant shrinkage. Probable cause: vendor short-ship, "
+                "employee theft, or systematic receiving failure. Cross-check "
+                "vendor invoices against receiving records and review security."
+            )
+        else:
+            cause_hint = (
+                "Major shrinkage event. Possible organized retail crime, "
+                "complete receiving failure, or system sync error. "
+                "Requires immediate physical count and management review."
+            )
         return (
-            f"Showing {qty:.0f} units (NEGATIVE). Value: ${abs(qty * cost):.2f}. "
-            f"Possible causes: overselling, theft, data entry error. "
-            f"Audit immediately."
+            f"Showing {qty:.0f} units (NEGATIVE). Value: ${value:.2f}. "
+            f"{cause_hint}"
         )
 
     elif primitive == "low_stock":

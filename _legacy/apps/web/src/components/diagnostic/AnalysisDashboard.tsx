@@ -12,7 +12,7 @@ import {
   FileSpreadsheet,
   Loader2,
   RefreshCw,
-  Clock,
+
   TrendingDown,
   Package,
   Tag,
@@ -639,10 +639,26 @@ export default function AnalysisDashboard() {
               <p className="text-slate-400 text-sm mb-1">Leak Types Detected</p>
               <p className="text-2xl font-bold">{leaksWithItems.length}</p>
             </div>
-            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-              <p className="text-slate-400 text-sm mb-1">Analysis Time</p>
-              <p className="text-2xl font-bold flex items-center gap-2">
-                <Clock size={20} className="text-slate-500" />
+            <div className={`border rounded-xl p-4 ${
+              summary.analysis_time_seconds < 3
+                ? "bg-emerald-500/10 border-emerald-500/30"
+                : "bg-slate-800/50 border-slate-700"
+            }`}>
+              <p className={`text-sm mb-1 ${
+                summary.analysis_time_seconds < 3 ? "text-emerald-400/80" : "text-slate-400"
+              }`}>
+                {summary.analysis_time_seconds < 1
+                  ? "Sub-second Analysis"
+                  : summary.analysis_time_seconds < 3
+                    ? "Rust-powered Analysis"
+                    : "Analysis Time"}
+              </p>
+              <p className={`text-2xl font-bold flex items-center gap-2 ${
+                summary.analysis_time_seconds < 3 ? "text-emerald-400" : ""
+              }`}>
+                <Zap size={20} className={
+                  summary.analysis_time_seconds < 3 ? "text-emerald-400" : "text-slate-500"
+                } />
                 {summary.analysis_time_seconds.toFixed(1)}s
               </p>
             </div>
@@ -658,7 +674,74 @@ export default function AnalysisDashboard() {
             <p className="text-slate-400 text-sm mt-2">
               Addressing these leaks could recover this amount annually
             </p>
+            {/* Impact Breakdown by Leak Type */}
+            {summary.estimated_impact.breakdown && Object.values(summary.estimated_impact.breakdown).some(v => v > 0) && (
+              <details className="mt-4 group">
+                <summary className="cursor-pointer text-sm text-emerald-400/80 hover:text-emerald-400 transition flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="w-4 h-4 group-open:rotate-90 transition-transform" />
+                  View breakdown by leak type
+                </summary>
+                <div className="mt-3 space-y-2">
+                  {Object.entries(summary.estimated_impact.breakdown)
+                    .filter(([, v]) => v > 0)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([key, amount]) => {
+                      const maxVal = Math.max(...Object.values(summary.estimated_impact.breakdown).filter(v => v > 0));
+                      return (
+                        <div key={key} className="flex items-center gap-3">
+                          <span className="text-sm text-slate-400 min-w-[140px] truncate">
+                            {LEAK_METADATA[key]?.title || key.replace(/_/g, " ")}
+                          </span>
+                          <div className="flex-1 bg-slate-700/50 rounded-full h-2">
+                            <div
+                              className="bg-emerald-500/50 h-2 rounded-full transition-all"
+                              style={{ width: `${(amount / maxVal) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-emerald-300 min-w-[70px] text-right font-medium">
+                            {formatDollarImpact(amount)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </details>
+            )}
           </div>
+
+          {/* Negative Inventory Audit Alert */}
+          {summary.estimated_impact.negative_inventory_alert?.requires_audit && (() => {
+            const alert = summary.estimated_impact.negative_inventory_alert!;
+            return (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 mb-8">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert className="text-red-400 flex-shrink-0 mt-0.5" size={24} />
+                  <div>
+                    <h3 className="text-lg font-semibold text-red-400">
+                      Negative Inventory Audit Required
+                    </h3>
+                    <p className="text-sm text-slate-300 mt-1">
+                      {alert.items_found} item{alert.items_found !== 1 ? "s" : ""} with negative
+                      on-hand quantities detected
+                    </p>
+                    <p className="text-sm text-slate-400 mt-2">
+                      Potential untracked COGS:{" "}
+                      <span className="text-red-300 font-semibold">
+                        {formatDollarImpact(alert.potential_untracked_cogs)}
+                      </span>
+                    </p>
+                    {alert.note && (
+                      <p className="text-xs text-slate-500 mt-2 italic">{alert.note}</p>
+                    )}
+                    <p className="text-xs text-slate-500 mt-3">
+                      This amount is excluded from the annual estimate above and requires a
+                      separate physical audit.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Warnings */}
           {warnings && warnings.length > 0 && (
@@ -698,6 +781,7 @@ export default function AnalysisDashboard() {
                   expanded={expandedLeaks.has(leakKey)}
                   onToggle={() => toggleLeakExpanded(leakKey)}
                   attributions={attributions}
+                  impactAmount={summary.estimated_impact.breakdown[leakKey] || 0}
                 />
               ))
             )}
@@ -748,17 +832,27 @@ export default function AnalysisDashboard() {
                 <div className="mt-4 space-y-2">
                   <p className="text-sm text-slate-400 font-medium">Other possibilities:</p>
                   {cause_diagnosis.hypotheses.slice(0, 3).map((h, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="flex-1 bg-slate-700/50 rounded-full h-2">
-                        <div
-                          className="bg-violet-500/50 h-2 rounded-full"
-                          style={{ width: `${Math.round(h.probability * 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-slate-400 min-w-[80px]">
-                        {h.cause.replace(/_/g, " ")} ({Math.round(h.probability * 100)}%)
-                      </span>
-                    </div>
+                    <details key={i} className="group/hyp">
+                      <summary className="cursor-pointer flex items-center gap-3 list-none [&::-webkit-details-marker]:hidden">
+                        <div className="flex-1 bg-slate-700/50 rounded-full h-2">
+                          <div
+                            className="bg-violet-500/50 h-2 rounded-full"
+                            style={{ width: `${Math.round(h.probability * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-slate-400 min-w-[80px]">
+                          {h.cause.replace(/_/g, " ")} ({Math.round(h.probability * 100)}%)
+                        </span>
+                        <ChevronRight className="w-3 h-3 text-slate-600 group-open/hyp:rotate-90 transition-transform" />
+                      </summary>
+                      {h.evidence && h.evidence.length > 0 && (
+                        <div className="mt-2 ml-2 border-l-2 border-violet-500/30 pl-3 space-y-1">
+                          {h.evidence.map((e, j) => (
+                            <p key={j} className="text-xs text-slate-500">{e}</p>
+                          ))}
+                        </div>
+                      )}
+                    </details>
                   ))}
                 </div>
               )}
@@ -796,12 +890,14 @@ function LeakCard({
   expanded,
   onToggle,
   attributions,
+  impactAmount = 0,
 }: {
   leakKey: string;
   data: LeakData;
   expanded: boolean;
   onToggle: () => void;
   attributions: Record<string, ColumnAttribution>;
+  impactAmount?: number;
 }) {
   const metadata = LEAK_METADATA[leakKey];
   const severityBadge = getSeverityBadge(data.severity || metadata?.severity || "low");
@@ -841,6 +937,11 @@ function LeakCard({
               {data.count.toLocaleString()}
             </p>
             <p className="text-xs text-slate-500">items</p>
+            {impactAmount > 0 && (
+              <p className="text-xs text-emerald-400/70 mt-0.5">
+                ~{formatDollarImpact(impactAmount)}/yr
+              </p>
+            )}
           </div>
           {expanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
         </div>
