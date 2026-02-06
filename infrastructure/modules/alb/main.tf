@@ -39,20 +39,24 @@ resource "aws_lb" "main" {
 }
 
 resource "aws_lb_target_group" "api" {
-  name        = "${var.name_prefix}-tg"
+  name        = "${var.name_prefix}-tg-${var.target_port}"
   port        = var.target_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
   target_type = "ip"
 
   health_check {
-    path                = "/health" # FastAPI health endpoint we'll add
+    path                = "/health"
     protocol            = "HTTP"
     matcher             = "200"
     interval            = 30
     timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 2
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 
   tags = {

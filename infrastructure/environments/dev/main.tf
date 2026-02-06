@@ -9,6 +9,7 @@ module "alb" {
   vpc_id          = module.vpc.vpc_id
   public_subnets  = module.vpc.public_subnets
   certificate_arn = var.acm_certificate_arn
+  target_port     = 8001
 }
 
 module "ecs" {
@@ -24,6 +25,13 @@ module "ecs" {
   supabase_url                    = var.supabase_url
   supabase_service_key_secret_arn = var.supabase_service_key_secret_arn
   resend_api_key_secret_arn       = var.resend_api_key_secret_arn
+  container_port                  = 8001
+  container_cpu                   = "4096"
+  container_memory                = "16384"
+  extra_environment = [
+    { name = "SIDECAR_DEV_MODE", value = "false" },
+    { name = "SENTINEL_BIN", value = "/app/sentinel-server" },
+  ]
 }
 
 module "rds" {
