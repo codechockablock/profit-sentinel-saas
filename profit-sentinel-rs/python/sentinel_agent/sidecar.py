@@ -75,11 +75,13 @@ from .digest_scheduler import (
     DigestScheduler,
     add_subscription,
     get_subscription,
+    init_subscription_store,
     list_subscriptions,
     pause_subscription,
     remove_subscription,
     resume_subscription,
 )
+from .subscription_store import create_store
 from .diagnostics import (
     DiagnosticEngine,
     DiagnosticSession,
@@ -166,6 +168,13 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     generator = MorningDigestGenerator(engine=engine)
     delegation_mgr = DelegationManager()
     vendor_assistant = VendorCallAssistant()
+
+    # Subscription store (Supabase if configured, else in-memory)
+    sub_store = create_store(
+        supabase_url=settings.supabase_url,
+        supabase_service_key=settings.supabase_service_key,
+    )
+    init_subscription_store(sub_store)
 
     # Digest email scheduler
     digest_scheduler = DigestScheduler(
@@ -353,6 +362,88 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
             issue_count=digest.summary.total_issues,
             total_dollar_impact=digest.summary.total_dollar_impact,
         )
+
+    # -----------------------------------------------------------------
+    # Digest Email endpoints
+    # IMPORTANT: These must be registered BEFORE /api/v1/digest/{store_id}
+    # to prevent FastAPI from matching "subscriptions" as a store_id.
+    # -----------------------------------------------------------------
+
+    @app.post(
+        "/api/v1/digest/subscribe",
+        response_model=SubscribeResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def subscribe_digest(body: SubscribeRequest) -> SubscribeResponse:
+        """Subscribe to morning digest emails."""
+        sub = add_subscription(
+            body.email,
+            stores=body.stores,
+            send_hour=body.send_hour,
+            tz=body.timezone,
+        )
+        return SubscribeResponse(subscription=sub, message="Subscription created")
+
+    @app.get(
+        "/api/v1/digest/subscriptions",
+        response_model=SubscriptionListResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_subscriptions() -> SubscriptionListResponse:
+        """List all active digest subscriptions."""
+        subs = list_subscriptions()
+        return SubscriptionListResponse(subscriptions=subs, total=len(subs))
+
+    @app.delete(
+        "/api/v1/digest/subscribe/{email}",
+        dependencies=[Depends(require_auth)],
+    )
+    async def unsubscribe_digest(email: str) -> dict:
+        """Remove a digest subscription."""
+        removed = remove_subscription(email)
+        if not removed:
+            raise HTTPException(status_code=404, detail=f"Subscription for '{email}' not found")
+        return {"message": f"Unsubscribed {email}"}
+
+    @app.post(
+        "/api/v1/digest/send",
+        response_model=DigestSendResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def send_digest_now(body: DigestSendRequest) -> DigestSendResponse:
+        """Send a digest email immediately (on-demand)."""
+        if not settings.resend_api_key:
+            raise HTTPException(
+                status_code=503,
+                detail="Email delivery not configured (RESEND_API_KEY not set)",
+            )
+        try:
+            result = await digest_scheduler.send_now(body.email)
+            return DigestSendResponse(
+                email_id=result.get("id"),
+                message=f"Digest sent to {body.email}",
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")
+
+    @app.get(
+        "/api/v1/digest/scheduler-status",
+        response_model=SchedulerStatusResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def scheduler_status() -> SchedulerStatusResponse:
+        """Get digest scheduler status."""
+        subs = list_subscriptions()
+        return SchedulerStatusResponse(
+            enabled=settings.digest_email_enabled,
+            running=digest_scheduler.is_running,
+            subscribers=len(subs),
+            send_hour=settings.digest_send_hour,
+        )
+
+    # -----------------------------------------------------------------
+    # Single-store digest (parameterized — must come AFTER specific routes)
+    # -----------------------------------------------------------------
 
     @app.get(
         "/api/v1/digest/{store_id}",
@@ -724,82 +815,6 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
             items_to_investigate=report["items_to_investigate"],
             journey=report["journey"],
             rendered_text=rendered,
-        )
-
-    # -----------------------------------------------------------------
-    # Digest Email endpoints
-    # -----------------------------------------------------------------
-
-    @app.post(
-        "/api/v1/digest/subscribe",
-        response_model=SubscribeResponse,
-        dependencies=[Depends(require_auth)],
-    )
-    async def subscribe_digest(body: SubscribeRequest) -> SubscribeResponse:
-        """Subscribe to morning digest emails."""
-        sub = add_subscription(
-            body.email,
-            stores=body.stores,
-            send_hour=body.send_hour,
-            tz=body.timezone,
-        )
-        return SubscribeResponse(subscription=sub, message="Subscription created")
-
-    @app.get(
-        "/api/v1/digest/subscriptions",
-        response_model=SubscriptionListResponse,
-        dependencies=[Depends(require_auth)],
-    )
-    async def get_subscriptions() -> SubscriptionListResponse:
-        """List all active digest subscriptions."""
-        subs = list_subscriptions()
-        return SubscriptionListResponse(subscriptions=subs, total=len(subs))
-
-    @app.delete(
-        "/api/v1/digest/subscribe/{email}",
-        dependencies=[Depends(require_auth)],
-    )
-    async def unsubscribe_digest(email: str) -> dict:
-        """Remove a digest subscription."""
-        removed = remove_subscription(email)
-        if not removed:
-            raise HTTPException(status_code=404, detail=f"Subscription for '{email}' not found")
-        return {"message": f"Unsubscribed {email}"}
-
-    @app.post(
-        "/api/v1/digest/send",
-        response_model=DigestSendResponse,
-        dependencies=[Depends(require_auth)],
-    )
-    async def send_digest_now(body: DigestSendRequest) -> DigestSendResponse:
-        """Send a digest email immediately (on-demand)."""
-        if not settings.resend_api_key:
-            raise HTTPException(
-                status_code=503,
-                detail="Email delivery not configured (RESEND_API_KEY not set)",
-            )
-        try:
-            result = await digest_scheduler.send_now(body.email)
-            return DigestSendResponse(
-                email_id=result.get("id"),
-                message=f"Digest sent to {body.email}",
-            )
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")
-
-    @app.get(
-        "/api/v1/digest/scheduler-status",
-        response_model=SchedulerStatusResponse,
-        dependencies=[Depends(require_auth)],
-    )
-    async def scheduler_status() -> SchedulerStatusResponse:
-        """Get digest scheduler status."""
-        subs = list_subscriptions()
-        return SchedulerStatusResponse(
-            enabled=settings.digest_email_enabled,
-            running=digest_scheduler.is_running,
-            subscribers=len(subs),
-            send_hour=settings.digest_send_hour,
         )
 
     # -----------------------------------------------------------------
