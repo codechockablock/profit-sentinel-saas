@@ -62,6 +62,26 @@ class SidecarSettings(BaseSettings):
         description="Anthropic API key for Claude-powered AI features.",
     )
 
+    # ----- AWS S3 -----
+    s3_bucket_name: str = Field(
+        default="",
+        description="S3 bucket name for file uploads.",
+    )
+    aws_region: str = Field(
+        default="us-east-1",
+        description="AWS region for S3 and other services.",
+    )
+
+    # ----- Analysis -----
+    sentinel_default_store: str = Field(
+        default="default",
+        description="Default store ID for analysis pipeline.",
+    )
+    sentinel_top_k: int = Field(
+        default=20,
+        description="Number of top issues per leak type to return.",
+    )
+
     # ----- Cache -----
     digest_cache_ttl_seconds: int = Field(
         default=300,

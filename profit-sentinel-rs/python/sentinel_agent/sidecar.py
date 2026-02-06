@@ -1,10 +1,9 @@
 """Sentinel Sidecar API.
 
-FastAPI application serving the Profit Sentinel mobile interface.
-Bridges the Rust pipeline and Python agent layer to REST endpoints
-for the 6 AM executive mobile experience.
+FastAPI application serving the Profit Sentinel interface.
+Bridges the Rust pipeline and Python agent layer to REST endpoints.
 
-Endpoints:
+Endpoints (Mobile/Executive):
     GET  /health                      — health check
     GET  /api/v1/digest               — morning digest
     GET  /api/v1/digest/{store_id}    — single-store digest
@@ -16,7 +15,13 @@ Endpoints:
     GET  /api/v1/coop/{store_id}      — co-op intelligence report
     GET  /api/v1/explain/{issue_id}   — proof tree for issue root cause
     POST /api/v1/explain/{issue_id}/why — backward-chain from a goal
-    GET  /                            — mobile web UI (static)
+
+Endpoints (Legacy-compatible — production frontend):
+    POST /uploads/presign             — generate S3 presigned URLs
+    POST /uploads/suggest-mapping     — AI column mapping suggestions
+    POST /analysis/analyze            — run Rust analysis pipeline
+    GET  /analysis/primitives         — list detection primitives
+    GET  /analysis/supported-pos      — list supported POS systems
 """
 
 from __future__ import annotations
@@ -73,6 +78,7 @@ from .llm_layer import (
 from .models import Digest, Issue
 from .sidecar_config import SidecarSettings, get_settings
 from .symbolic_reasoning import SymbolicReasoner
+from .upload_routes import create_upload_router
 from .vendor_assist import VendorCallAssistant
 
 logger = logging.getLogger("sentinel.sidecar")
@@ -711,6 +717,13 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
             journey=report["journey"],
             rendered_text=rendered,
         )
+
+    # -----------------------------------------------------------------
+    # Legacy-compatible upload & analysis routes (production frontend)
+    # -----------------------------------------------------------------
+
+    upload_router = create_upload_router(settings, engine, verify_token)
+    app.include_router(upload_router)
 
     # -----------------------------------------------------------------
     # Static files (mobile UI) — mounted last so API routes take priority
