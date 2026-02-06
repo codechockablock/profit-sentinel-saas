@@ -6,7 +6,13 @@
  * 2. Upload file directly to S3
  * 3. Get column mapping suggestions
  * 4. Run analysis
+ *
+ * Supports dual auth:
+ *   - Anonymous users: no auth header, 10MB limit, 5 analyses/hour
+ *   - Authenticated users: Bearer token, 50MB limit, 100 analyses/hour
  */
+
+import { getAuthHeaders } from './supabase'
 
 export interface PresignResult {
   key: string;
@@ -78,6 +84,12 @@ export interface CauseDiagnosis {
   }>;
 }
 
+export interface UpgradePrompt {
+  message: string;
+  cta: string;
+  url: string;
+}
+
 export interface AnalysisResult {
   leaks: Record<string, LeakData>;
   summary: {
@@ -91,6 +103,42 @@ export interface AnalysisResult {
   cause_diagnosis?: CauseDiagnosis;
   warnings?: string[];
   status: string;
+  is_authenticated?: boolean;
+  upgrade_prompt?: UpgradePrompt;
+}
+
+export interface PresignResponse {
+  presigned_urls: Array<{
+    filename: string;
+    safe_filename: string;
+    key: string;
+    url: string;
+    max_size_mb: number;
+  }>;
+  limits: {
+    max_file_size_mb: number;
+    allowed_extensions: string[];
+  };
+}
+
+/** Get API base URL - use direct API for long-running requests */
+function getApiBaseUrl(): string {
+  // In browser, check if we're in production
+  if (typeof window !== "undefined") {
+    // Production: use direct API to avoid Vercel proxy timeouts
+    if (window.location.hostname === "profitsentinel.com" ||
+        window.location.hostname === "www.profitsentinel.com" ||
+        window.location.hostname.includes("vercel.app")) {
+      return "https://api.profitsentinel.com";
+    }
+  }
+  // Development: use local proxy
+  return "";
+}
+
+/** Get headers for API requests (includes auth if logged in) */
+async function getHeaders(): Promise<HeadersInit> {
+  return await getAuthHeaders();
 }
 
 /** Step 1: Get presigned S3 URL */
@@ -98,8 +146,13 @@ export async function presignUpload(filename: string): Promise<PresignResult> {
   const formData = new FormData();
   formData.append("filenames", filename);
 
-  const res = await fetch("/api/uploads/presign", {
+  const authHeaders = await getHeaders();
+  const apiBase = getApiBaseUrl();
+  const endpoint = apiBase ? `${apiBase}/uploads/presign` : "/api/uploads/presign";
+
+  const res = await fetch(endpoint, {
     method: "POST",
+    headers: authHeaders,
     body: formData,
   });
 
@@ -108,8 +161,34 @@ export async function presignUpload(filename: string): Promise<PresignResult> {
     throw new Error(errorData.detail || "Failed to get upload URL");
   }
 
-  const data = await res.json();
+  const data: PresignResponse = await res.json();
   return data.presigned_urls[0];
+}
+
+/** Step 1b: Get file size limit for current user */
+export async function getFileSizeLimit(): Promise<number> {
+  try {
+    const formData = new FormData();
+    formData.append("filenames", "probe.csv");
+
+    const authHeaders = await getHeaders();
+    const apiBase = getApiBaseUrl();
+    const endpoint = apiBase ? `${apiBase}/uploads/presign` : "/api/uploads/presign";
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: authHeaders,
+      body: formData,
+    });
+
+    if (res.ok) {
+      const data: PresignResponse = await res.json();
+      return data.limits.max_file_size_mb;
+    }
+  } catch {
+    // Fall through to default
+  }
+  return 10; // Default to anonymous limit
 }
 
 /** Step 2: Upload file to S3 via presigned URL */
@@ -134,8 +213,13 @@ export async function suggestMapping(
   formData.append("key", key);
   formData.append("filename", filename);
 
-  const res = await fetch("/api/uploads/suggest-mapping", {
+  const authHeaders = await getHeaders();
+  const apiBase = getApiBaseUrl();
+  const endpoint = apiBase ? `${apiBase}/uploads/suggest-mapping` : "/api/uploads/suggest-mapping";
+
+  const res = await fetch(endpoint, {
     method: "POST",
+    headers: authHeaders,
     body: formData,
   });
 
@@ -147,21 +231,6 @@ export async function suggestMapping(
   return res.json();
 }
 
-/** Get API base URL - use direct API for long-running requests */
-function getApiBaseUrl(): string {
-  // In browser, check if we're in production
-  if (typeof window !== "undefined") {
-    // Production: use direct API to avoid Vercel proxy timeouts
-    if (window.location.hostname === "profitsentinel.com" ||
-        window.location.hostname === "www.profitsentinel.com" ||
-        window.location.hostname.includes("vercel.app")) {
-      return "https://api.profitsentinel.com";
-    }
-  }
-  // Development: use local proxy
-  return "";
-}
-
 /** Step 4: Run analysis - uses direct API to avoid proxy timeouts */
 export async function runAnalysis(
   key: string,
@@ -171,17 +240,22 @@ export async function runAnalysis(
   formData.append("key", key);
   formData.append("mapping", JSON.stringify(mapping));
 
+  const authHeaders = await getHeaders();
   // Use direct API URL for analysis (can take 2+ minutes for large files)
   const apiBase = getApiBaseUrl();
   // Direct API uses /analysis/analyze, proxy uses /api/analysis/analyze
   const endpoint = apiBase ? `${apiBase}/analysis/analyze` : "/api/analysis/analyze";
   const res = await fetch(endpoint, {
     method: "POST",
+    headers: authHeaders,
     body: formData,
   });
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
+    if (res.status === 429) {
+      throw new Error(errorData.detail || "Rate limit exceeded. Sign up for higher limits.");
+    }
     throw new Error(errorData.detail || "Analysis failed");
   }
 
@@ -195,9 +269,9 @@ export function isValidFileType(file: File): boolean {
   return validExtensions.some((ext) => fileName.endsWith(ext));
 }
 
-/** Helper: Validate file size (max 50MB) */
-export function isValidFileSize(file: File): boolean {
-  const maxSize = 50 * 1024 * 1024; // 50MB
+/** Helper: Validate file size (dynamic based on auth state) */
+export function isValidFileSize(file: File, maxSizeMb: number = 10): boolean {
+  const maxSize = maxSizeMb * 1024 * 1024;
   return file.size <= maxSize;
 }
 

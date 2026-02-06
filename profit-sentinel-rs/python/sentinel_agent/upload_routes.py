@@ -5,8 +5,10 @@ Adds the 3 legacy endpoints required by the production frontend:
     POST /uploads/suggest-mapping — AI column mapping suggestions
     POST /analysis/analyze       — run Rust analysis pipeline
 
-These endpoints match the exact request/response contracts of the
-legacy Python API so the React frontend works with zero changes.
+Public mode:  Anonymous users can use these endpoints (no JWT required).
+              Rate-limited to 5 analyses/hour, 10 MB file limit.
+Auth mode:    Authenticated users get 100 analyses/hour, 50 MB limit,
+              results saved, no upgrade prompt.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 
 from .column_adapter import ColumnAdapter
+from .dual_auth import UserContext, build_upgrade_prompt, check_rate_limit
 from .engine import PipelineError, SentinelEngine
 from .result_adapter import RustResultAdapter
 from .s3_service import (
@@ -155,9 +158,16 @@ def _validate_and_apply_mapping(
 def create_upload_router(
     settings: SidecarSettings,
     engine: SentinelEngine | None,
-    verify_token,
+    get_user_context,
 ) -> APIRouter:
-    """Create the upload/analysis router with all 3 legacy endpoints."""
+    """Create the upload/analysis router with dual auth (anonymous + authenticated).
+
+    Args:
+        settings: Sidecar configuration.
+        engine: Rust pipeline engine (may be None if binary not found).
+        get_user_context: FastAPI dependency that returns a UserContext.
+                          Allows anonymous users (no 401 for missing token).
+    """
 
     uploads_router = APIRouter(prefix="/uploads", tags=["uploads"])
     analysis_router = APIRouter(prefix="/analysis", tags=["analysis"])
@@ -170,12 +180,12 @@ def create_upload_router(
     async def presign_upload(
         request: Request,
         filenames: list[str] = Form(...),
-        user_id: str = Depends(verify_token),
+        ctx: UserContext = Depends(get_user_context),
     ):
         """Generate presigned URLs for direct S3 upload.
 
-        Returns:
-            List of presigned URL objects with filename, key, and url.
+        Anonymous users: uploads/anonymous/{ip_hash}/{uuid}/{filename}
+        Authenticated:   uploads/{user_id}/{uuid}/{filename}
         """
         try:
             s3_client = get_s3_client()
@@ -183,11 +193,12 @@ def create_upload_router(
                 s3_client,
                 settings.s3_bucket_name,
                 filenames,
-                user_id,
+                ctx.s3_prefix,
+                max_file_size_mb=ctx.max_file_size_mb,
             )
             logger.info(
                 f"Generated {len(result['presigned_urls'])} presigned URLs "
-                f"for user {user_id}"
+                f"for {ctx!r}"
             )
             return result
         except ValueError as e:
@@ -202,15 +213,14 @@ def create_upload_router(
         request: Request,
         key: str = Form(...),
         filename: str = Form(...),
-        user_id: str = Depends(verify_token),
+        ctx: UserContext = Depends(get_user_context),
     ) -> dict:
         """Analyze uploaded file and suggest column mappings.
 
         Uses Anthropic Claude for intelligent mapping with heuristic fallback.
         """
         # Validate S3 key ownership
-        expected_prefix = f"{user_id}/" if user_id else "anonymous/"
-        if not key.startswith(expected_prefix):
+        if not key.startswith(ctx.s3_prefix):
             raise HTTPException(
                 status_code=403,
                 detail="Access denied: you can only access your own uploaded files",
@@ -220,7 +230,13 @@ def create_upload_router(
             from .mapping_service import MappingService
 
             s3_client = get_s3_client()
-            df = load_dataframe(s3_client, settings.s3_bucket_name, key, sample_rows=50)
+            df = load_dataframe(
+                s3_client,
+                settings.s3_bucket_name,
+                key,
+                sample_rows=50,
+                max_size_mb=ctx.max_file_size_mb,
+            )
 
             mapping_svc = MappingService()
             result = mapping_svc.suggest_mapping(df, filename)
@@ -245,13 +261,16 @@ def create_upload_router(
         key: str = Form(...),
         mapping: str = Form(...),
         background_tasks: BackgroundTasks = BackgroundTasks(),
-        user_id: str = Depends(verify_token),
+        ctx: UserContext = Depends(get_user_context),
     ) -> dict:
         """Analyze uploaded POS data for profit leaks using Rust pipeline.
 
-        Returns:
-            Comprehensive analysis results matching legacy API shape.
+        Rate-limited: 5/hour anonymous, 100/hour authenticated.
+        Anonymous results include an upgrade_prompt.
         """
+        # Rate limit check
+        check_rate_limit(ctx)
+
         # Parse mapping
         try:
             mapping_dict = json.loads(mapping)
@@ -267,8 +286,7 @@ def create_upload_router(
             )
 
         # Validate S3 key ownership
-        expected_prefix = f"{user_id}/" if user_id else "anonymous/"
-        if not key.startswith(expected_prefix):
+        if not key.startswith(ctx.s3_prefix):
             raise HTTPException(
                 status_code=403,
                 detail="Access denied: you can only analyze your own uploaded files",
@@ -282,13 +300,18 @@ def create_upload_router(
 
         try:
             overall_start = time.time()
-            logger.info(f"Starting analysis for key: {key}")
+            logger.info(f"Starting analysis for key: {key} ({ctx!r})")
 
             s3_client = get_s3_client()
 
-            # Load full DataFrame
+            # Load full DataFrame (respects per-user file size limit)
             load_start = time.time()
-            df = load_dataframe(s3_client, settings.s3_bucket_name, key)
+            df = load_dataframe(
+                s3_client,
+                settings.s3_bucket_name,
+                key,
+                max_size_mb=ctx.max_file_size_mb,
+            )
             logger.info(
                 f"Loaded DataFrame ({len(df)} rows, {len(df.columns)} columns) "
                 f"in {time.time() - load_start:.2f}s"
@@ -345,11 +368,17 @@ def create_upload_router(
             result["status"] = "success"
             result["warnings"] = mapping_warnings if mapping_warnings else None
             result["supported_pos_systems"] = SUPPORTED_POS_SYSTEMS
+            result["is_authenticated"] = ctx.is_authenticated
+
+            # Upgrade prompt for anonymous users
+            if not ctx.is_authenticated:
+                result["upgrade_prompt"] = build_upgrade_prompt()
 
             total_time = time.time() - overall_start
             logger.info(
                 f"Analysis completed in {total_time:.2f}s "
-                f"({len(df)} rows, {result['summary']['total_items_flagged']} issues)"
+                f"({len(df)} rows, {result['summary']['total_items_flagged']} issues, "
+                f"auth={ctx.is_authenticated})"
             )
 
             # Schedule S3 file cleanup (60s delay for retries)
