@@ -138,60 +138,55 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
 | Frontend (`jest`) | 27 | PASS |
 | **Total** | **355** | **ALL PASS** |
 
-## AWS Deployment Readiness
+## AWS Deployment — COMPLETE
 
-### Required Before `terraform apply`
+### Infrastructure Provisioned
 
-1. Create `infrastructure/environments/staging/terraform.tfvars` with:
-   - `acm_certificate_arn` (can reuse dev certificate if wildcard, or create new)
-   - `xai_api_key_secret_arn`
-   - `supabase_url`
-   - `supabase_service_key_secret_arn`
-   - `resend_api_key_secret_arn`
+```
+terraform apply — 35 resources created
+```
 
-2. Initialize Terraform:
-   ```bash
-   cd infrastructure/environments/staging
-   terraform init
-   terraform plan -var-file="terraform.tfvars"
-   terraform apply -var-file="terraform.tfvars"
-   ```
+| Resource | Value |
+|----------|-------|
+| ALB DNS | `profitsentinel-staging-alb-524171042.us-east-1.elb.amazonaws.com` |
+| ECR Repo | `PLACEHOLDER_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/profitsentinel-staging-api` |
+| S3 Bucket | `profitsentinel-staging-uploads` |
+| ECS Cluster | `profitsentinel-staging-cluster` |
+| ECS Service | `profitsentinel-staging-service` |
+| LLM Provider | Anthropic Claude (via Secrets Manager) |
 
-3. Push Docker image:
-   ```bash
-   # Login to ECR
-   aws ecr get-login-password --region us-east-1 | \
-     docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
+### Docker Image
 
-   # Tag and push
-   docker tag sentinel-sidecar:staging-test \
-     <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/profitsentinel-staging-api:latest
-   docker push \
-     <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/profitsentinel-staging-api:latest
-   ```
+- Built with `--platform linux/amd64` (ECS Fargate requirement)
+- Source: `Dockerfile.sidecar` (multi-stage Rust 1.84 + Python 3.13)
+- Tag: `profitsentinel-staging-api:latest`
 
-### Staging Smoke Tests (Post-Deploy)
+### Live Smoke Tests — ALL PASS
 
-Run these after the ECS service is stable:
-
-```bash
-STAGING_URL="https://<staging-alb-dns>"
+```
+STAGING_URL="http://profitsentinel-staging-alb-524171042.us-east-1.elb.amazonaws.com"
 
 # 1. Health check
 curl -s "$STAGING_URL/health" | jq .
+→ {"status":"ok","version":"0.13.0","binary_found":true,
+   "binary_path":"/app/sentinel-server","dev_mode":false}
 
-# 2. API docs load
+# 2. API docs
 curl -s -o /dev/null -w "%{http_code}" "$STAGING_URL/docs"
+→ 200
 
-# 3. Digest endpoint (should return data or empty)
-curl -s "$STAGING_URL/api/v1/digest" | jq .
+# 3. Routes registered
+curl -s "$STAGING_URL/openapi.json" | jq '.paths | keys | length'
+→ 16
 
-# 4. Input validation (should return 422)
+# 4. Input validation
 curl -s -X POST "$STAGING_URL/api/v1/diagnostic/start" \
-  -H "Content-Type: application/json" -d '{}' | jq .status_code
+  -H "Content-Type: application/json" -d '{}' | jq .detail
+→ [{"type":"missing","msg":"Field required","input":{},"loc":["body","items"]}]
 
 # 5. Response time
 time curl -s "$STAGING_URL/health" > /dev/null
+→ 0.093s
 ```
 
 ## Known Limitations
@@ -203,16 +198,21 @@ time curl -s "$STAGING_URL/health" > /dev/null
 
 ## Conclusion
 
-**Staging environment is ready for AWS deployment.** All local validation passes:
-- Docker build: SUCCESS
-- Health check: SUCCESS
-- API routes: 16/16 registered
-- Input validation: Correct 422 responses
-- Performance: 188x faster than target
-- Tests: 355/355 passing
+**Staging environment is LIVE and HEALTHY on AWS.** All validation passes:
 
-**Next step:** Create `terraform.tfvars` with AWS credentials and run `terraform apply` to provision staging infrastructure.
+| Check | Status |
+|-------|--------|
+| Docker build (linux/amd64) | PASS |
+| Terraform apply (35 resources) | PASS |
+| ECS service stability | PASS |
+| Health check (0.09s) | PASS |
+| API routes (16/16) | PASS |
+| Input validation (422) | PASS |
+| Performance (188x target) | PASS |
+| Tests (355/355) | PASS |
+
+**Next step:** Await user approval before proceeding to M6 (production cutover).
 
 ---
 
-*Do NOT proceed to M6 (production cutover) until staging is deployed and validated on AWS.*
+*Do NOT proceed to M6 (production cutover) without explicit user approval.*
