@@ -261,3 +261,53 @@ class HealthResponse(BaseModel):
     binary_found: bool
     binary_path: str | None = None
     dev_mode: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Digest Email / Subscriptions
+# ---------------------------------------------------------------------------
+
+
+class SubscribeRequest(BaseModel):
+    """Request body for POST /api/v1/digest/subscribe."""
+
+    email: str = Field(description="Subscriber email address")
+    stores: list[str] = Field(default_factory=list, description="Store IDs to include (empty = all)")
+    send_hour: int = Field(default=6, ge=0, le=23, description="Hour of day to send (0-23)")
+    timezone: str = Field(default="America/New_York", description="IANA timezone")
+
+
+class SubscribeResponse(BaseModel):
+    """Response for POST /api/v1/digest/subscribe."""
+
+    subscription: dict
+    message: str = "Subscription created"
+
+
+class SubscriptionListResponse(BaseModel):
+    """Response for GET /api/v1/digest/subscriptions."""
+
+    subscriptions: list[dict]
+    total: int
+
+
+class DigestSendRequest(BaseModel):
+    """Request body for POST /api/v1/digest/send."""
+
+    email: str = Field(description="Email to send digest to")
+
+
+class DigestSendResponse(BaseModel):
+    """Response for POST /api/v1/digest/send."""
+
+    email_id: str | None = None
+    message: str = "Digest sent"
+
+
+class SchedulerStatusResponse(BaseModel):
+    """Response for GET /api/v1/digest/scheduler-status."""
+
+    enabled: bool
+    running: bool
+    subscribers: int
+    send_hour: int

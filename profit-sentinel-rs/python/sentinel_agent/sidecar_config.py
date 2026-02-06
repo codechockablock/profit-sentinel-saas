@@ -82,6 +82,20 @@ class SidecarSettings(BaseSettings):
         description="Number of top issues per leak type to return.",
     )
 
+    # ----- Email (Resend) -----
+    resend_api_key: str = Field(
+        default="",
+        description="Resend API key for email delivery.",
+    )
+    digest_email_enabled: bool = Field(
+        default=False,
+        description="Enable scheduled morning digest emails.",
+    )
+    digest_send_hour: int = Field(
+        default=6,
+        description="Hour (0-23) to send morning digest (in subscriber timezone).",
+    )
+
     # ----- Cache -----
     digest_cache_ttl_seconds: int = Field(
         default=300,
