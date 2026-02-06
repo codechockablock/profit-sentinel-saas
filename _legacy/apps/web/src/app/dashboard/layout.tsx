@@ -11,6 +11,10 @@ import {
   Brain,
   Stethoscope,
   History,
+  BarChart3,
+  AlertTriangle,
+  Key,
+  Plug,
   ChevronLeft,
   ChevronRight,
   Lock,
@@ -26,6 +30,10 @@ const NAV_ITEMS = [
   { href: "/dashboard/explain", label: "Explain", icon: Brain, description: "Symbolic reasoning" },
   { href: "/dashboard/diagnostic", label: "Diagnostic", icon: Stethoscope, description: "Shrinkage wizard" },
   { href: "/dashboard/history", label: "History", icon: History, description: "Track & compare" },
+  { href: "/dashboard/vendor-scores", label: "Vendor Scores", icon: BarChart3, description: "Performance scoring" },
+  { href: "/dashboard/predictions", label: "Predictions", icon: AlertTriangle, description: "Inventory forecasts" },
+  { href: "/dashboard/api-keys", label: "API Keys", icon: Key, description: "Enterprise access" },
+  { href: "/dashboard/pos", label: "POS Connect", icon: Plug, description: "System integrations" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

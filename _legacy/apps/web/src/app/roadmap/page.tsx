@@ -86,30 +86,26 @@ const roadmapItems: RoadmapItem[] = [
     description: 'Daily email briefing with your top priority issues, delivered before you open the store. Subscribe from the Dashboard.',
   },
 
-  // Planned
+  // Recently shipped
   {
-    status: 'planned',
+    status: 'shipped',
     title: 'Automated Vendor Performance Scoring',
-    description: 'Score vendors based on delivery accuracy, pricing consistency, and short-ship history.',
-    eta: 'Q2 2026',
+    description: 'Score vendors across quality, delivery, pricing, and compliance — weighted scorecards with letter grades and risk levels.',
   },
   {
-    status: 'planned',
+    status: 'shipped',
     title: 'Predictive Inventory Alerts',
-    description: 'AI-powered predictions for stockouts and overstock situations before they happen.',
-    eta: 'Q3 2026',
+    description: 'Velocity-based stockout and overstock forecasting with severity levels, revenue-at-risk estimates, and demand surge detection.',
   },
   {
-    status: 'planned',
+    status: 'shipped',
     title: 'API Access for Enterprise',
-    description: 'REST API for integrating Profit Sentinel into your existing workflows.',
-    eta: 'Q4 2026',
+    description: 'REST API with tiered rate limiting (free/pro/enterprise), SHA-256 key hashing, and per-key usage analytics.',
   },
   {
-    status: 'planned',
+    status: 'shipped',
     title: 'POS System Integrations',
-    description: 'Direct connections to Square, Lightspeed, Clover, and Shopify POS for automatic data sync.',
-    eta: 'Q4 2026',
+    description: 'Direct connections to Square, Lightspeed, Clover, and Shopify POS with OAuth2 sync and connection lifecycle management.',
   },
 
   // Exploring
