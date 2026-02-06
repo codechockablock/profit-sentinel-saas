@@ -94,10 +94,11 @@ jobs:
           SHORT_SHA=$(echo $IMAGE_TAG | cut -c1-7)
 
           echo "Building image with tag: $SHORT_SHA"
-          # Build from repo root with Dockerfile path specified
-          # (Dockerfile expects access to packages/ for local dependencies)
+          # Build legacy API from _legacy/apps/api/
+          # NOTE: This deploys the legacy Python-only backend (port 8000)
+          # For the new Rust sidecar, see deploy-staging.yml
           docker build \
-            -f apps/api/Dockerfile \
+            -f _legacy/apps/api/Dockerfile \
             --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
             --build-arg GIT_COMMIT=$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
@@ -185,14 +186,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: _legacy/apps/web/package-lock.json
 
       - name: Install dependencies
-        working-directory: apps/web
+        working-directory: _legacy/apps/web
         run: npm ci
 
       - name: Run type check
-        working-directory: apps/web
+        working-directory: _legacy/apps/web
         run: npm run type-check || echo "::warning::Type check had issues"
         continue-on-error: true
 
