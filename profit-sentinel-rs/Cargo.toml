@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "sentinel-pipeline",
+    "sentinel-vsa",
+    "sentinel-server",
+]
+resolver = "2"

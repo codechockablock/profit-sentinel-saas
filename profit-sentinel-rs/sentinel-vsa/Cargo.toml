@@ -1,0 +1,23 @@
+[package]
+name = "sentinel-vsa"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# When building as a Python extension (maturin build --features python),
+# the cdylib target produces the .so/.dylib/.pyd that Python imports.
+# The lib target is used when sentinel-vsa is a normal Rust dependency.
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+ndarray = "0.16"
+num-complex = "0.4"
+rayon = "1.10"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+pyo3 = { version = "0.28", features = ["extension-module"], optional = true }
+
+[features]
+default = []
+python = ["pyo3"]

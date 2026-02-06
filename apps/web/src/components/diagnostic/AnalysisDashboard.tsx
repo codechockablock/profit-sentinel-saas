@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef, ChangeEvent, DragEvent } from "react";
+import React, { useState, useCallback, useRef, useMemo, ChangeEvent, DragEvent } from "react";
 import {
   Upload,
   AlertTriangle,
@@ -31,6 +31,8 @@ import {
   type LeakData,
 } from "@/lib/upload";
 import { LEAK_METADATA, getSeverityBadge, scoreToRiskLabel, formatDollarImpact } from "@/lib/leak-metadata";
+import { buildAttributions, type ColumnAttribution } from "@/lib/column-attribution";
+import { AttributionTooltip } from "@/components/ui/AttributionTooltip";
 
 // Types
 type Stage = "upload" | "mapping" | "processing" | "results";
@@ -78,6 +80,12 @@ export default function AnalysisDashboard() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  // Column attribution — computed once from mapping, used in result tooltips
+  const attributions = useMemo(
+    () => buildAttributions(confirmedMapping, mappingData?.original_columns ?? []),
+    [confirmedMapping, mappingData]
+  );
 
   // File handling
   const handleDrag = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -593,6 +601,7 @@ export default function AnalysisDashboard() {
                   data={data}
                   expanded={expandedLeaks.has(leakKey)}
                   onToggle={() => toggleLeakExpanded(leakKey)}
+                  attributions={attributions}
                 />
               ))
             )}
@@ -673,11 +682,13 @@ function LeakCard({
   data,
   expanded,
   onToggle,
+  attributions,
 }: {
   leakKey: string;
   data: LeakData;
   expanded: boolean;
   onToggle: () => void;
+  attributions: Record<string, ColumnAttribution>;
 }) {
   const metadata = LEAK_METADATA[leakKey];
   const severityBadge = getSeverityBadge(data.severity || metadata?.severity || "low");
@@ -747,11 +758,23 @@ function LeakCard({
                     {item.description && (
                       <p className="text-slate-500 text-xs mb-2">{item.description}</p>
                     )}
-                    <div className="flex gap-4 text-xs text-slate-500 mb-2">
-                      <span>QOH: <strong className="text-slate-300">{item.quantity}</strong></span>
-                      <span>Cost: <strong className="text-slate-300">${item.cost.toFixed(2)}</strong></span>
-                      <span>Retail: <strong className="text-slate-300">${item.revenue.toFixed(2)}</strong></span>
-                      <span>Sold: <strong className="text-slate-300">{item.sold}</strong></span>
+                    <div className="flex gap-4 text-xs text-slate-500 mb-2 group/metrics">
+                      <span className="inline-flex items-center gap-0.5">
+                        QOH: <AttributionTooltip attribution={attributions.quantity} />
+                        <strong className="text-slate-300">{item.quantity}</strong>
+                      </span>
+                      <span className="inline-flex items-center gap-0.5">
+                        Cost: <AttributionTooltip attribution={attributions.cost} />
+                        <strong className="text-slate-300">${item.cost.toFixed(2)}</strong>
+                      </span>
+                      <span className="inline-flex items-center gap-0.5">
+                        Retail: <AttributionTooltip attribution={attributions.revenue} />
+                        <strong className="text-slate-300">${item.revenue.toFixed(2)}</strong>
+                      </span>
+                      <span className="inline-flex items-center gap-0.5">
+                        Sold: <AttributionTooltip attribution={attributions.sold} />
+                        <strong className="text-slate-300">{item.sold}</strong>
+                      </span>
                     </div>
                     {item.context && (
                       <p className="text-amber-400/80 text-xs bg-amber-500/10 rounded px-2 py-1">

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "sentinel-vsa"
+version = "0.1.0"
+description = "VSA tensor operations for Profit Sentinel — Rust-accelerated Python bindings"
+requires-python = ">=3.10"
+
+[tool.maturin]
+# Build with the python feature enabled
+features = ["python"]
+# Module name must match the #[pymodule] fn name in py_bindings.rs
+module-name = "sentinel_vsa"

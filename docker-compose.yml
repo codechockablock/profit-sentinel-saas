@@ -54,6 +54,30 @@ services:
       - api
     restart: unless-stopped
 
+  # Sentinel Sidecar (Rust pipeline + Python agent + mobile UI)
+  sentinel-sidecar:
+    build:
+      context: ./profit-sentinel-rs
+      dockerfile: Dockerfile.sidecar
+    container_name: profit-sentinel-sidecar
+    ports:
+      - "8001:8001"
+    environment:
+      - SIDECAR_DEV_MODE=${SIDECAR_DEV_MODE:-true}
+      - SIDECAR_PORT=8001
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - CSV_PATH=/app/fixtures/sample_inventory.csv
+    volumes:
+      - ./profit-sentinel-rs/fixtures:/app/fixtures:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
   # Local PostgreSQL (optional, for development without Supabase)
   # WARNING: Set DEV_POSTGRES_PASSWORD in your .env file before using
   postgres:
