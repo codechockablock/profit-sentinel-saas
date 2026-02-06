@@ -14,6 +14,18 @@ variable "ecs_sg_id" { # Allow access from ECS tasks
   type = string
 }
 
+variable "deletion_protection" {
+  description = "Enable deletion protection for the RDS cluster"
+  type        = bool
+  default     = true # Safe default — override to false for dev only
+}
+
+variable "skip_final_snapshot" {
+  description = "Skip final snapshot on cluster deletion"
+  type        = bool
+  default     = false # Safe default — override to true for dev only
+}
+
 resource "aws_security_group" "rds" {
   name        = "${var.name_prefix}-rds-sg"
   description = "Allow inbound from ECS"
@@ -59,8 +71,8 @@ resource "aws_rds_cluster" "aurora" {
   db_subnet_group_name        = aws_db_subnet_group.main.name
   vpc_security_group_ids      = [aws_security_group.rds.id]
   storage_encrypted           = true
-  skip_final_snapshot         = true # Dev only—set false in prod
-  deletion_protection         = false
+  skip_final_snapshot         = var.skip_final_snapshot
+  deletion_protection         = var.deletion_protection
 
   # COST OPTIMIZED: Aurora Serverless v2 scaling
   # min 0.5 ACU = ~$43/mo baseline (can't go lower)

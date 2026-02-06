@@ -40,6 +40,10 @@ module "rds" {
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
   ecs_sg_id       = module.ecs.ecs_sg_id # ECS must output this
+
+  # Dev-only overrides — module defaults (true/false) protect production
+  deletion_protection = false
+  skip_final_snapshot = true
 }
 
 module "ecr" {
