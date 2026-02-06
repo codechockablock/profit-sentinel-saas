@@ -4,8 +4,8 @@ variable "acm_certificate_arn" {
   sensitive   = true
 }
 
-variable "xai_api_key_secret_arn" {
-  description = "ARN of the Secrets Manager secret containing XAI_API_KEY"
+variable "anthropic_api_key_secret_arn" {
+  description = "ARN of the Secrets Manager secret containing ANTHROPIC_API_KEY"
   type        = string
   default     = ""
 }

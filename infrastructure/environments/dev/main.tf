@@ -20,7 +20,7 @@ module "ecs" {
   alb_sg_id                       = module.alb.alb_sg_id
   ecr_repository_url              = module.ecr.repository_url
   s3_bucket_name                  = module.s3.bucket_name
-  xai_api_key_secret_arn          = var.xai_api_key_secret_arn
+  anthropic_api_key_secret_arn    = var.anthropic_api_key_secret_arn
   supabase_url                    = var.supabase_url
   supabase_service_key_secret_arn = var.supabase_service_key_secret_arn
   resend_api_key_secret_arn       = var.resend_api_key_secret_arn
