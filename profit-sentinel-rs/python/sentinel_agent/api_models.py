@@ -380,3 +380,84 @@ class AnalysisCompareResponse(BaseModel):
     worsening_leaks: list[str]
     improving_leaks: list[str]
     metadata: dict
+
+
+# ---------------------------------------------------------------------------
+# Vendor Performance Scoring
+# ---------------------------------------------------------------------------
+
+
+class VendorScoresResponse(BaseModel):
+    """Response for GET /api/v1/vendor-scores."""
+
+    store_id: str
+    scorecards: list[dict]
+    total_vendors_scored: int
+    average_score: float
+    high_risk_vendors: int
+    total_quality_cost: float
+    top_recommendation: str
+
+
+# ---------------------------------------------------------------------------
+# Predictive Inventory Alerts
+# ---------------------------------------------------------------------------
+
+
+class PredictiveReportResponse(BaseModel):
+    """Response for GET /api/v1/predictions."""
+
+    store_id: str
+    total_predictions: int
+    critical_alerts: int
+    warning_alerts: int
+    total_revenue_at_risk: float
+    total_carrying_cost_at_risk: float
+    stockout_predictions: list[dict]
+    overstock_predictions: list[dict]
+    velocity_alerts: list[dict]
+    top_recommendation: str
+
+
+# ---------------------------------------------------------------------------
+# Enterprise API Keys
+# ---------------------------------------------------------------------------
+
+
+class CreateApiKeyRequest(BaseModel):
+    """Request body for POST /api/v1/api-keys."""
+
+    name: str = Field(default="Default", description="Friendly name for the key")
+    tier: str = Field(default="free", description="API tier: free, pro, enterprise")
+    test: bool = Field(default=False, description="Create a test key (ps_test_ prefix)")
+
+
+class CreateApiKeyResponse(BaseModel):
+    """Response for POST /api/v1/api-keys.
+
+    IMPORTANT: The plaintext key is returned only once. Store it securely.
+    """
+
+    key: str = Field(description="Plaintext API key (shown only once)")
+    record: dict
+
+
+class ApiKeyListResponse(BaseModel):
+    """Response for GET /api/v1/api-keys."""
+
+    keys: list[dict]
+    total: int
+
+
+# ---------------------------------------------------------------------------
+# POS Integrations
+# ---------------------------------------------------------------------------
+
+
+class PosConnectionRequest(BaseModel):
+    """Request body for POST /api/v1/pos/connections."""
+
+    pos_system: str = Field(description="POS system: square, lightspeed, clover, shopify")
+    store_name: str = Field(description="Store display name")
+    sync_frequency: str = Field(default="daily", description="Sync frequency: manual, daily, weekly, monthly")
+    location_id: str | None = Field(default=None, description="POS-specific location ID")

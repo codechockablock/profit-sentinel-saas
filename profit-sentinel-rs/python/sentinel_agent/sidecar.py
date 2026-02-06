@@ -8,12 +8,15 @@ Auth model:
         POST /uploads/presign, /uploads/suggest-mapping, /analysis/analyze
         GET  /analysis/primitives, /analysis/supported-pos
         GET  /health
+        GET  /api/v1/pos/systems
     Authenticated only:
         GET  /api/v1/digest, /api/v1/digest/{store_id}
         POST /api/v1/delegate
         GET  /api/v1/tasks, /api/v1/tasks/{task_id}
         PATCH /api/v1/tasks/{task_id}
         GET  /api/v1/vendor-call/{issue_id}
+        GET  /api/v1/vendor-scores
+        GET  /api/v1/predictions
         GET  /api/v1/coop/{store_id}
         GET  /api/v1/explain/{issue_id}
         POST /api/v1/explain/{issue_id}/why
@@ -32,6 +35,15 @@ Auth model:
         GET  /api/v1/analyses/{id}
         PATCH /api/v1/analyses/{id}
         DELETE /api/v1/analyses/{id}
+        POST /api/v1/api-keys
+        GET  /api/v1/api-keys
+        DELETE /api/v1/api-keys/{key_id}
+        GET  /api/v1/api-keys/{key_id}/usage
+        POST /api/v1/pos/connections
+        GET  /api/v1/pos/connections
+        POST /api/v1/pos/connections/{id}/sync
+        POST /api/v1/pos/connections/{id}/disconnect
+        DELETE /api/v1/pos/connections/{id}
 """
 
 from __future__ import annotations
@@ -52,9 +64,12 @@ from .api_models import (
     AnalysisDetailResponse,
     AnalysisListResponse,
     AnalysisRenameRequest,
+    ApiKeyListResponse,
     BackwardChainRequest,
     BackwardChainResponse,
     CoopReportResponse,
+    CreateApiKeyRequest,
+    CreateApiKeyResponse,
     DelegateRequest,
     DelegateResponse,
     DiagnosticAnswerRequest,
@@ -70,6 +85,8 @@ from .api_models import (
     ErrorResponse,
     ExplainResponse,
     HealthResponse,
+    PosConnectionRequest,
+    PredictiveReportResponse,
     SchedulerStatusResponse,
     SubscribeRequest,
     SubscribeResponse,
@@ -79,6 +96,7 @@ from .api_models import (
     TaskStatus,
     TaskStatusUpdate,
     VendorCallResponse,
+    VendorScoresResponse,
 )
 from .delegation import DelegationManager
 from .digest_scheduler import (
@@ -124,6 +142,26 @@ from .sidecar_config import SidecarSettings, get_settings
 from .symbolic_reasoning import SymbolicReasoner
 from .upload_routes import create_upload_router
 from .vendor_assist import VendorCallAssistant
+from .vendor_scoring import score_vendors
+from .predictive_alerts import predict_inventory
+from .api_keys import (
+    ApiTier,
+    create_api_key,
+    get_key_usage,
+    init_api_key_store,
+    list_api_keys,
+    revoke_api_key,
+)
+from .pos_integrations import (
+    create_pos_connection,
+    delete_pos_connection,
+    disconnect_pos,
+    get_pos_connection,
+    get_supported_systems,
+    init_pos_store,
+    list_pos_connections,
+    trigger_sync,
+)
 
 logger = logging.getLogger("sentinel.sidecar")
 
@@ -202,6 +240,12 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         supabase_service_key=settings.supabase_service_key,
     )
     init_analysis_store(analysis_store)
+
+    # API key store
+    init_api_key_store()
+
+    # POS connection store
+    init_pos_store()
 
     # Digest email scheduler
     digest_scheduler = DigestScheduler(
@@ -843,6 +887,197 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
             journey=report["journey"],
             rendered_text=rendered,
         )
+
+    # -----------------------------------------------------------------
+    # Vendor Performance Scoring
+    # -----------------------------------------------------------------
+
+    @app.get(
+        "/api/v1/vendor-scores",
+        response_model=VendorScoresResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_vendor_scores(
+        store_id: str | None = Query(default=None),
+    ) -> VendorScoresResponse:
+        """Score all vendors on quality, delivery, pricing, and compliance."""
+        digest = _get_or_run_digest([store_id] if store_id else None)
+        report = score_vendors(digest, store_id=store_id)
+        return VendorScoresResponse(**report.to_dict())
+
+    # -----------------------------------------------------------------
+    # Predictive Inventory Alerts
+    # -----------------------------------------------------------------
+
+    @app.get(
+        "/api/v1/predictions",
+        response_model=PredictiveReportResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_predictions(
+        store_id: str | None = Query(default=None),
+        horizon_days: int = Query(default=30, ge=7, le=90),
+    ) -> PredictiveReportResponse:
+        """Predict stockouts and overstock situations before they happen."""
+        digest = _get_or_run_digest([store_id] if store_id else None)
+        report = predict_inventory(digest, store_id=store_id, horizon_days=horizon_days)
+        return PredictiveReportResponse(**report.to_dict())
+
+    # -----------------------------------------------------------------
+    # Enterprise API Keys
+    # -----------------------------------------------------------------
+
+    @app.post(
+        "/api/v1/api-keys",
+        response_model=CreateApiKeyResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def create_key(
+        body: CreateApiKeyRequest,
+        ctx: UserContext = Depends(require_auth),
+    ) -> CreateApiKeyResponse:
+        """Create a new API key. The plaintext key is returned only once."""
+        try:
+            tier = ApiTier(body.tier)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid tier '{body.tier}'. Use: free, pro, enterprise",
+            )
+        plaintext, record = create_api_key(
+            ctx.user_id, tier=tier, name=body.name, test=body.test
+        )
+        return CreateApiKeyResponse(key=plaintext, record=record.to_dict())
+
+    @app.get(
+        "/api/v1/api-keys",
+        response_model=ApiKeyListResponse,
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_api_keys(
+        ctx: UserContext = Depends(require_auth),
+    ) -> ApiKeyListResponse:
+        """List all API keys for the current user."""
+        keys = list_api_keys(ctx.user_id)
+        return ApiKeyListResponse(
+            keys=[k.to_dict() for k in keys],
+            total=len(keys),
+        )
+
+    @app.delete(
+        "/api/v1/api-keys/{key_id}",
+        dependencies=[Depends(require_auth)],
+    )
+    async def revoke_key(
+        key_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> dict:
+        """Revoke an API key."""
+        revoked = revoke_api_key(key_id, ctx.user_id)
+        if not revoked:
+            raise HTTPException(status_code=404, detail=f"API key '{key_id}' not found")
+        return {"message": "API key revoked", "key_id": key_id}
+
+    @app.get(
+        "/api/v1/api-keys/{key_id}/usage",
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_key_usage_stats(
+        key_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> dict:
+        """Get usage statistics for an API key."""
+        stats = get_key_usage(key_id, ctx.user_id)
+        if not stats:
+            raise HTTPException(status_code=404, detail=f"API key '{key_id}' not found")
+        return stats
+
+    # -----------------------------------------------------------------
+    # POS Integrations
+    # -----------------------------------------------------------------
+
+    @app.get("/api/v1/pos/systems")
+    async def get_pos_systems() -> dict:
+        """List all supported POS systems with setup instructions."""
+        systems = get_supported_systems()
+        return {"systems": [s.to_dict() for s in systems]}
+
+    @app.post(
+        "/api/v1/pos/connections",
+        dependencies=[Depends(require_auth)],
+    )
+    async def create_connection(
+        body: PosConnectionRequest,
+        ctx: UserContext = Depends(require_auth),
+    ) -> dict:
+        """Create a new POS connection."""
+        try:
+            conn = create_pos_connection(
+                user_id=ctx.user_id,
+                pos_system=body.pos_system,
+                store_name=body.store_name,
+                sync_frequency=body.sync_frequency,
+                location_id=body.location_id,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return conn.to_dict()
+
+    @app.get(
+        "/api/v1/pos/connections",
+        dependencies=[Depends(require_auth)],
+    )
+    async def list_connections(
+        ctx: UserContext = Depends(require_auth),
+    ) -> dict:
+        """List all POS connections for the current user."""
+        connections = list_pos_connections(ctx.user_id)
+        return {
+            "connections": [c.to_dict() for c in connections],
+            "total": len(connections),
+        }
+
+    @app.post(
+        "/api/v1/pos/connections/{connection_id}/sync",
+        dependencies=[Depends(require_auth)],
+    )
+    async def trigger_pos_sync(
+        connection_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> dict:
+        """Trigger a manual data sync for a POS connection."""
+        result = trigger_sync(connection_id, ctx.user_id)
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.errors[0] if result.errors else "Sync failed")
+        return result.to_dict()
+
+    @app.post(
+        "/api/v1/pos/connections/{connection_id}/disconnect",
+        dependencies=[Depends(require_auth)],
+    )
+    async def disconnect_connection(
+        connection_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> dict:
+        """Disconnect a POS integration."""
+        result = disconnect_pos(connection_id, ctx.user_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        return {"message": "Disconnected", "connection_id": connection_id}
+
+    @app.delete(
+        "/api/v1/pos/connections/{connection_id}",
+        dependencies=[Depends(require_auth)],
+    )
+    async def delete_connection_endpoint(
+        connection_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> dict:
+        """Delete a POS connection."""
+        result = delete_pos_connection(connection_id, ctx.user_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        return {"message": "Connection deleted", "connection_id": connection_id}
 
     # -----------------------------------------------------------------
     # Analysis History endpoints

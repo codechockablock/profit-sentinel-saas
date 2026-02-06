@@ -640,3 +640,241 @@ export async function compareAnalyses(
     body: JSON.stringify({ current_id: currentId, previous_id: previousId }),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Vendor Performance Scoring
+// ---------------------------------------------------------------------------
+
+export interface DimensionScore {
+  dimension: string;
+  score: number;
+  weight: number;
+  weighted_score: number;
+  grade: string;
+  details: string;
+}
+
+export interface VendorScorecard {
+  vendor_id: string;
+  vendor_name: string;
+  overall_score: number;
+  overall_grade: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  dimensions: DimensionScore[];
+  recommendations: string[];
+  issues_analyzed: number;
+  total_dollar_impact: number;
+}
+
+export interface VendorScoresResponse {
+  store_id: string;
+  scorecards: VendorScorecard[];
+  total_vendors_scored: number;
+  average_score: number;
+  high_risk_vendors: number;
+  total_quality_cost: number;
+  top_recommendation: string;
+}
+
+export async function fetchVendorScores(storeId?: string): Promise<VendorScoresResponse> {
+  const params = new URLSearchParams();
+  if (storeId) params.set('store_id', storeId);
+  const qs = params.toString();
+  return apiFetch(`/vendor-scores${qs ? `?${qs}` : ''}`);
+}
+
+// ---------------------------------------------------------------------------
+// Predictive Inventory Alerts
+// ---------------------------------------------------------------------------
+
+export type AlertSeverity = 'critical' | 'warning' | 'watch';
+export type PredictionType = 'stockout' | 'overstock' | 'demand_surge' | 'velocity_drop';
+
+export interface InventoryPrediction {
+  sku_id: string;
+  store_id: string;
+  prediction_type: PredictionType;
+  severity: AlertSeverity;
+  days_until_event: number;
+  confidence: number;
+  estimated_lost_revenue: number;
+  estimated_carrying_cost: number;
+  recommended_action: string;
+  current_velocity: number;
+  current_stock: number;
+}
+
+export interface PredictiveReportResponse {
+  store_id: string;
+  total_predictions: number;
+  critical_alerts: number;
+  warning_alerts: number;
+  total_revenue_at_risk: number;
+  total_carrying_cost_at_risk: number;
+  stockout_predictions: InventoryPrediction[];
+  overstock_predictions: InventoryPrediction[];
+  velocity_alerts: InventoryPrediction[];
+  top_recommendation: string;
+}
+
+export async function fetchPredictions(
+  storeId?: string,
+  horizonDays?: number
+): Promise<PredictiveReportResponse> {
+  const params = new URLSearchParams();
+  if (storeId) params.set('store_id', storeId);
+  if (horizonDays) params.set('horizon_days', String(horizonDays));
+  const qs = params.toString();
+  return apiFetch(`/predictions${qs ? `?${qs}` : ''}`);
+}
+
+// ---------------------------------------------------------------------------
+// Enterprise API Keys
+// ---------------------------------------------------------------------------
+
+export type ApiTier = 'free' | 'pro' | 'enterprise';
+
+export interface TierLimits {
+  requests_per_hour: number;
+  requests_per_day: number;
+}
+
+export interface ApiKeyRecord {
+  key_id: string;
+  user_id: string;
+  name: string;
+  tier: ApiTier;
+  is_active: boolean;
+  is_test: boolean;
+  usage_count: number;
+  last_used_at: string | null;
+  created_at: string;
+  limits: TierLimits;
+}
+
+export interface CreateApiKeyRequest {
+  name?: string;
+  tier?: ApiTier;
+  test?: boolean;
+}
+
+export interface CreateApiKeyResponse {
+  key: string;
+  record: ApiKeyRecord;
+}
+
+export interface ApiKeyListResponse {
+  keys: ApiKeyRecord[];
+  total: number;
+}
+
+export interface ApiKeyUsageStats {
+  key_id: string;
+  usage_count_total: number;
+  usage_last_hour: number;
+  remaining_hourly: number;
+  tier: ApiTier;
+  limits: TierLimits;
+}
+
+export async function createApiKey(req?: CreateApiKeyRequest): Promise<CreateApiKeyResponse> {
+  return apiFetch('/api-keys', {
+    method: 'POST',
+    body: JSON.stringify(req || {}),
+  });
+}
+
+export async function listApiKeys(): Promise<ApiKeyListResponse> {
+  return apiFetch('/api-keys');
+}
+
+export async function revokeApiKey(keyId: string): Promise<{ message: string }> {
+  return apiFetch(`/api-keys/${keyId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchApiKeyUsage(keyId: string): Promise<ApiKeyUsageStats> {
+  return apiFetch(`/api-keys/${keyId}/usage`);
+}
+
+// ---------------------------------------------------------------------------
+// POS System Integrations
+// ---------------------------------------------------------------------------
+
+export type PosSystemType = 'square' | 'lightspeed' | 'clover' | 'shopify';
+export type SyncFrequency = 'manual' | 'daily' | 'weekly' | 'monthly';
+export type ConnectionStatus = 'connected' | 'disconnected' | 'syncing' | 'error';
+
+export interface PosSystemInfo {
+  system: PosSystemType;
+  display_name: string;
+  auth_type: string;
+  inventory_fields: string[];
+  setup_steps: string[];
+  docs_url: string;
+}
+
+export interface PosConnection {
+  connection_id: string;
+  user_id: string;
+  pos_system: PosSystemType;
+  pos_system_display: string;
+  store_name: string;
+  status: ConnectionStatus;
+  sync_frequency: SyncFrequency;
+  location_id: string | null;
+  last_sync_at: string | null;
+  last_sync_status: string | null;
+  items_synced: number;
+  created_at: string;
+}
+
+export interface SyncResult {
+  connection_id: string;
+  success: boolean;
+  items_synced: number;
+  errors: string[];
+  started_at: string;
+  completed_at: string;
+}
+
+export interface PosConnectionRequest {
+  pos_system: PosSystemType;
+  store_name: string;
+  sync_frequency?: SyncFrequency;
+  location_id?: string;
+}
+
+export async function fetchSupportedPosSystems(): Promise<{ systems: PosSystemInfo[] }> {
+  return apiFetch('/pos/systems');
+}
+
+export async function createPosConnection(req: PosConnectionRequest): Promise<PosConnection> {
+  return apiFetch('/pos/connections', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+export async function listPosConnections(): Promise<{ connections: PosConnection[]; total: number }> {
+  return apiFetch('/pos/connections');
+}
+
+export async function triggerPosSync(connectionId: string): Promise<SyncResult> {
+  return apiFetch(`/pos/connections/${connectionId}/sync`, {
+    method: 'POST',
+  });
+}
+
+export async function disconnectPos(connectionId: string): Promise<{ message: string }> {
+  return apiFetch(`/pos/connections/${connectionId}/disconnect`, {
+    method: 'POST',
+  });
+}
+
+export async function deletePosConnection(connectionId: string): Promise<{ message: string }> {
+  return apiFetch(`/pos/connections/${connectionId}`, {
+    method: 'DELETE',
+  });
+}
