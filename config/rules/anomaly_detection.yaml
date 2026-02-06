@@ -428,7 +428,7 @@ settings:
   resonator:
     vigilance_threshold: 0.4
     convergence_tolerance: 0.0001
-    max_iterations: 450
+    max_iterations: 100
     
   # Alert suppression
   alerts:
