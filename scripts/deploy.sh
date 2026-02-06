@@ -189,6 +189,13 @@ print_info "Branch: $CURRENT_BRANCH"
 if [ -n "$(git status --porcelain)" ]; then
     git add -A
 
+    # Post-stage secrets scan — catches files missed by the pre-stage check
+    if git diff --cached --name-only | grep -qE '\.env$|\.env\.|\.tfvars$|credentials|\.pem$|\.key$|secret'; then
+        print_error "Secrets detected in staged files after git add!"
+        git reset HEAD -- . > /dev/null
+        exit 1
+    fi
+
     IMAGE_TAG=$(git rev-parse --short HEAD)
     TIMESTAMP=$(date +"%Y-%m-%d %H:%M")
 
