@@ -22,6 +22,11 @@ ECR_REPO_NAME="${ECR_REPO_NAME:-profitsentinel-dev-api}"
 ECS_CLUSTER="${ECS_CLUSTER:-profitsentinel-dev-cluster}"
 ECS_SERVICE="${ECS_SERVICE:-profitsentinel-dev-api-service}"
 
+# ECS task definition resource sizing — must match Terraform module values
+ECS_CPU="${ECS_CPU:-4096}"
+ECS_MEMORY="${ECS_MEMORY:-16384}"
+ECS_CONTAINER_PORT="${ECS_CONTAINER_PORT:-8001}"
+
 TF_DIR="infrastructure/environments/dev"
 TF_VAR_FILE="terraform.tfvars"
 
@@ -270,15 +275,15 @@ NEW_TASK_DEF=$(aws ecs register-task-definition \
   --family profitsentinel-dev-api \
   --requires-compatibilities FARGATE \
   --network-mode awsvpc \
-  --cpu "512" \
-  --memory "1024" \
+  --cpu "$ECS_CPU" \
+  --memory "$ECS_MEMORY" \
   --execution-role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/profitsentinel-dev-ecs-execution-role" \
   --task-role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/ProfitSentinelECSTaskRole" \
   --container-definitions "[
     {
       \"name\": \"api\",
       \"image\": \"$FULL_IMAGE_NAME:$IMAGE_TAG\",
-      \"portMappings\": [{\"containerPort\": 8000, \"protocol\": \"tcp\"}],
+      \"portMappings\": [{\"containerPort\": $ECS_CONTAINER_PORT, \"protocol\": \"tcp\"}],
       \"essential\": true,
       \"logConfiguration\": {
         \"logDriver\": \"awslogs\",
