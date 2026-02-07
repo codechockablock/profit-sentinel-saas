@@ -30,10 +30,9 @@ impl Hydrator<AgentQuery, IssueCandidate> for StoreContextHydrator {
                     crate::types::TrendDirection::Stable => Some(0.5),
                     crate::types::TrendDirection::Improving => Some(0.2),
                 };
-                IssueCandidate {
-                    urgency_score: urgency,
-                    ..IssueCandidate::default()
-                }
+                let mut hydrated = c.clone();
+                hydrated.urgency_score = urgency;
+                hydrated
             })
             .collect();
         Ok(hydrated)
