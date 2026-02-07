@@ -1,6 +1,7 @@
 pub mod bundling;
 pub mod codebook;
 pub mod evidence;
+pub mod math;
 pub mod primitives;
 pub mod similarity;
 

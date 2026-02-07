@@ -1,11 +1,10 @@
 use ndarray::Array1;
 use num_complex::Complex64;
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
-use std::f64::consts::PI;
 use std::sync::{Arc, RwLock};
+
+use crate::math::{fnv1a_hash, random_phasor_vector_from_seed};
 
 /// A codebook maps SKU identifiers to deterministic phasor vectors.
 ///
@@ -105,22 +104,12 @@ impl Codebook {
     /// Generate a deterministic phasor vector for a SKU.
     fn generate(&self, sku: &str) -> Array1<Complex64> {
         let seed = self.sku_seed(sku);
-        let mut rng = StdRng::seed_from_u64(seed);
-        Array1::from_iter((0..self.dimensions).map(|_| {
-            let phase: f64 = rng.gen_range(0.0..2.0 * PI);
-            Complex64::from_polar(1.0, phase)
-        }))
+        random_phasor_vector_from_seed(self.dimensions, seed)
     }
 
     /// Derive a deterministic seed from the SKU string and the base seed.
     fn sku_seed(&self, sku: &str) -> u64 {
-        // Simple FNV-1a-style hash combined with the base seed.
-        let mut hash: u64 = 14695981039346656037;
-        for byte in sku.bytes() {
-            hash ^= byte as u64;
-            hash = hash.wrapping_mul(1099511628211);
-        }
-        hash ^ self.base_seed
+        fnv1a_hash(sku.as_bytes()) ^ self.base_seed
     }
 
     /// Take a lock-free snapshot of the codebook.
