@@ -9,7 +9,7 @@ use serde::Serialize;
 use sentinel_pipeline::candidate_pipeline::CandidatePipeline;
 use sentinel_pipeline::inventory_loader::{load_inventory_file, InventoryRecord};
 use sentinel_pipeline::pipelines::executive_digest::ExecutiveDigestPipeline;
-use sentinel_pipeline::types::{AgentQuery, IssueCandidate, TimeRange, UserRole};
+use sentinel_pipeline::types::{AgentQuery, IssueCandidate, IssueType, TimeRange, UserRole};
 
 // ---------------------------------------------------------------------------
 // JSON output contract
@@ -129,17 +129,12 @@ fn lookup_record<'a>(
 fn generate_context(
     candidate: &IssueCandidate,
     record_index: &HashMap<(&str, &str), &InventoryRecord>,
-    store_record_count: &HashMap<&str, usize>,
 ) -> String {
     let sku_count = candidate.sku_ids.len();
     let store_id = candidate.store_id.as_str();
-    let total_store_skus = store_record_count
-        .get(store_id)
-        .copied()
-        .unwrap_or(0);
 
-    match format!("{:?}", candidate.issue_type).as_str() {
-        "NegativeInventory" => {
+    match candidate.issue_type {
+        IssueType::NegativeInventory => {
             if sku_count == 1 {
                 let sku = &candidate.sku_ids[0];
                 if let Some(r) = lookup_record(record_index, store_id, sku) {
@@ -158,7 +153,7 @@ fn generate_context(
                 )
             }
         }
-        "DeadStock" => {
+        IssueType::DeadStock => {
             let avg_days: f64 = candidate.sku_ids.iter()
                 .filter_map(|sku| lookup_record(record_index, store_id, sku))
                 .map(|r| r.days_since_receipt)
@@ -171,7 +166,7 @@ fn generate_context(
                 avg_days
             )
         }
-        "MarginErosion" => {
+        IssueType::MarginErosion => {
             let avg_margin: f64 = candidate.sku_ids.iter()
                 .filter_map(|sku| lookup_record(record_index, store_id, sku))
                 .map(|r| r.margin_pct)
@@ -184,40 +179,36 @@ fn generate_context(
                 avg_margin * 100.0
             )
         }
-        "VendorShortShip" => {
+        IssueType::VendorShortShip => {
             let has_on_order = candidate.sku_ids.iter().any(|sku| {
                 lookup_record(record_index, store_id, sku)
                     .map(|r| r.on_order_qty > 0.0)
                     .unwrap_or(false)
             });
             if has_on_order {
-                format!(
-                    "Damaged goods with active purchase orders. Vendor fulfillment issue — contact vendor.",
-                )
+                "Damaged goods with active purchase orders. Vendor fulfillment issue — contact vendor.".into()
             } else {
                 "Damaged inventory detected. Evaluate vendor quality and file claim if applicable.".into()
             }
         }
-        "PatronageMiss" => {
+        IssueType::PatronageMiss => {
             format!(
                 "Seasonal overstock: {} SKU{} past sales window. Markdown or return to reduce carrying costs.",
                 sku_count,
                 if sku_count > 1 { "s" } else { "" },
             )
         }
-        "PurchasingLeakage" => {
-            format!(
-                "High-cost items at below-benchmark margins. Review vendor pricing and negotiate volume discounts.",
-            )
+        IssueType::PurchasingLeakage => {
+            "High-cost items at below-benchmark margins. Review vendor pricing and negotiate volume discounts.".into()
         }
-        "ReceivingGap" => {
+        IssueType::ReceivingGap => {
             format!(
                 "Pricing anomaly: {} SKU{} with negative retail price. Data correction needed.",
                 sku_count,
                 if sku_count > 1 { "s" } else { "" },
             )
         }
-        "ShrinkagePattern" => {
+        IssueType::ShrinkagePattern => {
             let total_value: f64 = candidate.sku_ids.iter()
                 .filter_map(|sku| lookup_record(record_index, store_id, sku))
                 .map(|r| r.qty_on_hand * r.unit_cost)
@@ -229,7 +220,7 @@ fn generate_context(
                 total_value,
             )
         }
-        "ZeroCostAnomaly" => {
+        IssueType::ZeroCostAnomaly => {
             let has_sales = candidate.sku_ids.iter().any(|sku| {
                 lookup_record(record_index, store_id, sku)
                     .map(|r| r.sales_last_30d > 0.0)
@@ -249,7 +240,7 @@ fn generate_context(
                 )
             }
         }
-        "PriceDiscrepancy" => {
+        IssueType::PriceDiscrepancy => {
             let avg_loss: f64 = candidate.sku_ids.iter()
                 .filter_map(|sku| lookup_record(record_index, store_id, sku))
                 .map(|r| if r.unit_cost > r.retail_price { r.unit_cost - r.retail_price } else { 0.0 })
@@ -262,7 +253,7 @@ fn generate_context(
                 avg_loss,
             )
         }
-        "Overstock" => {
+        IssueType::Overstock => {
             let avg_months: f64 = candidate.sku_ids.iter()
                 .filter_map(|sku| lookup_record(record_index, store_id, sku))
                 .map(|r| if r.sales_last_30d > 0.0 { r.qty_on_hand / r.sales_last_30d } else { 24.0 })
@@ -275,10 +266,6 @@ fn generate_context(
                 avg_months,
             )
         }
-        _ => format!(
-            "{} SKUs affected across {} total store records.",
-            sku_count, total_store_skus
-        ),
     }
 }
 
@@ -295,12 +282,6 @@ fn build_json(
         .iter()
         .map(|r| ((r.store_id.as_str(), r.sku.as_str()), r))
         .collect();
-
-    // Pre-count records per store for context generation.
-    let mut store_record_count: HashMap<&str, usize> = HashMap::new();
-    for r in records {
-        *store_record_count.entry(r.store_id.as_str()).or_insert(0) += 1;
-    }
 
     let mut stores_affected: Vec<String> = result
         .selected_candidates
@@ -330,7 +311,7 @@ fn build_json(
                 urgency_score: c.urgency_score.unwrap_or(0.0),
                 detection_timestamp: c.detection_timestamp.clone(),
                 skus: build_sku_details(c, &record_index),
-                context: generate_context(c, &record_index, &store_record_count),
+                context: generate_context(c, &record_index),
                 root_cause: c.root_cause.as_ref().map(|rc| format!("{:?}", rc)),
                 root_cause_confidence: c.root_cause_confidence,
                 cause_scores: c.cause_scores.iter().map(|cs| CauseScoreJson {
