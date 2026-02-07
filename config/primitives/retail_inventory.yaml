@@ -101,7 +101,7 @@ primitives:
       impact_formula: "lost_sales * margin_per_unit"
 
     high_stock:
-      seed: "primitive:inventory:high_stock:v2"
+      seed: "primitive_inventory_high_stock_v2"
       description: "Quantity significantly above optimal level"
       category: anomaly
       severity: warning
@@ -242,7 +242,7 @@ primitives:
       impact_formula: "(expected_margin - actual_margin) * revenue"
 
     negative_margin:
-      seed: "primitive:margin:negative_margin:v2"
+      seed: "primitive_margin_negative_margin_v2"
       description: "Selling below cost - immediate loss"
       category: anomaly
       severity: critical
@@ -461,13 +461,13 @@ primitives:
         comparison: "sold > avg_sold * 2"
 
     low_velocity:
-      seed: "primitive:velocity:low_velocity:v2"
+      seed: "primitive_velocity_low_velocity_v2"
       description: "Sales rate significantly below average"
       category: pattern
       severity: info
 
     velocity_spike:
-      seed: "primitive:velocity:velocity_spike:v2"
+      seed: "primitive_velocity_velocity_spike_v2"
       description: "Sudden increase in sales rate"
       category: pattern
       severity: info
@@ -477,7 +477,7 @@ primitives:
   # ---------------------------------------------------------------------------
   temporal:
     recent:
-      seed: "primitive:temporal:recent:v2"
+      seed: "primitive_temporal_recent_v2"
       description: "Occurred within last 7 days"
       category: temporal
       severity: normal
@@ -489,13 +489,13 @@ primitives:
       severity: normal
 
     end_of_month:
-      seed: "primitive:temporal:end_of_month:v2"
+      seed: "primitive_temporal_end_of_month_v2"
       description: "End of month period"
       category: temporal
       severity: normal
 
     holiday:
-      seed: "primitive:temporal:holiday:v2"
+      seed: "primitive_temporal_holiday_v2"
       description: "Holiday period modifier"
       category: temporal
       severity: normal
@@ -505,25 +505,25 @@ primitives:
   # ---------------------------------------------------------------------------
   role:
     sku:
-      seed: "role:sku:v2"
+      seed: "role_sku_v2"
       description: "SKU/product identifier role"
       category: role
       severity: normal
 
     vendor:
-      seed: "role:vendor:v2"
+      seed: "role_vendor_v2"
       description: "Vendor/supplier role"
       category: role
       severity: normal
 
     category:
-      seed: "role:category:v2"
+      seed: "role_category_v2"
       description: "Product category role"
       category: role
       severity: normal
 
     location:
-      seed: "role:location:v2"
+      seed: "role_location_v2"
       description: "Store/warehouse location role"
       category: role
       severity: normal
