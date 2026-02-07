@@ -256,6 +256,16 @@ jobs:
             echo "::warning::Expected 20+ routes, got $ROUTES"
           fi
 
+      - name: Smoke test — sidecar pipeline endpoint
+        run: |
+          # Verify the Rust sidecar responds (returns 401 without auth, 405 without body — both prove it's alive)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.profitsentinel.com/api/v1/analyze" --max-time 10 || echo "000")
+          if [ "$STATUS" = "000" ]; then
+            echo "::error::Smoke test FAILED: sidecar pipeline unreachable"
+            exit 1
+          fi
+          echo "::notice::Sidecar pipeline reachable (HTTP $STATUS)"
+
   # ===========================================================================
   # DEPLOYMENT SUMMARY
   # ===========================================================================
