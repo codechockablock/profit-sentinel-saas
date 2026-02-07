@@ -61,7 +61,7 @@ resonator:
 
   # Resonator parameters (optimized for batch processing)
   parameters:
-    dimensions: 16384              # Hypervector dimensions
+    dimensions: 16384              # GPU resonator dims — intentionally higher than Rust pipeline (1024 in thresholds.rs)
     convergence_threshold: 0.005   # Convergence check
     max_iterations: 100            # Max iterations (100 for CPU, 300 for GPU)
     top_k: 16                      # Sparse selection

@@ -31,6 +31,12 @@ pub const DIB_BENCHMARK_MARGIN: f64 = 0.35;
 /// Monthly carrying cost factor (2% per month).
 pub const CARRYING_COST_MONTHLY: f64 = 0.02;
 
-/// Dimensionality for all VSA hypervectors. Must be consistent across
-/// bundling, evidence scoring, and analytics source components.
+/// Dimensionality for Rust VSA signal bundling and evidence scoring.
+///
+/// NOTE: The Python GPU resonator uses a separate, higher dimensionality (16384)
+/// configured in `config/hybrid_pipeline_config.yaml`. These are intentionally
+/// different — the Rust pipeline uses 1024 dims optimized for CPU-bound batch
+/// processing, while the Python resonator uses 16384 dims for GPU-accelerated
+/// higher-fidelity validation. Do not "align" these without understanding the
+/// performance implications.
 pub const VSA_DIMENSIONS: usize = 1024;
