@@ -478,6 +478,8 @@ fn print_human(
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
