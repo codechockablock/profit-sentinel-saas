@@ -406,10 +406,10 @@ pub fn classify_and_aggregate(
         .flat_map(|row| classify_row(row, store_id))
         .collect();
 
-    // Group by (store_id, issue_type) and aggregate
+    // Group by (issue_type, store_id) and aggregate.
+    // Uses derived Ord on IssueType for stable, allocation-free sorting.
     all_issues.sort_by(|a, b| {
-        format!("{:?}{}", a.issue_type, a.store_id)
-            .cmp(&format!("{:?}{}", b.issue_type, b.store_id))
+        (&a.issue_type, &a.store_id).cmp(&(&b.issue_type, &b.store_id))
     });
 
     // Create evidence scorer once for all candidates

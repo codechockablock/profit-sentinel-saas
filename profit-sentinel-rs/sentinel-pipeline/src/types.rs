@@ -55,7 +55,7 @@ impl HasRequestId for AgentQuery {
 // ---------------------------------------------------------------------------
 
 /// The type of issue detected.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub enum IssueType {
     ReceivingGap,
     DeadStock,
