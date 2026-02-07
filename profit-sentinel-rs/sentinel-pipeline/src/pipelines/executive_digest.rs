@@ -58,7 +58,7 @@ impl ExecutiveDigestPipeline {
     /// Create a pipeline with inventory data and custom result size.
     pub fn with_inventory_and_size(records: Vec<InventoryRecord>, result_size: usize) -> Self {
         let query_hydrators: Vec<Box<dyn QueryHydrator<AgentQuery>>> =
-            vec![Box::new(TimeRangeQueryHydrator)];
+            vec![Box::new(TimeRangeQueryHydrator::new())];
 
         let sources: Vec<Box<dyn Source<AgentQuery, IssueCandidate>>> =
             vec![Box::new(GlmAnalyticsSource::new(records))];

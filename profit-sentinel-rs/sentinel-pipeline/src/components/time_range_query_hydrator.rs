@@ -1,23 +1,48 @@
 use async_trait::async_trait;
+use chrono::Utc;
 
 use crate::query_hydrator::QueryHydrator;
 use crate::types::AgentQuery;
 
+/// Default lookback window when no time range is provided.
+const DEFAULT_LOOKBACK_HOURS: i64 = 24;
+
 /// Hydrates the query with a default time range if none is provided.
 ///
-/// Demonstrates the QueryHydrator trait. In production this would
-/// resolve relative time ranges ("last 24 hours") to absolute timestamps.
-pub struct TimeRangeQueryHydrator;
+/// When the query has an empty time range, fills in a window of
+/// `lookback_hours` ending at the current UTC time.
+pub struct TimeRangeQueryHydrator {
+    lookback_hours: i64,
+}
+
+impl TimeRangeQueryHydrator {
+    pub fn new() -> Self {
+        Self {
+            lookback_hours: DEFAULT_LOOKBACK_HOURS,
+        }
+    }
+
+    pub fn with_lookback_hours(lookback_hours: i64) -> Self {
+        Self { lookback_hours }
+    }
+}
+
+impl Default for TimeRangeQueryHydrator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[async_trait]
 impl QueryHydrator<AgentQuery> for TimeRangeQueryHydrator {
     async fn hydrate(&self, query: &AgentQuery) -> Result<AgentQuery, String> {
-        // If the time range is empty, fill in a default.
         if query.time_range.start.is_empty() || query.time_range.end.is_empty() {
+            let end = Utc::now();
+            let start = end - chrono::Duration::hours(self.lookback_hours);
             Ok(AgentQuery {
                 time_range: crate::types::TimeRange {
-                    start: "2025-01-01T00:00:00Z".to_string(),
-                    end: "2025-01-02T00:00:00Z".to_string(),
+                    start: start.to_rfc3339(),
+                    end: end.to_rfc3339(),
                 },
                 ..query.clone()
             })

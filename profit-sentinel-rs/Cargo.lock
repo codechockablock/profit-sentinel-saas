@@ -767,6 +767,7 @@ name = "sentinel-pipeline"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "csv",
  "futures",
  "log",
