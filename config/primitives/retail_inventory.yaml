@@ -1,20 +1,16 @@
-# Profit Sentinel Primitives - Retail Inventory Domain v2.0
-# Schema Version: 2.0.0
+# Retail Inventory Primitives v2.0 — High-sensitivity leak detection
 #
-# AGGRESSIVE LEAK DETECTION for any POS system:
-# Paladin, Square, Lightspeed, Clover, Shopify, NCR Counterpoint,
-# Microsoft Dynamics RMS, Epicor Eagle, and generic exports.
+# 11 core detection primitives + composite patterns.
+# Supported POS systems listed in metadata.pos_systems_supported below.
 #
-# 11 Core Detection Primitives + Composite Patterns
-#
-# USAGE:
+# Usage:
 #   loader = PrimitiveLoader()
 #   loader.load_file("primitives/retail_inventory.yaml")
 #   vec = loader.get_vector("inventory.low_stock")
 ---
 schema_version: "2.0.0"
 domain: retail_inventory
-description: "Aggressive profit leak detection primitives for retail POS/inventory data"
+description: "Profit leak detection primitives for retail POS/inventory data"
 dimensions: 16384
 
 metadata:
@@ -39,9 +35,7 @@ metadata:
     - "TouchBistro"
     - "Generic CSV/Excel"
 
-# =============================================================================
-# AGGRESSIVE THRESHOLDS - Tuned for Real Retail Data
-# =============================================================================
+# High-sensitivity thresholds — tuned for real retail data
 thresholds:
   low_stock:
     qty_threshold: 10

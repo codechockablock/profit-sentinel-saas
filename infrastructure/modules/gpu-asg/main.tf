@@ -1,17 +1,5 @@
-# =============================================================================
-# Profit Sentinel v2.1.0 - GPU Auto Scaling Group Module
-# =============================================================================
-#
-# Creates an Auto Scaling Group with NVIDIA T4 GPU instances (g4dn.xlarge)
-# for running the hybrid anomaly detection pipeline.
-#
-# Key Metrics:
-# - Baseline Avg F1: 82.4%
-# - Baseline Avg Recall: 97.1%
-# - Resonator Convergence: 100%
-# - Expected GPU Speedup: 5-10x
-#
-# =============================================================================
+# GPU Auto Scaling Group — NVIDIA T4 instances (g4dn.xlarge)
+# See docs/BENCHMARKS.md for pipeline performance metrics.
 
 # -----------------------------------------------------------------------------
 # Data Sources
