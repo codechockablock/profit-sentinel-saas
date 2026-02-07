@@ -821,7 +821,7 @@ def demo():
                         "cost": cost,
                     }
                 )
-            except:
+            except Exception:
                 pass
 
     print(f"Loaded {len(items):,} items")

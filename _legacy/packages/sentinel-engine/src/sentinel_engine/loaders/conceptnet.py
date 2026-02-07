@@ -305,7 +305,7 @@ def parse_dump_line(line: str) -> ConceptNetEdge | None:
     # Parse metadata
     try:
         metadata = json.loads(metadata_str)
-    except:
+    except Exception:
         metadata = {}
 
     return ConceptNetEdge(
@@ -887,7 +887,7 @@ def load_conceptnet_to_dorian(
         try:
             core.write(rel_name, "is_a", "relation", agent_id, 1.0)
             loaded += 1
-        except:
+        except Exception:
             pass
 
     if show_progress:
@@ -904,7 +904,7 @@ def load_conceptnet_to_dorian(
             )
             if result.success:
                 loaded += 1
-        except:
+        except Exception:
             pass
 
         # Mark concepts
@@ -912,7 +912,7 @@ def load_conceptnet_to_dorian(
             core.write(subj, "is_a", "concept", agent_id, 1.0)
             core.write(obj, "is_a", "concept", agent_id, 1.0)
             loaded += 2
-        except:
+        except Exception:
             pass
 
         if show_progress and (i + 1) % 1000 == 0:
@@ -1127,5 +1127,5 @@ if __name__ == "__main__":
 
     try:
         demo_api()
-    except:
+    except Exception:
         print("\nAPI demo skipped (no network)")

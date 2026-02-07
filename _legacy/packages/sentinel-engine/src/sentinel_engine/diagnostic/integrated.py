@@ -211,7 +211,7 @@ class ProfitSentinel:
             try:
                 stats = self.pipeline.load_domain(domain, show_progress=False)
                 domains_loaded += stats.triples_loaded
-            except:
+            except Exception:
                 pass
 
         # Load retail-specific knowledge
@@ -224,7 +224,7 @@ class ProfitSentinel:
                 )
                 if result.success:
                     retail_loaded += 1
-            except:
+            except Exception:
                 pass
 
         # Load product patterns as knowledge
@@ -238,7 +238,7 @@ class ProfitSentinel:
                         self.retail_agent.agent_id,
                         confidence=0.9,
                     )
-                except:
+                except Exception:
                     pass
 
         total = len(self.core.fact_store.facts)
@@ -345,7 +345,7 @@ class ProfitSentinel:
                         behavior_str = results[0].object
                         try:
                             return TrackingBehavior(behavior_str)
-                        except:
+                        except Exception:
                             pass
 
         # Check for specific indicators
@@ -567,7 +567,7 @@ class ProfitSentinel:
         for s, p, o in facts:
             try:
                 self.core.write(s, p, o, self.learning_agent.agent_id, confidence=1.0)
-            except:
+            except Exception:
                 pass
 
     def process_answer(
