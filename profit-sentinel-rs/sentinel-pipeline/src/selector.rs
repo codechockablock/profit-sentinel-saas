@@ -24,12 +24,23 @@ where
     fn score(&self, candidate: &C) -> f64;
 
     /// Sort candidates by their scores in descending order.
+    ///
+    /// NaN scores are pushed to the end of the list so they never appear
+    /// as top candidates. This guards against division-by-zero or missing
+    /// data producing garbage results at the top of the output.
     fn sort(&self, candidates: Vec<C>) -> Vec<C> {
         let mut sorted = candidates;
         sorted.sort_by(|a, b| {
-            self.score(b)
-                .partial_cmp(&self.score(a))
-                .unwrap_or(std::cmp::Ordering::Equal)
+            let sa = self.score(b);
+            let sb = self.score(a);
+            sa.partial_cmp(&sb).unwrap_or_else(|| {
+                // Push NaN-scored candidates to the end
+                if sa.is_nan() {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Less
+                }
+            })
         });
         sorted
     }

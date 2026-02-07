@@ -47,7 +47,14 @@ impl Scorer<AgentQuery, IssueCandidate> for StoreDiversityScorer {
         ordered.sort_by(|(_, a), (_, b)| {
             let a_score = a.priority_score.unwrap_or(f64::NEG_INFINITY);
             let b_score = b.priority_score.unwrap_or(f64::NEG_INFINITY);
-            b_score.partial_cmp(&a_score).unwrap_or(Ordering::Equal)
+            b_score.partial_cmp(&a_score).unwrap_or_else(|| {
+                // Push NaN-scored candidates to the end
+                if b_score.is_nan() {
+                    Ordering::Greater
+                } else {
+                    Ordering::Less
+                }
+            })
         });
 
         for (original_idx, candidate) in ordered {

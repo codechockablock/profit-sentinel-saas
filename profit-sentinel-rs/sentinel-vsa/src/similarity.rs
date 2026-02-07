@@ -45,7 +45,15 @@ pub fn find_similar(
         .filter(|(_, score)| *score >= threshold)
         .collect();
 
-    scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    scores.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1).unwrap_or_else(|| {
+            if b.1.is_nan() {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Less
+            }
+        })
+    });
     scores.truncate(top_k);
     scores
 }

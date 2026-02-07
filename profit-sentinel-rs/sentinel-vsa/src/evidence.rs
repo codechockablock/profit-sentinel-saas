@@ -511,11 +511,15 @@ impl EvidenceScorer {
             })
             .collect();
 
-        // Sort by score descending
+        // Sort by score descending (NaN scores pushed to the end)
         cause_scores.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            b.score.partial_cmp(&a.score).unwrap_or_else(|| {
+                if b.score.is_nan() {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Less
+                }
+            })
         });
 
         // Compute confidence and ambiguity
