@@ -59,11 +59,6 @@ RUST_TYPE_TO_PRIMITIVE: dict[str, str] = {
     "Overstock": "overstock",
 }
 
-# Reverse: Python primitive → which Rust types map to it
-PRIMITIVE_RUST_TYPES: dict[str, list[str]] = {}
-for _rt, _prim in RUST_TYPE_TO_PRIMITIVE.items():
-    PRIMITIVE_RUST_TYPES.setdefault(_prim, []).append(_rt)
-
 # Display metadata — matches LEAK_DISPLAY from analysis.py exactly
 LEAK_DISPLAY: dict[str, dict[str, Any]] = {
     "low_stock": {
@@ -311,8 +306,7 @@ def _get_issue_context(primitive: str, item: dict) -> str:
                 "Requires immediate physical count and management review."
             )
         return (
-            f"Showing {qty:.0f} units (NEGATIVE). Value: ${value:.2f}. "
-            f"{cause_hint}"
+            f"Showing {qty:.0f} units (NEGATIVE). Value: ${value:.2f}. " f"{cause_hint}"
         )
 
     elif primitive == "low_stock":
