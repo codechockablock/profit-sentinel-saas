@@ -375,9 +375,9 @@ impl EvidenceEncoder {
                         let weight = Complex64::new(rule.weight, 0.0);
                         bundle
                             .as_slice_mut()
-                            .unwrap()
+                            .expect("evidence bundle must be contiguous")
                             .iter_mut()
-                            .zip(cause_vec.as_slice().unwrap().iter())
+                            .zip(cause_vec.as_slice().expect("cause vector must be contiguous").iter())
                             .for_each(|(b, c)| *b += weight * c);
                     }
                 }
@@ -497,7 +497,8 @@ impl EvidenceScorer {
         let mut cause_scores: Vec<CauseScore> = RootCause::ALL
             .iter()
             .map(|&cause| {
-                let cause_vec = self.cause_vectors.get(&cause).unwrap();
+                let cause_vec = self.cause_vectors.get(&cause)
+                    .expect("all RootCause variants must have cause vectors");
                 let mut total_sim = 0.0f64;
                 let mut supporting_count = 0usize;
 
