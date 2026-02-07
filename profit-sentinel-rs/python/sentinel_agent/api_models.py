@@ -272,8 +272,12 @@ class SubscribeRequest(BaseModel):
     """Request body for POST /api/v1/digest/subscribe."""
 
     email: str = Field(description="Subscriber email address")
-    stores: list[str] = Field(default_factory=list, description="Store IDs to include (empty = all)")
-    send_hour: int = Field(default=6, ge=0, le=23, description="Hour of day to send (0-23)")
+    stores: list[str] = Field(
+        default_factory=list, description="Store IDs to include (empty = all)"
+    )
+    send_hour: int = Field(
+        default=6, ge=0, le=23, description="Hour of day to send (0-23)"
+    )
     timezone: str = Field(default="America/New_York", description="IANA timezone")
 
 
@@ -318,8 +322,8 @@ class SchedulerStatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AnalysisListItem(BaseModel):
-    """Summary of a saved analysis (without full_result)."""
+class _AnalysisBase(BaseModel):
+    """Shared fields for analysis list/detail responses."""
 
     id: str
     analysis_label: str | None = None
@@ -330,8 +334,13 @@ class AnalysisListItem(BaseModel):
     total_impact_estimate_low: float = 0
     total_impact_estimate_high: float = 0
     processing_time_seconds: float | None = None
-    has_full_result: bool = False
     created_at: str | None = None
+
+
+class AnalysisListItem(_AnalysisBase):
+    """Summary of a saved analysis (without full_result)."""
+
+    has_full_result: bool = False
 
 
 class AnalysisListResponse(BaseModel):
@@ -341,20 +350,10 @@ class AnalysisListResponse(BaseModel):
     total: int
 
 
-class AnalysisDetailResponse(BaseModel):
+class AnalysisDetailResponse(_AnalysisBase):
     """Response for GET /api/v1/analyses/{id} — includes full_result."""
 
-    id: str
-    analysis_label: str | None = None
-    original_filename: str | None = None
-    file_row_count: int = 0
-    file_column_count: int | None = None
-    detection_counts: dict = Field(default_factory=dict)
-    total_impact_estimate_low: float = 0
-    total_impact_estimate_high: float = 0
-    processing_time_seconds: float | None = None
     full_result: dict | None = None
-    created_at: str | None = None
 
 
 class AnalysisRenameRequest(BaseModel):
@@ -457,7 +456,13 @@ class ApiKeyListResponse(BaseModel):
 class PosConnectionRequest(BaseModel):
     """Request body for POST /api/v1/pos/connections."""
 
-    pos_system: str = Field(description="POS system: square, lightspeed, clover, shopify")
+    pos_system: str = Field(
+        description="POS system: square, lightspeed, clover, shopify"
+    )
     store_name: str = Field(description="Store display name")
-    sync_frequency: str = Field(default="daily", description="Sync frequency: manual, daily, weekly, monthly")
-    location_id: str | None = Field(default=None, description="POS-specific location ID")
+    sync_frequency: str = Field(
+        default="daily", description="Sync frequency: manual, daily, weekly, monthly"
+    )
+    location_id: str | None = Field(
+        default=None, description="POS-specific location ID"
+    )
