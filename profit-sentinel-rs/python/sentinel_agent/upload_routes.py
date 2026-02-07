@@ -271,7 +271,7 @@ def create_upload_router(
         Anonymous results include an upgrade_prompt.
         """
         # Rate limit check
-        check_rate_limit(ctx)
+        await check_rate_limit(ctx)
 
         # Parse mapping
         try:
