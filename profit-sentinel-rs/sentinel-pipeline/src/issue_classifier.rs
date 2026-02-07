@@ -19,25 +19,12 @@
 
 use sentinel_vsa::bundling::InventoryRow;
 use sentinel_vsa::evidence::EvidenceScorer;
+use sentinel_vsa::thresholds::{
+    CARRYING_COST_MONTHLY, DEAD_STOCK_DAYS, DIB_BENCHMARK_MARGIN, HIGH_COST_THRESHOLD,
+    MARGIN_EROSION_THRESHOLD, PATRONAGE_QTY_THRESHOLD,
+};
 
 use crate::types::{IssueCandidate, IssueType, TrendDirection};
-
-// ---------------------------------------------------------------------------
-// Detection thresholds (ported from original Python config.py)
-// ---------------------------------------------------------------------------
-
-/// Margin threshold below which items are flagged for margin erosion.
-const MARGIN_EROSION_THRESHOLD: f64 = 0.20;
-/// DIB benchmark margin used for dollar impact gap calculation.
-const DIB_BENCHMARK_MARGIN: f64 = 0.35;
-/// Dead stock: minimum days since last receipt to qualify.
-const DEAD_STOCK_DAYS: f64 = 90.0;
-/// Purchasing leakage: minimum unit cost to qualify.
-const HIGH_COST_THRESHOLD: f64 = 500.0;
-/// Patronage miss: minimum qty to qualify as seasonal overstock.
-const PATRONAGE_QTY_THRESHOLD: f64 = 200.0;
-/// Monthly carrying cost factor (2% per month).
-const CARRYING_COST_MONTHLY: f64 = 0.02;
 /// Shrinkage pattern: minimum inventory value (qty x cost) to flag.
 const SHRINKAGE_MIN_VALUE: f64 = 1000.0;
 /// Shrinkage pattern: maximum margin to be suspicious.

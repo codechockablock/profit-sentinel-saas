@@ -6,6 +6,10 @@ use std::sync::Arc;
 
 use crate::codebook::Codebook;
 use crate::primitives::VsaPrimitives;
+use crate::thresholds::{
+    DEAD_STOCK_DAYS, HIGH_COST_THRESHOLD, MARGIN_EROSION_THRESHOLD, PATRONAGE_QTY_THRESHOLD,
+    RECENT_RECEIPT_DAYS,
+};
 
 /// A single row of inventory data to be encoded as a hypervector bundle.
 #[derive(Clone, Debug)]
@@ -72,15 +76,15 @@ fn bundle_single_row(
         accumulate(&mut bundle, &primitives.negative_qty, sku_vec, strength);
     }
 
-    // High cost signal (above $500)
-    if row.unit_cost > 500.0 {
-        let strength = ((row.unit_cost - 500.0) / 500.0).min(1.0);
+    // High cost signal (above threshold)
+    if row.unit_cost > HIGH_COST_THRESHOLD {
+        let strength = ((row.unit_cost - HIGH_COST_THRESHOLD) / HIGH_COST_THRESHOLD).min(1.0);
         accumulate(&mut bundle, &primitives.high_cost, sku_vec, strength);
     }
 
-    // Low margin signal (below 20%)
-    if row.margin_pct < 0.20 {
-        let strength = 1.0 - (row.margin_pct / 0.20).max(0.0);
+    // Low margin signal (below threshold)
+    if row.margin_pct < MARGIN_EROSION_THRESHOLD {
+        let strength = 1.0 - (row.margin_pct / MARGIN_EROSION_THRESHOLD).max(0.0);
         accumulate(&mut bundle, &primitives.low_margin, sku_vec, strength);
     }
 
@@ -89,21 +93,21 @@ fn bundle_single_row(
         accumulate(&mut bundle, &primitives.zero_sales, sku_vec, 1.0);
     }
 
-    // High quantity signal (above 200)
-    if row.qty_on_hand > 200.0 {
-        let strength = ((row.qty_on_hand - 200.0) / 200.0).min(1.0);
+    // High quantity signal (above threshold)
+    if row.qty_on_hand > PATRONAGE_QTY_THRESHOLD {
+        let strength = ((row.qty_on_hand - PATRONAGE_QTY_THRESHOLD) / PATRONAGE_QTY_THRESHOLD).min(1.0);
         accumulate(&mut bundle, &primitives.high_qty, sku_vec, strength);
     }
 
-    // Recent receipt signal (within 7 days)
-    if row.days_since_receipt <= 7.0 {
-        let strength = 1.0 - (row.days_since_receipt / 7.0);
+    // Recent receipt signal (within threshold days)
+    if row.days_since_receipt <= RECENT_RECEIPT_DAYS {
+        let strength = 1.0 - (row.days_since_receipt / RECENT_RECEIPT_DAYS);
         accumulate(&mut bundle, &primitives.recent_receipt, sku_vec, strength);
     }
 
-    // Old receipt signal (over 90 days)
-    if row.days_since_receipt > 90.0 {
-        let strength = ((row.days_since_receipt - 90.0) / 90.0).min(1.0);
+    // Old receipt signal (over dead stock threshold days)
+    if row.days_since_receipt > DEAD_STOCK_DAYS {
+        let strength = ((row.days_since_receipt - DEAD_STOCK_DAYS) / DEAD_STOCK_DAYS).min(1.0);
         accumulate(&mut bundle, &primitives.old_receipt, sku_vec, strength);
     }
 
