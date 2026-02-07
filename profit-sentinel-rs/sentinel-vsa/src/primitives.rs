@@ -1,8 +1,9 @@
 use ndarray::Array1;
 use num_complex::Complex64;
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
-use std::f64::consts::PI;
+use rand::SeedableRng;
+
+use crate::math::random_phasor_vector;
 
 /// The 11 VSA primitive vectors used to encode inventory anomaly signals.
 ///
@@ -52,16 +53,6 @@ impl VsaPrimitives {
     pub fn dimensions(&self) -> usize {
         self.dimensions
     }
-}
-
-/// Generate a random phasor vector of the given length.
-///
-/// Each component has magnitude 1 with a uniformly random phase.
-fn random_phasor_vector(dimensions: usize, rng: &mut StdRng) -> Array1<Complex64> {
-    Array1::from_iter((0..dimensions).map(|_| {
-        let phase: f64 = rng.gen_range(0.0..2.0 * PI);
-        Complex64::from_polar(1.0, phase)
-    }))
 }
 
 #[cfg(test)]

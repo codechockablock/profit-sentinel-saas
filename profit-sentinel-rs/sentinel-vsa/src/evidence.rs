@@ -23,11 +23,10 @@
 
 use ndarray::Array1;
 use num_complex::Complex64;
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::f64::consts::PI;
+
+use crate::math::{fnv1a_hash, random_phasor_vector_from_seed};
 
 // ---------------------------------------------------------------------------
 // Cause definitions
@@ -301,7 +300,7 @@ impl CauseVectors {
             .iter()
             .map(|&cause| {
                 let seed = fnv1a_hash(cause.seed_string().as_bytes());
-                let vec = random_phasor_vector(dimensions, seed);
+                let vec = random_phasor_vector_from_seed(dimensions, seed);
                 (cause, vec)
             })
             .collect();
@@ -586,25 +585,6 @@ fn hermitian_cosine_similarity(a: &Array1<Complex64>, b: &Array1<Complex64>) -> 
     (dot.re / (norm_a * norm_b)).clamp(-1.0, 1.0)
 }
 
-/// Generate a random phasor vector: each component has magnitude 1 with
-/// a uniformly random phase angle in [0, 2π).
-fn random_phasor_vector(dimensions: usize, seed: u64) -> Array1<Complex64> {
-    let mut rng = StdRng::seed_from_u64(seed);
-    Array1::from_iter((0..dimensions).map(|_| {
-        let phase: f64 = rng.gen_range(0.0..2.0 * PI);
-        Complex64::from_polar(1.0, phase)
-    }))
-}
-
-/// FNV-1a hash for deterministic seed derivation from strings.
-fn fnv1a_hash(data: &[u8]) -> u64 {
-    let mut hash: u64 = 14695981039346656037;
-    for &byte in data {
-        hash ^= byte as u64;
-        hash = hash.wrapping_mul(1099511628211);
-    }
-    hash
-}
 
 // ---------------------------------------------------------------------------
 // Tests
