@@ -7,6 +7,12 @@ variable "cidr" {
   default = "10.0.0.0/16"
 }
 
+variable "enable_ha_nat" {
+  description = "Deploy one NAT Gateway per AZ for high availability. Adds ~$32/mo per additional NAT."
+  type        = bool
+  default     = false
+}
+
 resource "aws_vpc" "main" {
   cidr_block           = var.cidr
   enable_dns_hostnames = true
@@ -69,36 +75,44 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+# NAT Gateway: single (default) or one per AZ (enable_ha_nat = true)
 resource "aws_eip" "nat" {
+  count  = var.enable_ha_nat ? 2 : 1
   domain = "vpc"
+
+  tags = {
+    Name = "${var.name_prefix}-nat-eip-${count.index + 1}"
+  }
 }
 
 resource "aws_nat_gateway" "nat" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id
+  count         = var.enable_ha_nat ? 2 : 1
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
 
   tags = {
-    Name = "${var.name_prefix}-nat"
+    Name = "${var.name_prefix}-nat-${count.index + 1}"
   }
 }
 
 resource "aws_route_table" "private" {
+  count  = var.enable_ha_nat ? 2 : 1
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat.id
+    nat_gateway_id = aws_nat_gateway.nat[count.index].id
   }
 
   tags = {
-    Name = "${var.name_prefix}-private-rt"
+    Name = "${var.name_prefix}-private-rt-${count.index + 1}"
   }
 }
 
 resource "aws_route_table_association" "private" {
   count          = 2
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[var.enable_ha_nat ? count.index : 0].id
 }
 
 output "vpc_id" {
