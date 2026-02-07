@@ -603,7 +603,13 @@ async fn main() {
 
     if json_output {
         let digest = build_json(&result, &records, &query_store_ids, total_records, pipeline_ms);
-        println!("{}", serde_json::to_string_pretty(&digest).unwrap());
+        match serde_json::to_string_pretty(&digest) {
+            Ok(json) => println!("{}", json),
+            Err(e) => {
+                eprintln!("Error serializing digest to JSON: {}", e);
+                process::exit(1);
+            }
+        }
     } else {
         print_human(&result, &query_store_ids, total_records, load_ms, pipeline_ms);
     }

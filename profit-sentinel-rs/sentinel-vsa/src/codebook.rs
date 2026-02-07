@@ -38,14 +38,14 @@ impl Codebook {
     pub fn get_or_create(&self, sku: &str) -> Arc<Array1<Complex64>> {
         // Fast path: read-only lock for cache hits
         {
-            let cache = self.cache.read().unwrap();
+            let cache = self.cache.read().expect("codebook RwLock poisoned");
             if let Some(v) = cache.get(sku) {
                 return Arc::clone(v);
             }
         }
         // Slow path: generate and insert under write lock
         let vec = Arc::new(self.generate(sku));
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().expect("codebook RwLock poisoned");
         // Double-check in case another thread inserted while we waited
         Arc::clone(cache.entry(sku.to_string()).or_insert(vec))
     }
@@ -56,7 +56,7 @@ impl Codebook {
     /// contention during the hot path. After warmup, all `get_or_create`
     /// calls will hit the fast read-lock path.
     pub fn warmup<'a, I: IntoIterator<Item = &'a str>>(&self, skus: I) {
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().expect("codebook RwLock poisoned");
         for sku in skus {
             if !cache.contains_key(sku) {
                 let vec = Arc::new(self.generate(sku));
@@ -72,7 +72,7 @@ impl Codebook {
     /// sequential warmup into an O(N/cores) parallel phase.
     pub fn warmup_parallel<'a, I: IntoIterator<Item = &'a str>>(&self, skus: I) {
         // Deduplicate SKUs and filter out already-cached ones
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.read().expect("codebook RwLock poisoned");
         let unique: Vec<String> = skus
             .into_iter()
             .collect::<HashSet<&str>>()
@@ -96,7 +96,7 @@ impl Codebook {
             .collect();
 
         // Insert all under a single write lock
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().expect("codebook RwLock poisoned");
         for (sku, vec) in generated {
             cache.entry(sku).or_insert(vec);
         }
@@ -129,7 +129,7 @@ impl Codebook {
     /// zero synchronization overhead. Call `warmup()` first to ensure
     /// all needed SKUs are in the cache.
     pub fn snapshot(&self) -> HashMap<String, Arc<Array1<Complex64>>> {
-        self.cache.read().unwrap().clone()
+        self.cache.read().expect("codebook RwLock poisoned").clone()
     }
 
     pub fn dimensions(&self) -> usize {
@@ -137,7 +137,7 @@ impl Codebook {
     }
 
     pub fn len(&self) -> usize {
-        self.cache.read().unwrap().len()
+        self.cache.read().expect("codebook RwLock poisoned").len()
     }
 
     pub fn is_empty(&self) -> bool {

@@ -62,7 +62,7 @@ fn bundle_single_row(
     snapshot: &CodebookSnapshot,
 ) -> Array1<Complex64> {
     let sku_arc = snapshot.get(&row.sku).expect("codebook was not warmed up");
-    let sku_vec: &[Complex64] = sku_arc.as_slice().unwrap();
+    let sku_vec: &[Complex64] = sku_arc.as_slice().expect("SKU vector must be contiguous");
     let dim = primitives.dimensions();
     let mut bundle = Array1::<Complex64>::zeros(dim);
 
@@ -144,8 +144,8 @@ fn accumulate(
     strength: f64,
 ) {
     let scale = Complex64::new(strength, 0.0);
-    let b = bundle.as_slice_mut().unwrap();
-    let p = primitive.as_slice().unwrap();
+    let b = bundle.as_slice_mut().expect("bundle must be contiguous for SIMD accumulation");
+    let p = primitive.as_slice().expect("primitive must be contiguous");
     let len = b.len();
     for i in 0..len {
         b[i] += p[i] * sku_vec[i] * scale;
