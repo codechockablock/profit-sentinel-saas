@@ -153,7 +153,7 @@ export default function DigestPage() {
             />
             <SummaryCard
               label="Stores"
-              value={String(data.store_ids.length)}
+              value={String(data.store_filter.length)}
               icon={<Store size={20} />}
               color="text-blue-400"
             />

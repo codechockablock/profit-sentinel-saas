@@ -175,7 +175,7 @@ export default function ExplainPage() {
                 </h3>
               </div>
               <div className="space-y-2">
-                {tree.cause_scores
+                {(tree.cause_scores as { cause: string; score: number }[])
                   .sort((a, b) => b.score - a.score)
                   .map((cs, i) => (
                     <div key={i} className="flex items-center gap-3">
@@ -211,10 +211,11 @@ export default function ExplainPage() {
               <div className="space-y-3">
                 {tree.competing_hypotheses.map((h, i) => (
                   <div key={i} className="flex items-center justify-between px-3 py-2 bg-slate-900/50 rounded-lg">
-                    <span className="text-sm text-slate-300">{h.cause.replace(/_/g, " ")}</span>
+                    <span className="text-sm text-slate-300">{h.cause_display}</span>
                     <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span>#{h.rank}</span>
                       <span>Score: {(h.score * 100).toFixed(0)}%</span>
-                      <span>Gap: {(h.gap * 100).toFixed(0)}%</span>
+                      <span className="text-slate-600 truncate max-w-[200px]">{h.why_lower}</span>
                     </div>
                   </div>
                 ))}
@@ -232,7 +233,7 @@ export default function ExplainPage() {
                 </h3>
               </div>
               <div className="space-y-1.5">
-                {tree.inferred_facts.map((f, i) => (
+                {(tree.inferred_facts as { fact: string; confidence: number; rule: string }[]).map((f, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
                     <ChevronRight size={12} className="text-yellow-400 mt-1 shrink-0" />
                     <span className="text-slate-300">{f.fact}</span>
@@ -266,14 +267,14 @@ export default function ExplainPage() {
           )}
 
           {/* Proof tree visualization */}
-          {tree.proof_root && (
+          {tree.proof_tree && (
             <details className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
               <summary className="px-5 py-4 cursor-pointer text-sm font-medium text-slate-300 hover:text-white transition-colors">
                 <GitBranch size={14} className="inline mr-2 text-violet-400" />
                 View Proof Tree
               </summary>
               <div className="px-5 pb-4 border-t border-slate-700/30 mt-2">
-                <ProofNodeTree node={tree.proof_root} depth={0} />
+                <ProofNodeTree node={tree.proof_tree} depth={0} />
               </div>
             </details>
           )}
@@ -304,19 +305,18 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 }
 
 function SignalRow({ signal }: { signal: SignalContribution }) {
-  const isPositive = signal.weight > 0;
   return (
     <div className="flex items-center gap-3 px-3 py-2 bg-slate-900/30 rounded-lg">
-      <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-        isPositive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
-      }`}>
-        {isPositive ? "+" : ""}{signal.weight.toFixed(2)}
+      <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">
+        {signal.signal.replace(/_/g, " ")}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-slate-300 truncate">
-          {signal.signal.replace(/_/g, " ")} &rarr; {signal.cause.replace(/_/g, " ")}
-        </p>
-        <p className="text-[10px] text-slate-600 truncate">{signal.rationale}</p>
+        <p className="text-xs text-slate-300 truncate">{signal.description}</p>
+        {signal.rules_fired.length > 0 && (
+          <p className="text-[10px] text-slate-600 truncate">
+            {signal.rules_fired.length} rule{signal.rules_fired.length !== 1 ? "s" : ""} fired
+          </p>
+        )}
       </div>
     </div>
   );
@@ -341,12 +341,15 @@ function ProofNodeTree({ node, depth }: { node: ProofNode; depth: number }) {
           />
         )}
         {!hasChildren && <span className="w-3" />}
-        <span className="text-[10px] text-slate-600 font-mono">{node.type}</span>
-        <span>{node.label}</span>
+        <span className="text-[10px] text-slate-600 font-mono">{node.source}</span>
+        <span>{node.statement}</span>
         <span className="text-[10px] text-slate-500">
           ({(node.confidence * 100).toFixed(0)}%)
         </span>
       </button>
+      {node.explanation && (
+        <p className="text-[10px] text-slate-600 ml-5 mt-0.5">{node.explanation}</p>
+      )}
       {expanded && hasChildren && (
         <div className="mt-1">
           {node.children.map((child, i) => (
