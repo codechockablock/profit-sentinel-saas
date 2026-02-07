@@ -7,14 +7,13 @@ use sentinel_vsa::bundling::{bundle_inventory_batch, InventoryRow};
 use sentinel_vsa::codebook::Codebook;
 use sentinel_vsa::primitives::VsaPrimitives;
 use sentinel_vsa::similarity;
+use sentinel_vsa::thresholds::VSA_DIMENSIONS;
 
 use crate::inventory_loader::InventoryRecord;
 use crate::issue_classifier::classify_and_aggregate;
 use crate::source::Source;
 use crate::types::{AgentQuery, IssueCandidate, UserRole};
 
-/// Default hypervector dimensions for VSA engine.
-const VSA_DIM: usize = 1024;
 /// Default seed for reproducible VSA results.
 const VSA_SEED: u64 = 42;
 /// Similarity threshold for boosting confidence of related issues.
@@ -47,8 +46,8 @@ impl GlmAnalyticsSource {
     pub fn new(records: Vec<InventoryRecord>) -> Self {
         Self {
             records,
-            primitives: Arc::new(VsaPrimitives::new(VSA_DIM, VSA_SEED)),
-            codebook: Arc::new(Codebook::new(VSA_DIM, VSA_SEED)),
+            primitives: Arc::new(VsaPrimitives::new(VSA_DIMENSIONS, VSA_SEED)),
+            codebook: Arc::new(Codebook::new(VSA_DIMENSIONS, VSA_SEED)),
         }
     }
 
