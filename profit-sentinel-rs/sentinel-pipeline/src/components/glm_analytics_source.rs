@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -162,7 +163,7 @@ impl Source<AgentQuery, IssueCandidate> for GlmAnalyticsSource {
 
     async fn get_candidates(&self, query: &AgentQuery) -> Result<Vec<IssueCandidate>, String> {
         let timestamp = if query.time_range.end.is_empty() {
-            "2025-01-15T00:00:00Z".to_string()
+            Utc::now().to_rfc3339()
         } else {
             query.time_range.end.clone()
         };

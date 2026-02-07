@@ -585,8 +585,9 @@ async fn main() {
     let pipeline_start = Instant::now();
     let pipeline = ExecutiveDigestPipeline::with_inventory_and_size(records.clone(), top_k);
 
+    let request_id = format!("digest-{}", Utc::now().format("%Y%m%d-%H%M%S-%3f"));
     let query = AgentQuery {
-        request_id: "digest-001".into(),
+        request_id,
         user_id: "exec_001".into(),
         user_role: UserRole::Executive,
         store_ids: query_store_ids.clone(),
