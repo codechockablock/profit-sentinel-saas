@@ -45,7 +45,7 @@ def create_digest_router(state: AppState, require_auth) -> APIRouter:
             digest=digest,
             rendered_text=render_digest(digest),
             generated_at=digest.generated_at,
-            store_ids=digest.store_filter,
+            store_filter=digest.store_filter,
             issue_count=digest.summary.total_issues,
             total_dollar_impact=digest.summary.total_dollar_impact,
         )
@@ -146,7 +146,7 @@ def create_digest_router(state: AppState, require_auth) -> APIRouter:
             digest=digest,
             rendered_text=render_digest(digest),
             generated_at=digest.generated_at,
-            store_ids=digest.store_filter,
+            store_filter=digest.store_filter,
             issue_count=digest.summary.total_issues,
             total_dollar_impact=digest.summary.total_dollar_impact,
         )

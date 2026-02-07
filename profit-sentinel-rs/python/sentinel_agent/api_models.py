@@ -52,7 +52,7 @@ class DigestResponse(BaseModel):
     digest: Digest
     rendered_text: str
     generated_at: str
-    store_ids: list[str]
+    store_filter: list[str]
     issue_count: int
     total_dollar_impact: float
 

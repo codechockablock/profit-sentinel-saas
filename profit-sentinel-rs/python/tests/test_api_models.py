@@ -167,7 +167,7 @@ class TestDigestResponse:
             digest=digest,
             rendered_text="Good morning. 1 item needs attention.",
             generated_at=digest.generated_at,
-            store_ids=["store-7"],
+            store_filter=["store-7"],
             issue_count=1,
             total_dollar_impact=5000,
         )
@@ -181,7 +181,7 @@ class TestDigestResponse:
             digest=digest,
             rendered_text="test",
             generated_at=digest.generated_at,
-            store_ids=["store-7"],
+            store_filter=["store-7"],
             issue_count=1,
             total_dollar_impact=5000,
         )
