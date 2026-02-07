@@ -62,12 +62,12 @@ def parse_date(val: Any) -> datetime | None:
             month = month_map.get(month_str.lower()[:3], 1)
             year_full = 2000 + int(year) if int(year) < 100 else int(year)
             return datetime(year_full, month, int(day))
-        except:
+        except Exception:
             pass
     if len(date_str) == 8 and date_str.isdigit():
         try:
             return datetime.strptime(date_str, "%Y%m%d")
-        except:
+        except Exception:
             pass
     return None
 

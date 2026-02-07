@@ -712,7 +712,7 @@ def stream_wikidata_dump_to_dorian(
                 )
                 if result.success:
                     loaded += 1
-            except:
+            except Exception:
                 pass
 
         entities_processed += 1

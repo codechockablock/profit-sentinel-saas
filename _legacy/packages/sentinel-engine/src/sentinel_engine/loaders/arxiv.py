@@ -827,7 +827,7 @@ def load_arxiv_to_dorian(
             result = core.write(s, p, o, agent_id, confidence=1.0)
             if result.success:
                 loaded += 1
-        except:
+        except Exception:
             pass
 
     if show_progress:
@@ -841,7 +841,7 @@ def load_arxiv_to_dorian(
                 result = core.write(s, p, o, agent_id, confidence=1.0)
                 if result.success:
                     loaded += 1
-            except:
+            except Exception:
                 pass
 
         if show_progress and (i + 1) % 100 == 0:
@@ -968,5 +968,5 @@ if __name__ == "__main__":
 
     try:
         demo_api()
-    except:
+    except Exception:
         print("\nAPI demo skipped (no network)")
