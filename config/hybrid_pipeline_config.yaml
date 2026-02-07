@@ -18,17 +18,20 @@ baseline:
   calibration_version: "v2.1"
 
   # Detection thresholds (validated on 10K synthetic dataset)
+  # NOTE: margin_leak_threshold and dead_item_days must match the Rust constants
+  # in profit-sentinel-rs/sentinel-vsa/src/thresholds.rs to ensure consistent
+  # detection behavior between the Python baseline and Rust VSA pipeline.
   thresholds:
     # Low Stock Detection
     low_stock_qty: 10              # Flag if qty < this AND high velocity
     low_stock_critical: 3          # Critical alert threshold
 
     # Dead Item Detection
-    dead_item_days: 60             # Days since last sale
+    dead_item_days: 90             # Days since last sale (matches DEAD_STOCK_DAYS in thresholds.rs)
     dead_item_sold_threshold: 2    # Items sold in period
 
     # Margin Leak Detection
-    margin_leak_threshold: 0.25    # 25% margin minimum
+    margin_leak_threshold: 0.20    # 20% margin minimum (matches MARGIN_EROSION_THRESHOLD in thresholds.rs)
     margin_critical_threshold: 0.10  # 10% triggers critical alert
     negative_margin_threshold: 0.0   # Selling at loss
 

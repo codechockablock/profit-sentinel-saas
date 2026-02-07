@@ -3,6 +3,9 @@
 //! These values are calibrated for hardware retail (Do It Best / True Value class).
 //! Changing a threshold here affects BOTH VSA signal bundling (in `bundling.rs`)
 //! and issue classification (in `sentinel-pipeline/issue_classifier.rs`).
+//!
+//! NOTE: MARGIN_EROSION_THRESHOLD and DEAD_STOCK_DAYS must stay in sync with
+//! `config/hybrid_pipeline_config.yaml` (`margin_leak_threshold` and `dead_item_days`).
 
 /// Dollar amount above which a cost is considered "high" for alerting purposes.
 pub const HIGH_COST_THRESHOLD: f64 = 500.0;
