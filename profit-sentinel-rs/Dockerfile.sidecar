@@ -65,15 +65,20 @@ RUN pip install --no-cache-dir "/app[sidecar]"
 # Copy fixture data (for dev/demo)
 COPY fixtures/ /app/fixtures/
 
+# Create non-root user
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+
 # Environment
 ENV SENTINEL_BIN=/app/sentinel-server
-ENV CSV_PATH=/app/fixtures/sample_inventory.csv
+ENV CSV_PATH=/app/data/inventory.csv
 ENV SIDECAR_HOST=0.0.0.0
 ENV SIDECAR_PORT=8001
 
 EXPOSE 8001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-    CMD curl -f http://localhost:8001/health || exit 1
+    CMD curl -f http://localhost:${SIDECAR_PORT}/health || exit 1
+
+USER appuser
 
 CMD ["python", "-m", "sentinel_agent"]
