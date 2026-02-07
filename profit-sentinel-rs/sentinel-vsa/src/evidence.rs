@@ -356,6 +356,12 @@ impl EvidenceEncoder {
         }
     }
 
+    /// Access the encoder's cause vectors (used by EvidenceScorer to
+    /// avoid duplicating the vectors).
+    pub fn cause_vectors(&self) -> &CauseVectors {
+        &self.cause_vectors
+    }
+
     /// Encode a set of active signals into an evidence vector.
     ///
     /// For each signal in `active_signals`, finds all matching rules via
@@ -433,7 +439,6 @@ pub struct CauseScore {
 /// of supporting evidence independently accumulates.
 pub struct EvidenceScorer {
     encoder: EvidenceEncoder,
-    cause_vectors: CauseVectors,
     /// Minimum confidence to assign a root cause (below this → None).
     pub confidence_threshold: f64,
 }
@@ -443,7 +448,6 @@ impl EvidenceScorer {
     pub fn new(dimensions: usize) -> Self {
         Self {
             encoder: EvidenceEncoder::new(dimensions),
-            cause_vectors: CauseVectors::new(dimensions),
             confidence_threshold: 0.3,
         }
     }
@@ -496,7 +500,7 @@ impl EvidenceScorer {
         let mut cause_scores: Vec<CauseScore> = RootCause::ALL
             .iter()
             .map(|&cause| {
-                let cause_vec = self.cause_vectors.get(&cause)
+                let cause_vec = self.encoder.cause_vectors().get(&cause)
                     .expect("all RootCause variants must have cause vectors");
                 let mut total_sim = 0.0f64;
                 let mut supporting_count = 0usize;
