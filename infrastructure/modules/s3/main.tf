@@ -2,6 +2,18 @@ variable "name_prefix" {
   type = string
 }
 
+variable "enable_access_logging" {
+  description = "Enable S3 access logging for audit compliance"
+  type        = bool
+  default     = false
+}
+
+variable "logging_bucket" {
+  description = "Target S3 bucket for access logs (required when enable_access_logging = true)"
+  type        = string
+  default     = ""
+}
+
 resource "aws_s3_bucket" "uploads" {
   bucket = "${var.name_prefix}-uploads"
 
@@ -63,6 +75,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
       noncurrent_days = 1  # Changed from 90 to 1 day for privacy
     }
   }
+}
+
+resource "aws_s3_bucket_logging" "uploads" {
+  count  = var.enable_access_logging ? 1 : 0
+  bucket = aws_s3_bucket.uploads.id
+
+  target_bucket = var.logging_bucket
+  target_prefix = "${aws_s3_bucket.uploads.id}/"
 }
 
 output "bucket_name" {
