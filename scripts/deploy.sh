@@ -346,4 +346,4 @@ echo "Verify:"
 echo "  curl https://api.profitsentinel.com/health"
 echo "  aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --region $AWS_REGION"
 
-echo "Profit Sentinel deployed — leaks have nowhere to hide!"
+echo "Deploy complete. Cluster: $ECS_CLUSTER, Service: $ECS_SERVICE"

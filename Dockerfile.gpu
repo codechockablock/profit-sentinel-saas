@@ -1,19 +1,9 @@
-# =============================================================================
-# PROFIT SENTINEL v2.1.0 - GPU-Accelerated Production Dockerfile
-# =============================================================================
+# Profit Sentinel v2.1.0 — GPU-accelerated production image
 #
-# Multi-stage build for production deployment on AWS g4dn.xlarge (NVIDIA T4)
+# Multi-stage build for AWS g4dn.xlarge (NVIDIA T4, CUDA 12.1)
+# See docs/BENCHMARKS.md for pipeline performance metrics.
 #
-# Key Metrics (Validated):
-# - Baseline Avg F1: 82.4%
-# - Baseline Avg Recall: 97.1%
-# - Resonator Convergence: 100%
-# - Expected GPU Speedup: 5-10x for VSA Resonator
-#
-# Build from repository root:
-#   docker build -f Dockerfile.gpu -t profitsentinel-gpu:latest .
-#
-# =============================================================================
+# Build:  docker build -f Dockerfile.gpu -t profitsentinel-gpu:latest .
 
 # -----------------------------------------------------------------------------
 # Stage 1: Builder - Install dependencies and compile wheels
