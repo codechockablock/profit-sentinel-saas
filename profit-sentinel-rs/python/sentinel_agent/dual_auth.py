@@ -20,6 +20,7 @@ Authenticated users get:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from collections import defaultdict
@@ -31,9 +32,13 @@ logger = logging.getLogger("sentinel.dual_auth")
 
 # ---------------------------------------------------------------------------
 # In-memory rate-limit store (adequate for single-container ECS)
+# NOTE: This rate limiter is per-worker. Under uvicorn with N workers,
+# the effective rate limit is N * configured limit. For production at
+# scale, migrate to Redis-based rate limiting.
 # ---------------------------------------------------------------------------
 
 _rate_limits: dict[str, list[datetime]] = defaultdict(list)
+_rate_lock = asyncio.Lock()
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -102,27 +107,28 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def check_rate_limit(ctx: UserContext) -> None:
+async def check_rate_limit(ctx: UserContext) -> None:
     """Raise 429 if the user has exceeded their hourly analysis limit."""
-    now = datetime.now(UTC)
-    window_start = now - timedelta(hours=1)
+    async with _rate_lock:
+        now = datetime.now(UTC)
+        window_start = now - timedelta(hours=1)
 
-    # Prune old entries
-    _rate_limits[ctx.user_id] = [
-        t for t in _rate_limits[ctx.user_id] if t > window_start
-    ]
+        # Prune old entries
+        _rate_limits[ctx.user_id] = [
+            t for t in _rate_limits[ctx.user_id] if t > window_start
+        ]
 
-    if len(_rate_limits[ctx.user_id]) >= ctx.rate_limit:
-        msg = (
-            f"Rate limit exceeded. "
-            f"{'Authenticated users' if ctx.is_authenticated else 'Anonymous users'} "
-            f"are limited to {ctx.rate_limit} analyses per hour."
-        )
-        if not ctx.is_authenticated:
-            msg += " Sign up for higher limits."
-        raise HTTPException(status_code=429, detail=msg)
+        if len(_rate_limits[ctx.user_id]) >= ctx.rate_limit:
+            msg = (
+                f"Rate limit exceeded. "
+                f"{'Authenticated users' if ctx.is_authenticated else 'Anonymous users'} "
+                f"are limited to {ctx.rate_limit} analyses per hour."
+            )
+            if not ctx.is_authenticated:
+                msg += " Sign up for higher limits."
+            raise HTTPException(status_code=429, detail=msg)
 
-    _rate_limits[ctx.user_id].append(now)
+        _rate_limits[ctx.user_id].append(now)
 
 
 def build_upgrade_prompt() -> dict:

@@ -136,24 +136,26 @@ class TestUserContext:
 class TestRateLimit:
     """Tests for check_rate_limit."""
 
-    def test_anonymous_rate_limit(self):
+    @pytest.mark.asyncio
+    async def test_anonymous_rate_limit(self):
         ctx = UserContext(
             user_id="anon_test", is_authenticated=False, ip_address="1.2.3.4"
         )
 
         # First 5 should succeed
         for _ in range(ANON_RATE_LIMIT):
-            check_rate_limit(ctx)
+            await check_rate_limit(ctx)
 
         # 6th should fail
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            check_rate_limit(ctx)
+            await check_rate_limit(ctx)
         assert exc_info.value.status_code == 429
         assert "Sign up" in exc_info.value.detail
 
-    def test_authenticated_rate_limit(self):
+    @pytest.mark.asyncio
+    async def test_authenticated_rate_limit(self):
         ctx = UserContext(
             user_id="auth_test",
             is_authenticated=True,
@@ -162,17 +164,18 @@ class TestRateLimit:
 
         # 100 should all succeed
         for _ in range(AUTH_RATE_LIMIT):
-            check_rate_limit(ctx)
+            await check_rate_limit(ctx)
 
         # 101st should fail
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            check_rate_limit(ctx)
+            await check_rate_limit(ctx)
         assert exc_info.value.status_code == 429
         assert "Sign up" not in exc_info.value.detail
 
-    def test_rate_limit_window_expiry(self):
+    @pytest.mark.asyncio
+    async def test_rate_limit_window_expiry(self):
         """Old entries outside the 1-hour window should be pruned."""
         ctx = UserContext(
             user_id="expiry_test", is_authenticated=False, ip_address="1.2.3.4"
@@ -183,7 +186,7 @@ class TestRateLimit:
         _rate_limits[ctx.user_id] = [old_time] * 10
 
         # Should succeed because old entries are pruned
-        check_rate_limit(ctx)
+        await check_rate_limit(ctx)
 
 
 # ---- Upgrade prompt ----
