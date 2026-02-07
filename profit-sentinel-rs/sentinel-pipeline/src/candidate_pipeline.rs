@@ -323,11 +323,17 @@ where
     fn run_side_effects(&self, input: Arc<SideEffectInput<Q, C>>) {
         let side_effects = self.side_effects();
         tokio::spawn(async move {
-            let futures = side_effects
+            let enabled: Vec<_> = side_effects
                 .iter()
                 .filter(|se| se.enable(input.query.clone()))
-                .map(|se| se.run(input.clone()));
-            let _ = join_all(futures).await;
+                .collect();
+            let names: Vec<&str> = enabled.iter().map(|se| se.name()).collect();
+            let futures = enabled.iter().map(|se| se.run(input.clone()));
+            for (name, result) in names.iter().zip(join_all(futures).await) {
+                if let Err(e) = result {
+                    error!("side_effect {} failed: {}", name, e);
+                }
+            }
         });
     }
 }
