@@ -74,6 +74,32 @@ pub struct ClassifiedIssue {
     pub active_signals: Vec<&'static str>,
 }
 
+impl ClassifiedIssue {
+    /// Construct a classified issue from row context.
+    ///
+    /// Centralizes the repeated pattern of cloning sku, store_id, and signals
+    /// that every classification branch needs.
+    fn new(
+        issue_type: IssueType,
+        row: &InventoryRow,
+        store_id: &str,
+        dollar_impact: f64,
+        confidence: f64,
+        trend_direction: TrendDirection,
+        signals: &[&'static str],
+    ) -> Self {
+        Self {
+            issue_type,
+            sku: row.sku.clone(),
+            store_id: store_id.to_string(),
+            dollar_impact,
+            confidence,
+            trend_direction,
+            active_signals: signals.to_vec(),
+        }
+    }
+}
+
 /// Classify a single inventory row into zero or more issues.
 ///
 /// Each row can produce multiple issues (e.g., a row with negative inventory
@@ -88,15 +114,15 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
     // Dollar impact = |qty| x unit_cost (the value of the missing inventory).
     if row.qty_on_hand < 0.0 {
         let dollar_impact = row.qty_on_hand.abs() * row.unit_cost;
-        issues.push(ClassifiedIssue {
-            issue_type: IssueType::NegativeInventory,
-            sku: row.sku.clone(),
-            store_id: store_id.to_string(),
+        issues.push(ClassifiedIssue::new(
+            IssueType::NegativeInventory,
+            row,
+            store_id,
             dollar_impact,
-            confidence: compute_confidence(&signals, &["negative_qty"]),
-            trend_direction: infer_trend(row),
-            active_signals: signals.clone(),
-        });
+            compute_confidence(&signals, &["negative_qty"]),
+            infer_trend(row),
+            &signals,
+        ));
     }
 
     // --- Dead Stock ---
@@ -107,15 +133,15 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
         && row.qty_on_hand > 0.0
     {
         let dollar_impact = row.qty_on_hand * row.unit_cost;
-        issues.push(ClassifiedIssue {
-            issue_type: IssueType::DeadStock,
-            sku: row.sku.clone(),
-            store_id: store_id.to_string(),
+        issues.push(ClassifiedIssue::new(
+            IssueType::DeadStock,
+            row,
+            store_id,
             dollar_impact,
-            confidence: compute_confidence(&signals, &["zero_sales", "old_receipt"]),
-            trend_direction: TrendDirection::Worsening, // dead stock always worsening
-            active_signals: signals.clone(),
-        });
+            compute_confidence(&signals, &["zero_sales", "old_receipt"]),
+            TrendDirection::Worsening, // dead stock always worsening
+            &signals,
+        ));
     }
 
     // --- Margin Erosion ---
@@ -125,19 +151,20 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
     if row.margin_pct < MARGIN_EROSION_THRESHOLD && row.qty_on_hand > 0.0 {
         let margin_gap = DIB_BENCHMARK_MARGIN - row.margin_pct.max(0.0);
         let dollar_impact = row.qty_on_hand * row.unit_cost * margin_gap;
-        issues.push(ClassifiedIssue {
-            issue_type: IssueType::MarginErosion,
-            sku: row.sku.clone(),
-            store_id: store_id.to_string(),
+        let trend = if row.margin_pct < 0.10 {
+            TrendDirection::Worsening
+        } else {
+            TrendDirection::Stable
+        };
+        issues.push(ClassifiedIssue::new(
+            IssueType::MarginErosion,
+            row,
+            store_id,
             dollar_impact,
-            confidence: compute_confidence(&signals, &["low_margin"]),
-            trend_direction: if row.margin_pct < 0.10 {
-                TrendDirection::Worsening
-            } else {
-                TrendDirection::Stable
-            },
-            active_signals: signals.clone(),
-        });
+            compute_confidence(&signals, &["low_margin"]),
+            trend,
+            &signals,
+        ));
     }
 
     // --- Receiving Gap ---
@@ -145,15 +172,15 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
     // Dollar impact = qty x unit_cost (exposure from mispriced goods).
     if row.retail_price < 0.0 && row.qty_on_hand > 0.0 {
         let dollar_impact = row.qty_on_hand * row.unit_cost;
-        issues.push(ClassifiedIssue {
-            issue_type: IssueType::ReceivingGap,
-            sku: row.sku.clone(),
-            store_id: store_id.to_string(),
+        issues.push(ClassifiedIssue::new(
+            IssueType::ReceivingGap,
+            row,
+            store_id,
             dollar_impact,
-            confidence: 0.95, // pricing errors are high-confidence
-            trend_direction: TrendDirection::Stable,
-            active_signals: signals.clone(),
-        });
+            0.95, // pricing errors are high-confidence
+            TrendDirection::Stable,
+            &signals,
+        ));
     }
 
     // --- Vendor Short Ship ---
@@ -162,28 +189,28 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
     if row.is_damaged && row.on_order_qty > 0.0 {
         let dollar_impact = row.qty_on_hand * row.unit_cost
             + row.on_order_qty * row.unit_cost * 0.25; // 25% risk of repeat
-        issues.push(ClassifiedIssue {
-            issue_type: IssueType::VendorShortShip,
-            sku: row.sku.clone(),
-            store_id: store_id.to_string(),
+        issues.push(ClassifiedIssue::new(
+            IssueType::VendorShortShip,
+            row,
+            store_id,
             dollar_impact,
-            confidence: compute_confidence(&signals, &["damaged", "on_order"]),
-            trend_direction: TrendDirection::Worsening,
-            active_signals: signals.clone(),
-        });
+            compute_confidence(&signals, &["damaged", "on_order"]),
+            TrendDirection::Worsening,
+            &signals,
+        ));
     } else if row.is_damaged {
         // Damaged goods without reorder — just the damaged value.
         let dollar_impact = row.qty_on_hand * row.unit_cost;
         if dollar_impact > 0.0 {
-            issues.push(ClassifiedIssue {
-                issue_type: IssueType::VendorShortShip,
-                sku: row.sku.clone(),
-                store_id: store_id.to_string(),
+            issues.push(ClassifiedIssue::new(
+                IssueType::VendorShortShip,
+                row,
+                store_id,
                 dollar_impact,
-                confidence: compute_confidence(&signals, &["damaged"]),
-                trend_direction: TrendDirection::Stable,
-                active_signals: signals.clone(),
-            });
+                compute_confidence(&signals, &["damaged"]),
+                TrendDirection::Stable,
+                &signals,
+            ));
         }
     }
 
@@ -196,15 +223,15 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
     {
         let overpay_est = (row.unit_cost - HIGH_COST_THRESHOLD) * 0.15; // estimated 15% overpay
         let dollar_impact = row.qty_on_hand * overpay_est;
-        issues.push(ClassifiedIssue {
-            issue_type: IssueType::PurchasingLeakage,
-            sku: row.sku.clone(),
-            store_id: store_id.to_string(),
+        issues.push(ClassifiedIssue::new(
+            IssueType::PurchasingLeakage,
+            row,
+            store_id,
             dollar_impact,
-            confidence: compute_confidence(&signals, &["high_cost", "low_margin"]),
-            trend_direction: TrendDirection::Stable,
-            active_signals: signals.clone(),
-        });
+            compute_confidence(&signals, &["high_cost", "low_margin"]),
+            TrendDirection::Stable,
+            &signals,
+        ));
     }
 
     // --- Patronage Miss (Overstock + Seasonal) ---
@@ -213,19 +240,20 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
         let months_held = row.days_since_receipt / 30.0;
         let dollar_impact =
             row.qty_on_hand * row.unit_cost * CARRYING_COST_MONTHLY * months_held;
-        issues.push(ClassifiedIssue {
-            issue_type: IssueType::PatronageMiss,
-            sku: row.sku.clone(),
-            store_id: store_id.to_string(),
+        let trend = if months_held > 3.0 {
+            TrendDirection::Worsening
+        } else {
+            TrendDirection::Stable
+        };
+        issues.push(ClassifiedIssue::new(
+            IssueType::PatronageMiss,
+            row,
+            store_id,
             dollar_impact,
-            confidence: compute_confidence(&signals, &["high_qty", "seasonal"]),
-            trend_direction: if months_held > 3.0 {
-                TrendDirection::Worsening
-            } else {
-                TrendDirection::Stable
-            },
-            active_signals: signals.clone(),
-        });
+            compute_confidence(&signals, &["high_qty", "seasonal"]),
+            trend,
+            &signals,
+        ));
     }
 
     // --- Shrinkage Pattern ---
@@ -240,22 +268,20 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
         {
             // Dollar impact capped at SHRINKAGE_MAX_IMPACT per SKU to prevent outliers
             let dollar_impact = (inventory_value * 0.10).min(SHRINKAGE_MAX_IMPACT);
-            issues.push(ClassifiedIssue {
-                issue_type: IssueType::ShrinkagePattern,
-                sku: row.sku.clone(),
-                store_id: store_id.to_string(),
+            let trend = if row.sales_last_30d == 0.0 {
+                TrendDirection::Worsening
+            } else {
+                TrendDirection::Stable
+            };
+            issues.push(ClassifiedIssue::new(
+                IssueType::ShrinkagePattern,
+                row,
+                store_id,
                 dollar_impact,
-                confidence: compute_confidence(
-                    &signals,
-                    &["low_margin", "zero_sales"],
-                ),
-                trend_direction: if row.sales_last_30d == 0.0 {
-                    TrendDirection::Worsening
-                } else {
-                    TrendDirection::Stable
-                },
-                active_signals: signals.clone(),
-            });
+                compute_confidence(&signals, &["low_margin", "zero_sales"]),
+                trend,
+                &signals,
+            ));
         }
     }
 
@@ -269,19 +295,20 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
             (row.qty_on_hand * row.retail_price * 0.10).min(ZERO_COST_MAX_IMPACT);
         // Higher confidence if actively selling (more urgent to fix)
         let confidence = if row.sales_last_30d > 0.0 { 0.85 } else { 0.70 };
-        issues.push(ClassifiedIssue {
-            issue_type: IssueType::ZeroCostAnomaly,
-            sku: row.sku.clone(),
-            store_id: store_id.to_string(),
+        let trend = if row.sales_last_30d > 0.0 {
+            TrendDirection::Worsening // actively selling with wrong data
+        } else {
+            TrendDirection::Stable
+        };
+        issues.push(ClassifiedIssue::new(
+            IssueType::ZeroCostAnomaly,
+            row,
+            store_id,
             dollar_impact,
             confidence,
-            trend_direction: if row.sales_last_30d > 0.0 {
-                TrendDirection::Worsening // actively selling with wrong data
-            } else {
-                TrendDirection::Stable
-            },
-            active_signals: signals.clone(),
-        });
+            trend,
+            &signals,
+        ));
     }
 
     // --- Price Discrepancy ---
@@ -297,19 +324,20 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
         // Impact = loss per unit x qty, capped
         let dollar_impact =
             (loss_per_unit * row.qty_on_hand).min(PRICE_DISCREPANCY_MAX_IMPACT);
-        issues.push(ClassifiedIssue {
-            issue_type: IssueType::PriceDiscrepancy,
-            sku: row.sku.clone(),
-            store_id: store_id.to_string(),
+        let trend = if row.sales_last_30d > 0.0 {
+            TrendDirection::Worsening // actively selling at a loss
+        } else {
+            TrendDirection::Stable
+        };
+        issues.push(ClassifiedIssue::new(
+            IssueType::PriceDiscrepancy,
+            row,
+            store_id,
             dollar_impact,
-            confidence: 0.85, // pricing errors are high-confidence
-            trend_direction: if row.sales_last_30d > 0.0 {
-                TrendDirection::Worsening // actively selling at a loss
-            } else {
-                TrendDirection::Stable
-            },
-            active_signals: signals.clone(),
-        });
+            0.85, // pricing errors are high-confidence
+            trend,
+            &signals,
+        ));
     }
 
     // --- Overstock ---
@@ -335,24 +363,22 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
             let dollar_impact =
                 (excess * row.unit_cost * OVERSTOCK_CARRYING_RATE).min(OVERSTOCK_MAX_IMPACT);
             if dollar_impact > 0.0 {
-                issues.push(ClassifiedIssue {
-                    issue_type: IssueType::Overstock,
-                    sku: row.sku.clone(),
-                    store_id: store_id.to_string(),
+                let trend = if row.sales_last_30d == 0.0
+                    && row.days_since_receipt > DEAD_STOCK_DAYS
+                {
+                    TrendDirection::Worsening
+                } else {
+                    TrendDirection::Stable
+                };
+                issues.push(ClassifiedIssue::new(
+                    IssueType::Overstock,
+                    row,
+                    store_id,
                     dollar_impact,
-                    confidence: compute_confidence(
-                        &signals,
-                        &["high_qty", "zero_sales"],
-                    ),
-                    trend_direction: if row.sales_last_30d == 0.0
-                        && row.days_since_receipt > DEAD_STOCK_DAYS
-                    {
-                        TrendDirection::Worsening
-                    } else {
-                        TrendDirection::Stable
-                    },
-                    active_signals: signals.clone(),
-                });
+                    compute_confidence(&signals, &["high_qty", "zero_sales"]),
+                    trend,
+                    &signals,
+                ));
             }
         }
     }
