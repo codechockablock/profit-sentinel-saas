@@ -21,7 +21,7 @@ use sentinel_vsa::bundling::InventoryRow;
 use sentinel_vsa::evidence::EvidenceScorer;
 use sentinel_vsa::thresholds::{
     CARRYING_COST_MONTHLY, DEAD_STOCK_DAYS, DIB_BENCHMARK_MARGIN, HIGH_COST_THRESHOLD,
-    MARGIN_EROSION_THRESHOLD, PATRONAGE_QTY_THRESHOLD,
+    MARGIN_EROSION_THRESHOLD, PATRONAGE_QTY_THRESHOLD, RECENT_RECEIPT_DAYS,
 };
 
 use crate::types::{IssueCandidate, IssueType, TrendDirection};
@@ -519,7 +519,7 @@ fn detect_signals(row: &InventoryRow) -> Vec<&'static str> {
     if row.qty_on_hand > PATRONAGE_QTY_THRESHOLD {
         signals.push("high_qty");
     }
-    if row.days_since_receipt <= 7.0 {
+    if row.days_since_receipt <= RECENT_RECEIPT_DAYS {
         signals.push("recent_receipt");
     }
     if row.days_since_receipt > DEAD_STOCK_DAYS {
@@ -562,9 +562,9 @@ fn compute_confidence(active: &[&str], expected: &[&str]) -> f64 {
 
 /// Infer trend direction from the row's characteristics.
 fn infer_trend(row: &InventoryRow) -> TrendDirection {
-    if row.qty_on_hand < -50.0 || (row.sales_last_30d == 0.0 && row.days_since_receipt > 90.0) {
+    if row.qty_on_hand < -50.0 || (row.sales_last_30d == 0.0 && row.days_since_receipt > DEAD_STOCK_DAYS) {
         TrendDirection::Worsening
-    } else if row.days_since_receipt <= 7.0 {
+    } else if row.days_since_receipt <= RECENT_RECEIPT_DAYS {
         TrendDirection::Improving
     } else {
         TrendDirection::Stable
