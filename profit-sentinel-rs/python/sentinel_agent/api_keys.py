@@ -23,59 +23,10 @@ import secrets
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from enum import Enum
+
+from .rate_limits import ApiTier, TierLimits, TIER_LIMITS
 
 logger = logging.getLogger("sentinel.api_keys")
-
-# ---------------------------------------------------------------------------
-# Tier definitions
-# ---------------------------------------------------------------------------
-
-
-class ApiTier(str, Enum):
-    FREE = "free"
-    PRO = "pro"
-    ENTERPRISE = "enterprise"
-
-
-@dataclass
-class TierLimits:
-    """Rate limits for an API tier."""
-
-    requests_per_hour: int
-    requests_per_day: int
-    max_file_size_mb: int
-    concurrent_analyses: int
-
-    def to_dict(self) -> dict:
-        return {
-            "requests_per_hour": self.requests_per_hour,
-            "requests_per_day": self.requests_per_day,
-            "max_file_size_mb": self.max_file_size_mb,
-            "concurrent_analyses": self.concurrent_analyses,
-        }
-
-
-TIER_LIMITS: dict[ApiTier, TierLimits] = {
-    ApiTier.FREE: TierLimits(
-        requests_per_hour=10,
-        requests_per_day=100,
-        max_file_size_mb=10,
-        concurrent_analyses=1,
-    ),
-    ApiTier.PRO: TierLimits(
-        requests_per_hour=100,
-        requests_per_day=2000,
-        max_file_size_mb=50,
-        concurrent_analyses=5,
-    ),
-    ApiTier.ENTERPRISE: TierLimits(
-        requests_per_hour=1000,
-        requests_per_day=50000,
-        max_file_size_mb=200,
-        concurrent_analyses=20,
-    ),
-}
 
 
 # ---------------------------------------------------------------------------

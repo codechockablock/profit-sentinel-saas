@@ -28,6 +28,13 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, Request
 
+from .rate_limits import (
+    ANON_MAX_FILE_SIZE_MB,
+    ANON_RATE_LIMIT,
+    AUTH_MAX_FILE_SIZE_MB,
+    AUTH_RATE_LIMIT,
+)
+
 logger = logging.getLogger("sentinel.dual_auth")
 
 # ---------------------------------------------------------------------------
@@ -39,15 +46,6 @@ logger = logging.getLogger("sentinel.dual_auth")
 
 _rate_limits: dict[str, list[datetime]] = defaultdict(list)
 _rate_lock = asyncio.Lock()
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-ANON_RATE_LIMIT = 5
-AUTH_RATE_LIMIT = 100
-ANON_MAX_FILE_SIZE_MB = 10
-AUTH_MAX_FILE_SIZE_MB = 50
 
 
 # ---------------------------------------------------------------------------
