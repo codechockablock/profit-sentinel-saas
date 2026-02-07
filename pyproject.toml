@@ -44,25 +44,24 @@ exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 ignore = [
-    "E501",   # Line too long (handled by formatter)
-    "E741",   # Ambiguous variable name (needed for mathematical code)
-    "E722",   # Bare except (legacy code)
-    "E402",   # Module import not at top (needed for optional imports)
-    "N801",   # Class name should use CapWords (intentional for DSL-like APIs)
-    "N802",   # Function name should be lowercase (Prolog-like factories)
-    "N803",   # Argument name should be lowercase (math notation: X, B, L, etc.)
-    "N806",   # Variable name should be lowercase (intentional patterns)
-    "N812",   # Lowercase imported as non-lowercase (torch.nn.functional as F)
-    "N815",   # Variable in class scope should not be mixedCase (test data)
-    "F401",   # Import unused (needed for optional dependency checks in try/except)
-    "F402",   # Import shadowed by loop variable (intentional)
-    "UP007",  # Use X | Y for type annotations (compatibility)
-    "UP035",  # typing.Dict deprecated (needed for Python 3.9 compatibility)
+    "E501",   # Line too long — handled by formatter (line-length = 88)
+    "E741",   # Ambiguous variable name — needed for VSA math code (X, B, L)
+    "E402",   # Module import not at top — needed for optional imports
+    "N801",   # Naming: intentional for DSL-like APIs and Prolog-style factories
+    "N802",   # Naming: Prolog-like factory functions
+    "N803",   # Naming: math notation arguments (X, B, L)
+    "N806",   # Naming: intentional patterns in mathematical code
+    "N812",   # Naming: torch.nn.functional as F convention
+    "N815",   # Naming: mixedCase in test data fixtures
+    "F401",   # Unused import — needed for optional dependency checks in try/except
 ]
 
 [tool.mypy]
 python_version = "3.11"
 strict = false
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
 ignore_missing_imports = true
 exclude = [
     "venv",
@@ -100,8 +99,7 @@ scipy = "^1.17.0"
 pydantic-settings = "^2.12.0"
 boto3 = "^1.42.29"
 openpyxl = "^3.1.5"
-[dependency-groups]
-dev = [
-    "pytest (>=9.0.2,<10.0.0)",
-    "pytest-asyncio (>=1.3.0,<2.0.0)"
-]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.2"
+pytest-asyncio = "^1.3.0"
