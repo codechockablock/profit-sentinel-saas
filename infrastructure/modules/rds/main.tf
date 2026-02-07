@@ -26,6 +26,12 @@ variable "skip_final_snapshot" {
   default     = false # Safe default — override to true for dev only
 }
 
+variable "backup_retention_period" {
+  description = "Number of days to retain automated backups (1-35)"
+  type        = number
+  default     = 14 # 14 days — safe default for production SaaS
+}
+
 resource "aws_security_group" "rds" {
   name        = "${var.name_prefix}-rds-sg"
   description = "Allow inbound from ECS"
@@ -73,6 +79,7 @@ resource "aws_rds_cluster" "aurora" {
   storage_encrypted           = true
   skip_final_snapshot         = var.skip_final_snapshot
   deletion_protection         = var.deletion_protection
+  backup_retention_period     = var.backup_retention_period
 
   # COST OPTIMIZED: Aurora Serverless v2 scaling
   # min 0.5 ACU = ~$43/mo baseline (can't go lower)
