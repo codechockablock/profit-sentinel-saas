@@ -121,6 +121,24 @@ variable "enable_alerts" {
   default     = true
 }
 
+variable "secret_name_db" {
+  description = "Secrets Manager secret name for DB credentials"
+  type        = string
+  default     = "profitsentinel/db-credentials"
+}
+
+variable "secret_name_api_key" {
+  description = "Secrets Manager secret name for API key"
+  type        = string
+  default     = "profitsentinel/api-key"
+}
+
+variable "secret_name_supabase" {
+  description = "Secrets Manager secret name for Supabase service key"
+  type        = string
+  default     = "profitsentinel/supabase-service-key"
+}
+
 variable "tags" {
   description = "Additional tags for all resources"
   type        = map(string)

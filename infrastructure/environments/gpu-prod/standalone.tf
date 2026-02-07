@@ -79,11 +79,7 @@ resource "aws_subnet" "private_b" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# VPC Endpoints (COST OPTIMIZATION: Replace NAT Gateway ~$32/mo)
-# VPC Endpoints are free for S3/DynamoDB, ~$7/mo each for interface endpoints
-# This saves NAT Gateway costs AND data processing fees
-# -----------------------------------------------------------------------------
+# VPC Endpoints — replaces NAT Gateway for AWS service access
 
 # S3 Gateway Endpoint (FREE)
 resource "aws_vpc_endpoint" "s3" {
@@ -209,13 +205,9 @@ resource "aws_route_table" "public" {
   }
 }
 
-resource "aws_route_table_association" "public_a" {
-  subnet_id      = aws_subnet.public_a.id
-  route_table_id = aws_route_table.public.id
-}
-
-resource "aws_route_table_association" "public_b" {
-  subnet_id      = aws_subnet.public_b.id
+resource "aws_route_table_association" "public" {
+  for_each       = { a = aws_subnet.public_a.id, b = aws_subnet.public_b.id }
+  subnet_id      = each.value
   route_table_id = aws_route_table.public.id
 }
 
@@ -231,13 +223,9 @@ resource "aws_route_table" "private" {
   }
 }
 
-resource "aws_route_table_association" "private_a" {
-  subnet_id      = aws_subnet.private_a.id
-  route_table_id = aws_route_table.private.id
-}
-
-resource "aws_route_table_association" "private_b" {
-  subnet_id      = aws_subnet.private_b.id
+resource "aws_route_table_association" "private" {
+  for_each       = { a = aws_subnet.private_a.id, b = aws_subnet.private_b.id }
+  subnet_id      = each.value
   route_table_id = aws_route_table.private.id
 }
 
@@ -378,15 +366,15 @@ resource "aws_lb_listener" "http" {
 # -----------------------------------------------------------------------------
 
 data "aws_secretsmanager_secret" "db" {
-  name = "profitsentinel/db-credentials"
+  name = var.secret_name_db
 }
 
 data "aws_secretsmanager_secret" "api_key" {
-  name = "profitsentinel/api-key"
+  name = var.secret_name_api_key
 }
 
 data "aws_secretsmanager_secret" "supabase" {
-  name = "profitsentinel/supabase-service-key"
+  name = var.secret_name_supabase
 }
 
 # -----------------------------------------------------------------------------
