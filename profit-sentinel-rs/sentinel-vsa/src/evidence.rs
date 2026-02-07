@@ -422,21 +422,10 @@ pub struct CauseScore {
     pub evidence_count: usize,
 }
 
-/// The main evidence scorer implementing positive-similarity summing.
+/// Scores candidate issues using VSA evidence accumulation.
 ///
-/// # Algorithm
-///
-/// For each candidate issue:
-/// 1. Collect the active signals from all SKUs in the issue group.
-/// 2. Encode each unique signal set into an evidence vector.
-/// 3. For each cause: sum `max(0, cosine_similarity(evidence, cause_vec))`.
-/// 4. The highest-scoring cause with sufficient confidence is the root cause.
-///
-/// # 0% Hallucination Guarantee
-///
-/// By clamping similarities to non-negative values, negative evidence
-/// (counter-indicators) cannot cancel out positive evidence. Each piece
-/// of supporting evidence independently accumulates.
+/// Uses positive-similarity-only scoring to prevent hallucination.
+/// See module-level documentation for the full algorithm description.
 pub struct EvidenceScorer {
     encoder: EvidenceEncoder,
     /// Minimum confidence to assign a root cause (below this → None).
