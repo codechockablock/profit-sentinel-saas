@@ -21,7 +21,7 @@ use sentinel_vsa::bundling::InventoryRow;
 use sentinel_vsa::evidence::EvidenceScorer;
 use sentinel_vsa::thresholds::{
     CARRYING_COST_MONTHLY, DEAD_STOCK_DAYS, DIB_BENCHMARK_MARGIN, HIGH_COST_THRESHOLD,
-    MARGIN_EROSION_THRESHOLD, PATRONAGE_QTY_THRESHOLD, RECENT_RECEIPT_DAYS,
+    MARGIN_EROSION_THRESHOLD, PATRONAGE_QTY_THRESHOLD, RECENT_RECEIPT_DAYS, VSA_DIMENSIONS,
 };
 
 use crate::types::{IssueCandidate, IssueType, TrendDirection};
@@ -373,10 +373,6 @@ pub fn classify_row(row: &InventoryRow, store_id: &str) -> Vec<ClassifiedIssue> 
     issues
 }
 
-/// VSA vector dimensionality for evidence scoring.
-/// 1024 dimensions provide a good balance of accuracy and performance.
-const EVIDENCE_DIMENSIONS: usize = 1024;
-
 /// Classify a batch of inventory rows into issues, grouping by store and type.
 ///
 /// Rows that trigger the same issue type at the same store are grouped into
@@ -400,7 +396,7 @@ pub fn classify_and_aggregate(
     });
 
     // Create evidence scorer once for all candidates
-    let scorer = EvidenceScorer::new(EVIDENCE_DIMENSIONS);
+    let scorer = EvidenceScorer::new(VSA_DIMENSIONS);
 
     let mut candidates: Vec<IssueCandidate> = Vec::new();
     let mut idx = 0;

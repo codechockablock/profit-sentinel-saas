@@ -27,3 +27,7 @@ pub const DIB_BENCHMARK_MARGIN: f64 = 0.35;
 
 /// Monthly carrying cost factor (2% per month).
 pub const CARRYING_COST_MONTHLY: f64 = 0.02;
+
+/// Dimensionality for all VSA hypervectors. Must be consistent across
+/// bundling, evidence scoring, and analytics source components.
+pub const VSA_DIMENSIONS: usize = 1024;
