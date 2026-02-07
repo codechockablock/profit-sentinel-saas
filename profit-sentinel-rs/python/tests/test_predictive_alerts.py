@@ -200,10 +200,12 @@ class TestStockoutPrediction:
         digest = _make_digest([issue])
 
         report = predict_inventory(digest, store_id="store-7")
-        if len(report.stockout_predictions) >= 2:
-            near = next(p for p in report.stockout_predictions if p.sku_id == "DMG-001")
-            far = next(p for p in report.stockout_predictions if p.sku_id == "DMG-002")
-            assert near.confidence >= far.confidence
+        assert len(report.stockout_predictions) >= 2, (
+            f"Expected >=2 stockout predictions for 2 at-risk SKUs, got {len(report.stockout_predictions)}"
+        )
+        near = next(p for p in report.stockout_predictions if p.sku_id == "DMG-001")
+        far = next(p for p in report.stockout_predictions if p.sku_id == "DMG-002")
+        assert near.confidence >= far.confidence
 
 
 # ---------------------------------------------------------------------------

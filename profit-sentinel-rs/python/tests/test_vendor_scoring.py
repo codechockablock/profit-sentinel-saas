@@ -511,9 +511,11 @@ class TestVendorPerformanceScorer:
         digest = _make_digest(issues)
         report = score_vendors(digest, store_id="store-7")
 
-        if report.total_vendors_scored >= 2:
-            # Worst vendor should be first
-            assert report.scorecards[0].overall_score <= report.scorecards[1].overall_score
+        assert report.total_vendors_scored >= 2, (
+            f"Expected >=2 vendors scored for multi-vendor digest, got {report.total_vendors_scored}"
+        )
+        # Worst vendor should be first
+        assert report.scorecards[0].overall_score <= report.scorecards[1].overall_score
 
     def test_high_risk_count(self):
         """Report should count high-risk vendors."""
