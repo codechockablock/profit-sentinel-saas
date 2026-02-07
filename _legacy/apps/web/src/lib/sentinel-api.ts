@@ -76,7 +76,7 @@ export interface Sku {
 export interface CauseScoreDetail {
   cause: string;
   score: number;
-  confidence: number;
+  evidence_count: number;
 }
 
 export interface Issue {
@@ -102,10 +102,11 @@ export interface Issue {
 
 export interface DigestSummary {
   total_issues: number;
-  critical_issues: number;
   total_dollar_impact: number;
   stores_affected: number;
-  top_issue_type: string | null;
+  records_processed: number;
+  issues_detected: number;
+  issues_filtered_out: number;
 }
 
 export interface Digest {
@@ -120,7 +121,7 @@ export interface DigestResponse {
   digest: Digest;
   rendered_text: string;
   generated_at: string;
-  store_ids: string[];
+  store_filter: string[];
   issue_count: number;
   total_dollar_impact: number;
 }
@@ -309,22 +310,24 @@ export async function fetchCoopReport(storeId: string): Promise<CoopReportRespon
 
 export interface SignalContribution {
   signal: string;
-  cause: string;
-  weight: number;
-  rationale: string;
+  description: string;
+  rules_fired: Record<string, unknown>[];
 }
 
 export interface ProofNode {
-  type: string;
-  label: string;
+  statement: string;
   confidence: number;
+  explanation: string;
+  source: string;
   children: ProofNode[];
 }
 
 export interface CompetingHypothesis {
   cause: string;
+  cause_display: string;
   score: number;
-  gap: number;
+  rank: number;
+  why_lower: string;
 }
 
 export interface ExplainResponse {
@@ -340,12 +343,12 @@ export interface ExplainResponse {
     root_cause_ambiguity: number;
     active_signals: string[];
     signal_contributions: SignalContribution[];
-    cause_scores: { cause: string; score: number }[];
-    proof_root: ProofNode;
-    inferred_facts: { fact: string; confidence: number; rule: string }[];
+    cause_scores: Record<string, unknown>[];
+    proof_tree: ProofNode;
+    inferred_facts: Record<string, unknown>[];
     competing_hypotheses: CompetingHypothesis[];
     recommendations: string[];
-    suggested_actions: { action: string; priority: string; confidence: number }[];
+    suggested_actions: Record<string, unknown>[];
   };
   rendered_text: string;
 }
