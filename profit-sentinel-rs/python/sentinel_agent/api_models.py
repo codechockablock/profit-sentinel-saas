@@ -220,6 +220,55 @@ class DiagnosticReportResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ProofNodeResponse(BaseModel):
+    """A single node in the proof tree showing one reasoning step."""
+
+    statement: str
+    confidence: float
+    explanation: str
+    source: str  # "signal", "vsa_scoring", "inference", "attribute"
+    children: list[ProofNodeResponse] = Field(default_factory=list)
+
+
+class SignalContributionResponse(BaseModel):
+    """How a single signal contributed to the root cause attribution."""
+
+    signal: str
+    description: str
+    rules_fired: list[dict] = Field(default_factory=list)
+
+
+class CompetingHypothesisResponse(BaseModel):
+    """An alternative cause that was considered but scored lower."""
+
+    cause: str
+    cause_display: str
+    score: float
+    rank: int
+    why_lower: str
+
+
+class ProofTreeResponse(BaseModel):
+    """Full proof tree for an issue's root cause attribution."""
+
+    issue_id: str
+    issue_type: str
+    store_id: str
+    dollar_impact: float
+    root_cause: str | None
+    root_cause_display: str
+    root_cause_confidence: float
+    root_cause_ambiguity: float
+    active_signals: list[str]
+    signal_contributions: list[SignalContributionResponse]
+    cause_scores: list[dict]
+    proof_tree: ProofNodeResponse
+    inferred_facts: list[dict]
+    competing_hypotheses: list[CompetingHypothesisResponse]
+    recommendations: list[str]
+    suggested_actions: list[dict]
+
+
 class ExplainResponse(BaseModel):
     """Response for GET /api/v1/explain/{issue_id}.
 
@@ -230,7 +279,7 @@ class ExplainResponse(BaseModel):
     """
 
     issue_id: str
-    proof_tree: dict
+    proof_tree: ProofTreeResponse
     rendered_text: str
 
 
