@@ -187,6 +187,8 @@ checkpoints/
 *.xlsx
 *.xls
 !examples/*.csv
+!profit-sentinel-rs/fixtures/*.csv
+!profit-sentinel-rs/python/tests/fixtures/*.csv
 
 # ===========================================
 # Project Specific
