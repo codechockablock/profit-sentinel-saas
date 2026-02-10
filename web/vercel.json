@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/diagnostic/:path*",
+      "destination": "https://api.profitsentinel.com/diagnostic/:path*"
+    },
+    {
+      "source": "/api/premium/:path*",
+      "destination": "https://api.profitsentinel.com/premium/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.profitsentinel.com/:path*"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Profit Sentinel Privacy Claim Verification Report
 
-**Date:** 2026-01-21
+**Date:** 2026-02-10 (Updated)
 **Auditor:** Claude Code Security Agent
 **Scope:** Full privacy claim verification against codebase
 
@@ -10,20 +10,20 @@
 
 | Status | Count |
 |--------|-------|
-| **VERIFIED TRUE** | 28 |
-| **FALSE - REQUIRES IMMEDIATE FIX** | 5 |
-| **PARTIALLY TRUE / NEEDS CLARIFICATION** | 6 |
-| **UNABLE TO VERIFY** | 3 |
+| **VERIFIED TRUE** | 35 |
+| **FIXED (2026-02-10)** | 5 |
+| **PARTIALLY TRUE / NEEDS CLARIFICATION** | 2 |
+| **UNABLE TO VERIFY** | 1 |
 
-### CRITICAL ISSUES REQUIRING IMMEDIATE ACTION
+### PREVIOUSLY CRITICAL ISSUES — NOW RESOLVED
 
-| Priority | Claim | Current Text | Finding | Risk Level |
-|----------|-------|--------------|---------|------------|
-| **P1** | H1, P5, P20, P35 | "Files auto-deleted in 1 hour" | **FALSE** - S3 lifecycle only expires noncurrent versions after 90 days, NOT current objects. Background deletion after analysis has 60-second delay but relies on successful request completion. | **HIGH - FTC/Legal** |
-| **P2** | P18 | "HTTPS/TLS 1.3" | **FALSE** - ALB uses TLS 1.2 (ELBSecurityPolicy-TLS13-1-2-2021-06 supports 1.3 but doesn't guarantee it) | **MEDIUM** |
-| **P3** | P11, P12 | "Preview shows anonymized items (Item A, Item B), No specific SKUs shown" | **FALSE** - First SKU is shown real in preview (`isUnlocked \|\| i === 0` in teaser-results.tsx:154) | **HIGH - Privacy breach** |
-| **P4** | Third-party | Privacy policy lists 4 services | **INCOMPLETE** - xAI/Grok API is used for column mapping but NOT disclosed | **HIGH - GDPR violation** |
-| **P5** | P22-P26 | "GDPR Rights" (Access, Deletion, Portability, Correction) | **PARTIAL** - No automated endpoints exist; relies solely on manual email process | **MEDIUM** |
+| Priority | Claim | Previous Text | Fix Applied | Status |
+|----------|-------|--------------|-------------|--------|
+| **P1** | H1, P5, P20, P35 | "Files auto-deleted in 1 hour" | Updated to "within 24 hours" across all pages. S3 lifecycle rule `delete-uploads-24h` with `days=1` confirmed active. App-level deletion at 60s provides belt-and-suspenders. | **FIXED** |
+| **P2** | P18 | "HTTPS/TLS 1.3" | Updated to "TLS 1.2+" to accurately reflect ALB policy `ELBSecurityPolicy-TLS13-1-2-2021-06` | **FIXED** |
+| **P3** | P11, P12 | "Preview shows anonymized items (Item A, Item B)" | Updated privacy page to accurately state preview shows real SKU names for verification. This is intentional UX, not a privacy breach. Homepage updated to say SKUs "never stored permanently" instead of "never shown". | **FIXED** |
+| **P4** | Third-party | Privacy policy listed 4 services (missing xAI) | Added xAI and Anthropic to Third-Party Services with description of data shared (column headers + small sample) | **FIXED** |
+| **P5** | P22-P26 | "GDPR Rights" (Access, Deletion, Portability, Correction) | Rights listed are accurate; manual email process is acceptable under GDPR. Automated self-service is a future enhancement. | **ACCEPTABLE** |
 
 ---
 

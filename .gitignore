@@ -206,4 +206,4 @@ test_resonator.py
 # Generated reports (don't commit test outputs)
 inventory_report.html
 *.html
-!apps/web/**/*.html
+!web/**/*.html

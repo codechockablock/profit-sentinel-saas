@@ -413,9 +413,24 @@ def create_upload_router(
                 await asyncio.sleep(60)
                 try:
                     delete_file(s3_client, settings.s3_bucket_name, key)
-                    logger.info(f"Cleaned up S3 file: {key}")
+                    # Structured log for CloudWatch monitoring
+                    logger.info(
+                        "S3_FILE_DELETED key=%s bucket=%s user_type=%s "
+                        "rows=%d delay_seconds=60 method=background_task",
+                        key,
+                        settings.s3_bucket_name,
+                        "authenticated" if ctx.is_authenticated else "guest",
+                        len(df),
+                    )
                 except Exception as e:
-                    logger.warning(f"S3 cleanup failed: {e}")
+                    logger.error(
+                        "S3_DELETE_FAILED key=%s bucket=%s error=%s "
+                        "user_type=%s fallback=s3_lifecycle_24h",
+                        key,
+                        settings.s3_bucket_name,
+                        str(e),
+                        "authenticated" if ctx.is_authenticated else "guest",
+                    )
 
             background_tasks.add_task(_cleanup_file)
 
@@ -476,6 +491,139 @@ def create_upload_router(
             "supported_systems": SUPPORTED_POS_SYSTEMS,
             "count": len(SUPPORTED_POS_SYSTEMS),
             "notes": "Column mapping auto-detects formats from these systems",
+        }
+
+    # -----------------------------------------------------------------
+    # POST /analysis/send-report
+    # -----------------------------------------------------------------
+
+    @analysis_router.post("/send-report")
+    async def send_report(
+        request: Request,
+        background_tasks: BackgroundTasks = BackgroundTasks(),
+    ) -> dict:
+        """Send a full analysis report via email with PDF attachment.
+
+        The frontend holds the analysis result in React state (not persisted
+        for guests) and POSTs it back here along with the guest's email.
+
+        After the email is sent, triggers the anonymization pipeline to
+        extract aggregated patterns into dorian_facts.
+
+        Request body (JSON):
+            email: str          — recipient email address
+            analysis_result: dict — the full result from /analysis/analyze
+
+        Rate limit: Shares the analysis rate limit (prevents spam).
+        """
+        import re
+
+        from .anonymizer import anonymize_analysis, store_anonymized_facts
+        from .email_service import send_report_email
+        from .pdf_report import generate_report_pdf
+
+        body = await request.json()
+        email = body.get("email", "").strip()
+        analysis_result = body.get("analysis_result")
+
+        # Validate email
+        if not email or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            raise HTTPException(status_code=422, detail="Valid email address required")
+
+        if not analysis_result or not isinstance(analysis_result, dict):
+            raise HTTPException(
+                status_code=422, detail="analysis_result is required"
+            )
+
+        if "leaks" not in analysis_result or "summary" not in analysis_result:
+            raise HTTPException(
+                status_code=422,
+                detail="analysis_result must contain 'leaks' and 'summary' keys",
+            )
+
+        # Rate limit: reuse the analysis bucket to prevent email spam
+        # (guests get 5/hour — sending a report counts as 1)
+        try:
+            ctx = await get_user_context(request)
+            await check_rate_limit(ctx)
+        except HTTPException:
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded. Please try again later.",
+            )
+
+        summary = analysis_result.get("summary", {})
+        leaks = analysis_result.get("leaks", {})
+        total_items = summary.get("total_rows_analyzed", 0)
+        total_flagged = summary.get("total_items_flagged", 0)
+        active_leaks = sum(1 for v in leaks.values() if v.get("count", 0) > 0)
+
+        # 1. Generate PDF
+        try:
+            pdf_bytes = generate_report_pdf(analysis_result)
+            logger.info(
+                "Generated PDF report: %d bytes for %s", len(pdf_bytes), email
+            )
+        except Exception as e:
+            logger.error("PDF generation failed: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=500, detail="Failed to generate report PDF"
+            )
+
+        # 2. Send email with PDF attachment
+        resend_key = settings.resend_api_key
+        if not resend_key:
+            raise HTTPException(
+                status_code=503,
+                detail="Email service not configured",
+            )
+
+        try:
+            email_result = await send_report_email(
+                api_key=resend_key,
+                to=email,
+                pdf_bytes=pdf_bytes,
+                total_items=total_items,
+                total_flagged=total_flagged,
+                leak_count=active_leaks,
+            )
+            logger.info("Report email sent to %s, id=%s", email, email_result.get("id"))
+        except Exception as e:
+            logger.error("Failed to send report email: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail="Failed to send email. Please try again.",
+            )
+
+        # 3. Trigger anonymization pipeline in background
+        async def _anonymize_and_store():
+            try:
+                facts = anonymize_analysis(analysis_result)
+                if facts and settings.supabase_url and settings.supabase_service_key:
+                    stored = await store_anonymized_facts(
+                        facts,
+                        supabase_url=settings.supabase_url,
+                        supabase_service_key=settings.supabase_service_key,
+                    )
+                    logger.info(
+                        "Anonymization pipeline: stored %d facts from report to %s",
+                        stored, email,
+                    )
+                else:
+                    logger.warning(
+                        "Anonymization skipped: %d facts, supabase configured=%s",
+                        len(facts), bool(settings.supabase_url),
+                    )
+            except Exception as e:
+                # Anonymization failure must NOT block the user response
+                logger.error("Anonymization pipeline failed: %s", e, exc_info=True)
+
+        background_tasks.add_task(_anonymize_and_store)
+
+        return {
+            "success": True,
+            "message": f"Report sent to {email}",
+            "email_id": email_result.get("id"),
         }
 
     # Combine into a parent router
