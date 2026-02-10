@@ -1,59 +1,6 @@
 version: '3.8'
 
 services:
-  # FastAPI Backend
-  api:
-    build:
-      context: ./apps/api
-      dockerfile: Dockerfile
-    container_name: profit-sentinel-api
-    ports:
-      - "8000:8000"
-    environment:
-      - PYTHONPATH=/app:/app/src:/packages/vsa-core/src:/packages/reasoning/src:/packages/sentinel-engine/src
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-profitsentinel-dev-uploads}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - GROK_API_KEY=${GROK_API_KEY}
-      - USE_VSA_GROUNDING=true
-      - INCLUDE_CAUSE_DIAGNOSIS=true
-    volumes:
-      - ./apps/api:/app
-      - ./packages:/packages:ro
-      - ./config:/config:ro
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-
-  # Next.js Frontend (development)
-  web:
-    build:
-      context: ./apps/web
-      dockerfile: Dockerfile.dev
-    container_name: profit-sentinel-web
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - XAI_API_KEY=${GROK_API_KEY}
-    volumes:
-      - ./apps/web:/app
-      - /app/node_modules
-      - /app/.next
-    depends_on:
-      - api
-    restart: unless-stopped
-
   # Sentinel Sidecar (Rust pipeline + Python agent + mobile UI)
   sentinel-sidecar:
     build:

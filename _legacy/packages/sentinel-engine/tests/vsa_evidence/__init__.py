@@ -1,1 +1,0 @@
-"""VSA Evidence Module Tests."""

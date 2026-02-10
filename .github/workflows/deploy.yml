@@ -143,18 +143,15 @@ jobs:
           # Build with git commit SHA for traceability
           SHORT_SHA=$(echo $IMAGE_TAG | cut -c1-7)
 
-          echo "Building image with tag: $SHORT_SHA"
-          # Build legacy API from _legacy/apps/api/
-          # NOTE: This deploys the legacy Python-only backend (port 8000)
-          # For the new Rust sidecar, see deploy-staging.yml
+          echo "Building sidecar image with tag: $SHORT_SHA"
           docker build \
-            -f _legacy/apps/api/Dockerfile \
+            -f profit-sentinel-rs/Dockerfile.sidecar \
             --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
             --build-arg GIT_COMMIT=$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            .
+            profit-sentinel-rs/
 
           echo "Pushing images to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -230,22 +227,6 @@ jobs:
       deployment_url: ${{ steps.deploy.outputs.url }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: _legacy/apps/web/package-lock.json
-
-      - name: Install dependencies
-        working-directory: _legacy/apps/web
-        run: npm ci
-
-      - name: Run type check
-        working-directory: _legacy/apps/web
-        run: npm run type-check || echo "::warning::Type check had issues"
-        continue-on-error: true
 
       - name: Install Vercel CLI
         run: npm install -g vercel

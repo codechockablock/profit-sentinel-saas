@@ -11,7 +11,7 @@ authors = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["apps/api/tests", "packages/*/tests", "tests"]
+testpaths = ["profit-sentinel-rs/python/tests", "tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
@@ -70,7 +70,7 @@ exclude = [
 ]
 
 [tool.coverage.run]
-source = ["apps", "packages"]
+source = ["profit-sentinel-rs/python", "tests"]
 omit = ["*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]
