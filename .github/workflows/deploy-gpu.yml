@@ -14,13 +14,15 @@
 name: Deploy GPU Infrastructure
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'Dockerfile.gpu'
-      - 'config/**'
-      - '.github/workflows/deploy-gpu.yml'
+  # Push trigger disabled — Dockerfile.gpu needs rewrite after legacy removal.
+  # Re-enable once Dockerfile.gpu is updated to use profit-sentinel-rs/.
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'Dockerfile.gpu'
+  #     - 'config/**'
+  #     - '.github/workflows/deploy-gpu.yml'
   workflow_dispatch:
     inputs:
       environment:

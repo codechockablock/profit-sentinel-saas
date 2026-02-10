@@ -102,6 +102,9 @@ jobs:
 
       - name: Run Python tests
         working-directory: profit-sentinel-rs
+        env:
+          SIDECAR_DEV_MODE: "true"
+          SENTINEL_BIN: "/bin/echo"
         run: pytest python/tests/ -v --tb=short
 
   # ===========================================================================
