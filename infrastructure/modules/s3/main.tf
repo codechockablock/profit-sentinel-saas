@@ -77,6 +77,22 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   }
 }
 
+resource "aws_s3_bucket_cors_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    allowed_origins = [
+      "https://www.profitsentinel.com",
+      "https://profitsentinel.com",
+      "http://localhost:3000"
+    ]
+    expose_headers  = ["ETag", "x-amz-server-side-encryption", "x-amz-request-id", "x-amz-id-2"]
+    max_age_seconds = 3000
+  }
+}
+
 resource "aws_s3_bucket_logging" "uploads" {
   count  = var.enable_access_logging ? 1 : 0
   bucket = aws_s3_bucket.uploads.id
