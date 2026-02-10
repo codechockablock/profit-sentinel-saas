@@ -15,9 +15,9 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: profitsentinel-dev-api
-  ECS_CLUSTER: profitsentinel-dev-cluster
-  ECS_SERVICE: profitsentinel-dev-api-service
+  ECR_REPOSITORY: profitsentinel-prod-api
+  ECS_CLUSTER: profitsentinel-prod-cluster
+  ECS_SERVICE: profitsentinel-prod-api-service
 
 jobs:
   # ===========================================================================
@@ -183,7 +183,7 @@ jobs:
           echo "::notice::Rollback target: $CURRENT_REVISION"
 
           TASK_DEF=$(aws ecs describe-task-definition \
-            --task-definition profitsentinel-dev-api \
+            --task-definition profitsentinel-prod-api \
             --query 'taskDefinition' \
             --output json)
 
@@ -204,7 +204,7 @@ jobs:
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE \
-            --task-definition profitsentinel-dev-api:${{ steps.task-def.outputs.revision }} \
+            --task-definition profitsentinel-prod-api:${{ steps.task-def.outputs.revision }} \
             --force-new-deployment \
             --query 'service.deployments[0].status' \
             --output text
