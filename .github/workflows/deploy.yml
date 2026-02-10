@@ -10,11 +10,7 @@ on:
         required: false
         default: true
         type: boolean
-      deploy_frontend:
-        description: 'Deploy frontend to Vercel'
-        required: false
-        default: true
-        type: boolean
+      # Frontend is deployed automatically via Vercel Git integration
 
 env:
   AWS_REGION: us-east-1
@@ -102,7 +98,7 @@ jobs:
       - name: Install dependencies
         working-directory: profit-sentinel-rs
         run: |
-          pip install -e "python/[dev]"
+          pip install -e "python/[dev,sidecar]"
 
       - name: Run Python tests
         working-directory: profit-sentinel-rs
@@ -214,79 +210,24 @@ jobs:
             --timeout 300 || echo "::warning::ECS stability check timed out, manual verification recommended"
 
   # ===========================================================================
-  # FRONTEND DEPLOYMENT - Vercel
+  # NOTE: Frontend is deployed automatically by Vercel's Git integration.
+  # No CI-based frontend deployment needed.
   # ===========================================================================
-  deploy-frontend:
-    name: Deploy Frontend (Vercel)
-    runs-on: ubuntu-latest
-    needs: security-check
-    if: |
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' || github.event.inputs.deploy_frontend == 'true')
-    outputs:
-      deployment_url: ${{ steps.deploy.outputs.url }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Vercel CLI
-        run: npm install -g vercel
-
-      # Run Vercel commands from repo root - Vercel project has apps/web as root directory
-      - name: Pull Vercel environment
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-
-      - name: Build for production
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel build --prod --token=$VERCEL_TOKEN
-
-      - name: Deploy to Vercel
-        id: deploy
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          DEPLOYMENT_URL=$(vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN)
-          echo "url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
-          echo "::notice::Frontend deployed to: $DEPLOYMENT_URL"
 
   # ===========================================================================
-  # POST-DEPLOYMENT HEALTH CHECKS
+  # POST-DEPLOYMENT HEALTH CHECK
   # ===========================================================================
   health-check:
     name: Health Check
     runs-on: ubuntu-latest
-    needs: [deploy-backend, deploy-frontend]
-    if: always() && (needs.deploy-backend.result == 'success' || needs.deploy-frontend.result == 'success')
+    needs: [deploy-backend]
+    if: needs.deploy-backend.result == 'success'
     steps:
       - name: Check backend health
-        if: needs.deploy-backend.result == 'success'
         run: |
           echo "Waiting 30 seconds for ECS tasks to start..."
           sleep 30
-
-          # Get ALB DNS from Terraform output or use configured domain
-          # For now, we'll just note that manual verification is needed
           echo "::notice::Backend deployment complete. Verify health at your API endpoint: /health"
-
-      - name: Verify frontend deployment
-        if: needs.deploy-frontend.result == 'success'
-        run: |
-          FRONTEND_URL="${{ needs.deploy-frontend.outputs.deployment_url }}"
-          if [ -n "$FRONTEND_URL" ]; then
-            echo "Testing frontend at: $FRONTEND_URL"
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" || echo "000")
-            if [ "$HTTP_STATUS" = "200" ]; then
-              echo "::notice::Frontend health check passed (HTTP $HTTP_STATUS)"
-            else
-              echo "::warning::Frontend returned HTTP $HTTP_STATUS"
-            fi
-          fi
 
   # ===========================================================================
   # DEPLOYMENT SUMMARY
@@ -294,7 +235,7 @@ jobs:
   notify:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [deploy-backend, deploy-frontend, health-check]
+    needs: [deploy-backend, health-check]
     if: always()
     steps:
       - name: Generate deployment summary
@@ -304,7 +245,6 @@ jobs:
           echo "| Component | Status | Details |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
 
-          # Backend status
           if [ "${{ needs.deploy-backend.result }}" == "success" ]; then
             echo "| Backend | :white_check_mark: Success | Image: \`${{ needs.deploy-backend.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ needs.deploy-backend.result }}" == "skipped" ]; then
@@ -313,14 +253,7 @@ jobs:
             echo "| Backend | :x: Failed | Check logs |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Frontend status
-          if [ "${{ needs.deploy-frontend.result }}" == "success" ]; then
-            echo "| Frontend | :white_check_mark: Success | ${{ needs.deploy-frontend.outputs.deployment_url }} |" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ needs.deploy-frontend.result }}" == "skipped" ]; then
-            echo "| Frontend | :fast_forward: Skipped | - |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Frontend | :x: Failed | Check logs |" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "| Frontend | :fast_forward: Via Vercel Git integration | - |" >> $GITHUB_STEP_SUMMARY
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Git Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
@@ -329,15 +262,10 @@ jobs:
 
       - name: Report final status
         run: |
-          BACKEND="${{ needs.deploy-backend.result }}"
-          FRONTEND="${{ needs.deploy-frontend.result }}"
-
-          if [ "$BACKEND" == "success" ] && [ "$FRONTEND" == "success" ]; then
-            echo "::notice::All deployments successful!"
-          elif [ "$BACKEND" == "success" ] || [ "$FRONTEND" == "success" ]; then
-            echo "::warning::Partial deployment - check individual job results"
-          elif [ "$BACKEND" == "skipped" ] && [ "$FRONTEND" == "skipped" ]; then
+          if [ "${{ needs.deploy-backend.result }}" == "success" ]; then
+            echo "::notice::Backend deployment successful!"
+          elif [ "${{ needs.deploy-backend.result }}" == "skipped" ]; then
             echo "::notice::No deployments were triggered"
           else
-            echo "::error::Deployment failed - check logs for details"
+            echo "::error::Backend deployment failed - check logs for details"
           fi

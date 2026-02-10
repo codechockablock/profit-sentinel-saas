@@ -88,7 +88,7 @@ jobs:
       - name: Install dependencies
         working-directory: profit-sentinel-rs
         run: |
-          pip install -e "python/[dev]"
+          pip install -e "python/[dev,sidecar]"
 
       - name: Run Python tests
         working-directory: profit-sentinel-rs
