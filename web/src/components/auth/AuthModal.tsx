@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { X, Mail, CheckCircle } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 
 interface AuthModalProps {
@@ -22,6 +22,7 @@ export function AuthModal({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,13 +42,42 @@ export function AuthModal({
           email,
           password,
         });
-        if (error) throw error;
+        if (error) {
+          // Supabase returns generic "Invalid login credentials" for both
+          // wrong password AND unconfirmed email. Provide a better hint.
+          if (error.message === "Invalid login credentials") {
+            throw new Error(
+              "Invalid login credentials. If you just signed up, check your email to confirm your account first."
+            );
+          }
+          if (error.message === "Email not confirmed") {
+            throw new Error(
+              "Please confirm your email before signing in. Check your inbox for a confirmation link."
+            );
+          }
+          throw error;
+        }
+        onSuccess();
+        onClose();
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
         if (error) throw error;
+
+        // Check if email confirmation is required.
+        // When confirmation is enabled, signUp returns a user but no session.
+        // When confirmation is disabled, signUp returns both user and session.
+        if (data?.user && !data?.session) {
+          // Email confirmation required — show confirmation message
+          setConfirmationSent(true);
+        } else if (data?.session) {
+          // No confirmation needed — user is immediately signed in
+          onSuccess();
+          onClose();
+        }
       }
-      onSuccess();
-      onClose();
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Authentication failed";
@@ -57,7 +87,98 @@ export function AuthModal({
     }
   };
 
+  const handleResendConfirmation = async () => {
+    const supabase = getSupabase();
+    if (!supabase || !email) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
+      if (error) throw error;
+      setError(null);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to resend email";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
+
+  // Confirmation sent screen
+  if (confirmationSent) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="relative bg-slate-900 rounded-xl p-8 w-full max-w-md border border-slate-700 shadow-2xl">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+              <Mail size={32} className="text-emerald-400" />
+            </div>
+
+            <h2 className="text-2xl font-bold text-white mb-3">
+              Check your email
+            </h2>
+
+            <p className="text-slate-400 mb-2">
+              We sent a confirmation link to
+            </p>
+            <p className="text-white font-medium mb-6">{email}</p>
+
+            <p className="text-slate-500 text-sm mb-6">
+              Click the link in the email to activate your account, then come
+              back here to sign in.
+            </p>
+
+            {error && (
+              <div className="text-red-400 text-sm bg-red-950/30 px-3 py-2 rounded-lg border border-red-900/50 mb-4">
+                {error}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <button
+                onClick={handleResendConfirmation}
+                disabled={loading}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg transition-colors border border-slate-600 disabled:opacity-50"
+              >
+                {loading ? "Sending..." : "Resend confirmation email"}
+              </button>
+
+              <button
+                onClick={() => {
+                  setConfirmationSent(false);
+                  setMode("login");
+                  setError(null);
+                }}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
+              >
+                I confirmed — Sign in
+              </button>
+            </div>
+
+            <p className="text-slate-600 text-xs mt-4">
+              Check your spam folder if you don&apos;t see the email.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -107,6 +228,7 @@ export function AuthModal({
               }
               required
               minLength={mode === "signup" ? 8 : undefined}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
             />
           </div>
 

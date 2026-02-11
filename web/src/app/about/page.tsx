@@ -91,7 +91,7 @@ export default function AboutPage() {
           <div className="bg-white/5 rounded-2xl border border-slate-700 p-6">
             <p className="text-slate-300 leading-relaxed mb-4">
               Profit Sentinel is powered by a <strong className="text-white">deterministic analysis engine</strong> built
-              in Rust that uses Vector Symbolic Architecture (VSA) and rule-based pattern recognition to find
+              in Rust that uses advanced pattern recognition to find
               profit leaks. Our system cross-references inventory, sales, cost, and margin data to detect
               patterns that simple threshold-based rules miss.
             </p>

@@ -12,7 +12,7 @@ const inter = Inter({
 
 export const metadata = {
   title: 'Profit Sentinel | Find Hidden Profit Leaks in Your Inventory',
-  description: 'Proprietary AI engine analyzes 156,000+ SKUs in seconds, detecting 11 types of profit leaks. 71% average shrinkage reduction. Free analysis, no credit card required.',
+  description: 'Deterministic analysis engine detects 11 types of profit leaks in your inventory. 36K SKUs in under 3 seconds. Free analysis, no credit card required.',
 }
 
 export default function RootLayout({

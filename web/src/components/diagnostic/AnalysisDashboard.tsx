@@ -366,7 +366,7 @@ export default function AnalysisDashboard() {
               <Zap size={32} className="text-white" />
             </div>
             <h1 className="text-3xl font-bold mb-2">Profit Sentinel</h1>
-            <p className="text-slate-400">Full 11-Primitive Analysis</p>
+            <p className="text-slate-400">Full 11-Type Profit Leak Analysis</p>
           </div>
 
           {error && (

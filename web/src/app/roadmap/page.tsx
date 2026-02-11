@@ -25,7 +25,7 @@ const roadmapItems: RoadmapItem[] = [
   {
     status: 'shipped',
     title: 'Large File Support',
-    description: 'Process 156,000+ SKUs in seconds with sub-second analysis.',
+    description: 'Process large inventory files with the Rust-powered analysis engine. 36K SKUs in under 3 seconds.',
   },
   {
     status: 'shipped',
@@ -45,13 +45,13 @@ const roadmapItems: RoadmapItem[] = [
   {
     status: 'shipped',
     title: 'PDF Report Generation',
-    description: 'CFO-ready PDF reports with 100+ pages of detailed analysis.',
+    description: 'CFO-ready PDF reports with detailed analysis, financial impact, and prioritized action items.',
   },
   {
-    status: 'shipped',
+    status: 'in-progress',
     title: 'Multi-File Vendor Correlation',
-    description: 'Upload up to 200 vendor invoices. Cross-reference to find short ships & cost variances.',
-    eta: 'Premium Preview',
+    description: 'Upload vendor invoices and cross-reference to find short ships & cost variances.',
+    eta: 'Coming Soon',
   },
   {
     status: 'shipped',
@@ -65,8 +65,8 @@ const roadmapItems: RoadmapItem[] = [
   },
   {
     status: 'shipped',
-    title: 'Symbolic Reasoning & Proof Trees',
-    description: 'Transparent AI explanations showing exactly why each issue was flagged, with evidence weights and competing hypotheses.',
+    title: 'Transparent Explanations',
+    description: 'See exactly why each issue was flagged, with evidence weights and competing hypotheses.',
   },
   {
     status: 'shipped',
@@ -103,9 +103,10 @@ const roadmapItems: RoadmapItem[] = [
     description: 'REST API with tiered rate limiting (free/pro/enterprise), SHA-256 key hashing, and per-key usage analytics.',
   },
   {
-    status: 'shipped',
+    status: 'in-progress',
     title: 'POS System Integrations',
-    description: 'Direct connections to Square, Lightspeed, Clover, and Shopify POS with OAuth2 sync and connection lifecycle management.',
+    description: 'Connect to Square, Lightspeed, Clover, and Shopify POS for automatic inventory sync.',
+    eta: 'Coming Soon',
   },
 
   // Exploring

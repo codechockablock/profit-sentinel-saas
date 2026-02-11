@@ -30,7 +30,7 @@ export default function Home() {
           </h1>
 
           <p className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto mb-8">
-            Our proprietary AI engine analyzes 156,000+ SKUs in seconds, detecting 11 types of profit leaks that humans miss. Retailers see 71% average shrinkage reduction.
+            Our deterministic analysis engine detects 11 types of profit leaks that humans miss. Built in Rust for speed — 36,000 SKUs analyzed in under 3 seconds.
           </p>
 
           {/* CTA */}
