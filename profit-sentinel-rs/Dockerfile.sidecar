@@ -16,13 +16,15 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY sentinel-pipeline/Cargo.toml sentinel-pipeline/Cargo.toml
 COPY sentinel-vsa/Cargo.toml sentinel-vsa/Cargo.toml
+COPY sentinel-bridge/Cargo.toml sentinel-bridge/Cargo.toml
 COPY sentinel-server/Cargo.toml sentinel-server/Cargo.toml
 
 # Create dummy source files for dependency caching
-RUN mkdir -p sentinel-pipeline/src sentinel-vsa/src sentinel-server/src && \
+RUN mkdir -p sentinel-pipeline/src sentinel-vsa/src sentinel-bridge/src sentinel-server/src && \
     echo "fn main() {}" > sentinel-server/src/main.rs && \
     echo "" > sentinel-pipeline/src/lib.rs && \
-    echo "" > sentinel-vsa/src/lib.rs
+    echo "" > sentinel-vsa/src/lib.rs && \
+    echo "" > sentinel-bridge/src/lib.rs
 
 # Build dependencies only (cached layer)
 RUN cargo build --release -p sentinel-server 2>/dev/null || true
@@ -30,12 +32,14 @@ RUN cargo build --release -p sentinel-server 2>/dev/null || true
 # Copy actual source code
 COPY sentinel-pipeline/ sentinel-pipeline/
 COPY sentinel-vsa/ sentinel-vsa/
+COPY sentinel-bridge/ sentinel-bridge/
 COPY sentinel-server/ sentinel-server/
 
 # Touch source files to force rebuild with real code
 RUN touch sentinel-server/src/main.rs && \
     touch sentinel-pipeline/src/lib.rs && \
-    touch sentinel-vsa/src/lib.rs
+    touch sentinel-vsa/src/lib.rs && \
+    touch sentinel-bridge/src/lib.rs
 
 # Build release binary
 RUN cargo build --release -p sentinel-server
