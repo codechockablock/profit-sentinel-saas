@@ -14,9 +14,6 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: profitsentinel-dev-api
-  ECS_CLUSTER: profitsentinel-dev-cluster
-  ECS_SERVICE: profitsentinel-dev-api-service
 
 jobs:
   # ===========================================================================
@@ -106,12 +103,10 @@ jobs:
           SIDECAR_DEV_MODE: "true"
           SENTINEL_BIN: "/bin/echo"
         run: |
-          pytest python/tests/ -v --tb=short || echo "::warning::Some Python tests failed (see above)"
-          # Note: non-zero exit is suppressed — known pre-existing failures
-          # in test_sales.py and test_sidecar.py::test_index_html_served
+          pytest python/tests/ -v --tb=short
 
   # ===========================================================================
-  # BACKEND DEPLOYMENT - Docker build, ECR push, ECS update
+  # BACKEND DEPLOYMENT - Build once, deploy to dev + prod
   # ===========================================================================
   deploy-backend:
     name: Deploy Backend
@@ -142,7 +137,6 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Build with git commit SHA for traceability
           SHORT_SHA=$(echo $IMAGE_TAG | cut -c1-7)
 
           echo "Building sidecar image with tag: $SHORT_SHA"
@@ -150,70 +144,132 @@ jobs:
             -f profit-sentinel-rs/Dockerfile.sidecar \
             --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
             --build-arg GIT_COMMIT=$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            -t $ECR_REGISTRY/profitsentinel-dev-api:$IMAGE_TAG \
+            -t $ECR_REGISTRY/profitsentinel-dev-api:$SHORT_SHA \
+            -t $ECR_REGISTRY/profitsentinel-dev-api:latest \
+            -t $ECR_REGISTRY/profitsentinel-prod-api:$IMAGE_TAG \
+            -t $ECR_REGISTRY/profitsentinel-prod-api:$SHORT_SHA \
+            -t $ECR_REGISTRY/profitsentinel-prod-api:latest \
             profit-sentinel-rs/
 
-          echo "Pushing images to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "Pushing to dev ECR..."
+          docker push $ECR_REGISTRY/profitsentinel-dev-api:$IMAGE_TAG
+          docker push $ECR_REGISTRY/profitsentinel-dev-api:$SHORT_SHA
+          docker push $ECR_REGISTRY/profitsentinel-dev-api:latest
+
+          echo "Pushing to prod ECR..."
+          docker push $ECR_REGISTRY/profitsentinel-prod-api:$IMAGE_TAG
+          docker push $ECR_REGISTRY/profitsentinel-prod-api:$SHORT_SHA
+          docker push $ECR_REGISTRY/profitsentinel-prod-api:latest
 
           echo "image_tag=$SHORT_SHA" >> $GITHUB_OUTPUT
-          echo "::notice::Docker image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA"
+          echo "::notice::Docker image pushed to dev + prod ECR: $SHORT_SHA"
 
-      - name: Update ECS task definition with new image
-        id: task-def
+      # -----------------------------------------------------------------------
+      # Deploy to DEV
+      # -----------------------------------------------------------------------
+      - name: Update dev ECS task definition
+        id: dev-task-def
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           SHORT_SHA=$(echo $IMAGE_TAG | cut -c1-7)
-          NEW_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA"
+          NEW_IMAGE="$ECR_REGISTRY/profitsentinel-dev-api:$SHORT_SHA"
 
-          echo "Updating task definition to use image: $NEW_IMAGE"
-
-          # Get current task definition
           TASK_DEF=$(aws ecs describe-task-definition \
             --task-definition profitsentinel-dev-api \
             --query 'taskDefinition' \
             --output json)
 
-          # Update the image in the container definition
           NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$NEW_IMAGE" \
             '.containerDefinitions[0].image = $IMAGE |
              del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
 
-          # Register new task definition
           NEW_REVISION=$(aws ecs register-task-definition \
             --cli-input-json "$NEW_TASK_DEF" \
             --query 'taskDefinition.revision' \
             --output text)
 
-          echo "Registered new task definition revision: $NEW_REVISION"
+          echo "Dev task definition revision: $NEW_REVISION"
           echo "revision=$NEW_REVISION" >> $GITHUB_OUTPUT
 
-      - name: Deploy to ECS
+      - name: Deploy to dev ECS
         run: |
-          echo "Deploying task definition revision ${{ steps.task-def.outputs.revision }}..."
           aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE \
-            --task-definition profitsentinel-dev-api:${{ steps.task-def.outputs.revision }} \
+            --cluster profitsentinel-dev-cluster \
+            --service profitsentinel-dev-api-service \
+            --task-definition profitsentinel-dev-api:${{ steps.dev-task-def.outputs.revision }} \
             --force-new-deployment \
             --query 'service.deployments[0].status' \
             --output text
 
-          echo "::notice::ECS deployment initiated with new image for cluster: $ECS_CLUSTER"
-
-      - name: Wait for ECS deployment stability
+      - name: Wait for dev ECS stability
         run: |
-          echo "Waiting for ECS service to stabilize (timeout: 5 minutes)..."
+          echo "Waiting for dev service to stabilize..."
           aws ecs wait services-stable \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --timeout 300 || echo "::warning::ECS stability check timed out, manual verification recommended"
+            --cluster profitsentinel-dev-cluster \
+            --services profitsentinel-dev-api-service \
+            --timeout 300 || {
+              echo "::warning::Dev ECS stability timed out (profitsentinel-dev-cluster/profitsentinel-dev-api-service, task-def rev ${{ steps.dev-task-def.outputs.revision }})"
+              echo "::warning::Check ECS console: https://console.aws.amazon.com/ecs/v2/clusters/profitsentinel-dev-cluster/services/profitsentinel-dev-api-service"
+            }
+
+      # -----------------------------------------------------------------------
+      # Deploy to PROD (api.profitsentinel.com points here)
+      # -----------------------------------------------------------------------
+      - name: Update prod ECS task definition
+        id: prod-task-def
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          SHORT_SHA=$(echo $IMAGE_TAG | cut -c1-7)
+          NEW_IMAGE="$ECR_REGISTRY/profitsentinel-prod-api:$SHORT_SHA"
+
+          # Record current revision for rollback reference
+          CURRENT_REVISION=$(aws ecs describe-services \
+            --cluster profitsentinel-prod-cluster \
+            --services profitsentinel-prod-api-service \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          echo "::notice::Prod rollback target: $CURRENT_REVISION"
+          echo "previous_revision=$CURRENT_REVISION" >> $GITHUB_OUTPUT
+
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition profitsentinel-prod-api \
+            --query 'taskDefinition' \
+            --output json)
+
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "$NEW_IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE |
+             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+
+          NEW_REVISION=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query 'taskDefinition.revision' \
+            --output text)
+
+          echo "Prod task definition revision: $NEW_REVISION"
+          echo "revision=$NEW_REVISION" >> $GITHUB_OUTPUT
+
+      - name: Deploy to prod ECS
+        run: |
+          aws ecs update-service \
+            --cluster profitsentinel-prod-cluster \
+            --service profitsentinel-prod-api-service \
+            --task-definition profitsentinel-prod-api:${{ steps.prod-task-def.outputs.revision }} \
+            --force-new-deployment \
+            --query 'service.deployments[0].status' \
+            --output text
+
+      - name: Wait for prod ECS stability
+        run: |
+          echo "Waiting for prod service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster profitsentinel-prod-cluster \
+            --services profitsentinel-prod-api-service \
+            --timeout 300
 
   # ===========================================================================
   # NOTE: Frontend is deployed automatically by Vercel's Git integration.
@@ -229,11 +285,74 @@ jobs:
     needs: [deploy-backend]
     if: needs.deploy-backend.result == 'success'
     steps:
-      - name: Check backend health
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Wait for services to start
+        run: sleep 30
+
+      - name: Check dev health
         run: |
-          echo "Waiting 30 seconds for ECS tasks to start..."
-          sleep 30
-          echo "::notice::Backend deployment complete. Verify health at your API endpoint: /health"
+          DEV_ALB=$(aws elbv2 describe-load-balancers \
+            --names profitsentinel-dev-alb \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$DEV_ALB" ]; then
+            STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "https://$DEV_ALB/health" || echo "000")
+            echo "Dev health: HTTP $STATUS"
+            if [ "$STATUS" != "200" ]; then
+              echo "::warning::Dev health check failed (HTTP $STATUS)"
+            fi
+
+            ROUTES=$(curl -sk "https://$DEV_ALB/openapi.json" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['paths']))" 2>/dev/null || echo "0")
+            echo "Dev routes: $ROUTES"
+            if [ "$ROUTES" -lt "40" ]; then
+              echo "::warning::Dev has only $ROUTES routes (expected >= 40)"
+            fi
+          else
+            echo "::warning::Could not find dev ALB"
+          fi
+
+      - name: Check prod health
+        run: |
+          HEALTH_URL="https://api.profitsentinel.com/health"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+          BODY=$(curl -s "$HEALTH_URL" || echo "{}")
+          echo "Prod health: HTTP $STATUS"
+          echo "Prod body: $BODY"
+
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Prod health check FAILED (HTTP $STATUS)"
+            echo "::error::Rollback target: ${{ needs.deploy-backend.outputs.prod_previous_revision }}"
+            exit 1
+          fi
+
+      - name: Check prod route count
+        run: |
+          ROUTES=$(curl -s "https://api.profitsentinel.com/openapi.json" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['paths']))" 2>/dev/null || echo "0")
+          echo "Prod routes: $ROUTES"
+          if [ "$ROUTES" -lt "40" ]; then
+            echo "::error::Prod has only $ROUTES routes (expected >= 40) — possible deployment issue"
+            exit 1
+          fi
+          echo "::notice::Prod routes OK ($ROUTES)"
+
+      - name: Check Engine 2 health
+        run: |
+          E2_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://api.profitsentinel.com/health/engine2" || echo "000")
+          echo "Engine 2 health: HTTP $E2_STATUS"
+          if [ "$E2_STATUS" != "200" ]; then
+            echo "::warning::Engine 2 health endpoint returned HTTP $E2_STATUS"
+          else
+            E2_BODY=$(curl -s "https://api.profitsentinel.com/health/engine2")
+            echo "Engine 2 status: $E2_BODY"
+            echo "::notice::Engine 2 health check passed"
+          fi
 
   # ===========================================================================
   # DEPLOYMENT SUMMARY
@@ -252,11 +371,19 @@ jobs:
           echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ needs.deploy-backend.result }}" == "success" ]; then
-            echo "| Backend | :white_check_mark: Success | Image: \`${{ needs.deploy-backend.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Backend (dev + prod) | :white_check_mark: Success | Image: \`${{ needs.deploy-backend.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ needs.deploy-backend.result }}" == "skipped" ]; then
             echo "| Backend | :fast_forward: Skipped | - |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Backend | :x: Failed | Check logs |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.health-check.result }}" == "success" ]; then
+            echo "| Health Check | :white_check_mark: Passed | |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.health-check.result }}" == "skipped" ]; then
+            echo "| Health Check | :fast_forward: Skipped | |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Health Check | :x: Failed | |" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "| Frontend | :fast_forward: Via Vercel Git integration | - |" >> $GITHUB_STEP_SUMMARY
@@ -268,10 +395,10 @@ jobs:
 
       - name: Report final status
         run: |
-          if [ "${{ needs.deploy-backend.result }}" == "success" ]; then
-            echo "::notice::Backend deployment successful!"
+          if [ "${{ needs.deploy-backend.result }}" == "success" ] && [ "${{ needs.health-check.result }}" == "success" ]; then
+            echo "::notice::Deployment successful (dev + prod)!"
           elif [ "${{ needs.deploy-backend.result }}" == "skipped" ]; then
             echo "::notice::No deployments were triggered"
           else
-            echo "::error::Backend deployment failed - check logs for details"
+            echo "::error::Deployment issue — check health check results"
           fi

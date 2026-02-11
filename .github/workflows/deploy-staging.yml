@@ -95,10 +95,7 @@ jobs:
         env:
           SIDECAR_DEV_MODE: "true"
           SENTINEL_BIN: "/bin/echo"
-        run: |
-          pytest python/tests/ -v --tb=short || echo "::warning::Some Python tests failed (see above)"
-          # Note: non-zero exit is suppressed — known pre-existing failures
-          # in test_sales.py and test_sidecar.py::test_index_html_served
+        run: pytest python/tests/ -v --tb=short
 
   # ===========================================================================
   # BUILD & DEPLOY SIDECAR
@@ -202,7 +199,10 @@ jobs:
           aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE \
-            --timeout 300 || echo "::warning::ECS stability check timed out"
+            --timeout 300 || {
+              echo "::warning::Staging ECS stability timed out ($ECS_CLUSTER/$ECS_SERVICE, task-def rev ${{ steps.task-def.outputs.revision }})"
+              echo "::warning::Check ECS console: https://console.aws.amazon.com/ecs/v2/clusters/$ECS_CLUSTER/services/$ECS_SERVICE"
+            }
 
   # ===========================================================================
   # STAGING HEALTH CHECKS
@@ -242,6 +242,28 @@ jobs:
             echo "::notice::Staging health check passed (HTTP $HTTP_STATUS)"
           else
             echo "::warning::Staging health check returned HTTP $HTTP_STATUS"
+          fi
+
+      - name: Check route count
+        if: steps.alb.outputs.dns != ''
+        run: |
+          ROUTES=$(curl -sk "https://${{ steps.alb.outputs.dns }}/openapi.json" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['paths']))" 2>/dev/null || echo "0")
+          echo "Staging routes: $ROUTES"
+          if [ "$ROUTES" -ge "40" ]; then
+            echo "::notice::All routes registered ($ROUTES)"
+          else
+            echo "::warning::Staging has only $ROUTES routes (expected >= 40) — possible deployment issue"
+          fi
+
+      - name: Check Engine 2 health
+        if: steps.alb.outputs.dns != ''
+        run: |
+          E2_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "https://${{ steps.alb.outputs.dns }}/health/engine2" || echo "000")
+          echo "Engine 2 health: HTTP $E2_STATUS"
+          if [ "$E2_STATUS" = "200" ]; then
+            echo "::notice::Engine 2 health check passed"
+          else
+            echo "::warning::Engine 2 health endpoint returned HTTP $E2_STATUS"
           fi
 
   # ===========================================================================

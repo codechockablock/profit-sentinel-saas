@@ -109,6 +109,9 @@ jobs:
 
       - name: Run Python tests
         working-directory: profit-sentinel-rs
+        env:
+          SIDECAR_DEV_MODE: "true"
+          SENTINEL_BIN: "/bin/echo"
         run: pytest python/tests/ -v --tb=short
 
   # ===========================================================================
@@ -250,10 +253,22 @@ jobs:
         run: |
           ROUTES=$(curl -s "https://api.profitsentinel.com/openapi.json" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['paths']))" 2>/dev/null || echo "0")
           echo "Routes registered: $ROUTES"
-          if [ "$ROUTES" -ge "20" ]; then
+          if [ "$ROUTES" -ge "40" ]; then
             echo "::notice::All routes registered ($ROUTES)"
           else
-            echo "::warning::Expected 20+ routes, got $ROUTES"
+            echo "::error::Expected >= 40 routes, got $ROUTES — possible deployment issue"
+            echo "::error::Rollback target: ${{ needs.deploy-production.outputs.previous_revision }}"
+            exit 1
+          fi
+
+      - name: Check Engine 2 health
+        run: |
+          E2_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://api.profitsentinel.com/health/engine2" || echo "000")
+          echo "Engine 2 health: HTTP $E2_STATUS"
+          if [ "$E2_STATUS" != "200" ]; then
+            echo "::warning::Engine 2 health endpoint returned HTTP $E2_STATUS"
+          else
+            echo "::notice::Engine 2 health check passed"
           fi
 
       - name: Smoke test — sidecar pipeline endpoint
