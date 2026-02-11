@@ -46,9 +46,20 @@ from .sidecar_config import SidecarSettings, get_settings
 from .subscription_store import create_store
 from .upload_routes import create_upload_router
 from .vendor_assist import VendorCallAssistant
-from .world_model import SentinelPipeline
-from .world_model.config import DeadStockConfig
-from .world_model.transfer_matching import EntityHierarchy, TransferMatcher
+
+# Engine 2 imports — graceful fallback if numpy/world_model not available
+try:
+    from .world_model import SentinelPipeline
+    from .world_model.config import DeadStockConfig
+    from .world_model.transfer_matching import EntityHierarchy, TransferMatcher
+
+    _HAS_ENGINE2 = True
+except ImportError as e:
+    _HAS_ENGINE2 = False
+    SentinelPipeline = None  # type: ignore[assignment,misc]
+    logging.getLogger("sentinel.sidecar").warning(
+        "Engine 2 imports failed (numpy missing?): %s", e
+    )
 
 logger = logging.getLogger("sentinel.sidecar")
 
@@ -109,25 +120,30 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     # transfer recommendations, and tier classification on top of
     # Engine 1's instant analysis. Engine 1 findings always display —
     # if Engine 2 is unhealthy it goes quiet, not Engine 1.
-    try:
-        dead_stock_config = DeadStockConfig()
-        world_model = SentinelPipeline(
-            dim=4096,
-            seed=42,
-            use_rust=False,  # Start with pure numpy; flip when Rust maturin is built
-            dead_stock_config=dead_stock_config,
-        )
-        # Transfer matching subsystem — shared algebra
-        hierarchy = EntityHierarchy(world_model.algebra)
-        transfer_matcher = TransferMatcher(
-            algebra=world_model.algebra,
-            hierarchy=hierarchy,
-        )
-        logger.info("Engine 2 (VSA world model) initialized: dim=4096")
-    except Exception as e:
-        logger.warning("Engine 2 initialization failed (non-fatal): %s", e)
-        world_model = None
-        transfer_matcher = None
+    world_model = None
+    transfer_matcher = None
+    if _HAS_ENGINE2:
+        try:
+            dead_stock_config = DeadStockConfig()
+            world_model = SentinelPipeline(
+                dim=4096,
+                seed=42,
+                use_rust=False,  # Start with pure numpy; flip when Rust maturin is built
+                dead_stock_config=dead_stock_config,
+            )
+            # Transfer matching subsystem — shared algebra
+            hierarchy = EntityHierarchy(world_model.algebra)
+            transfer_matcher = TransferMatcher(
+                algebra=world_model.algebra,
+                hierarchy=hierarchy,
+            )
+            logger.info("Engine 2 (VSA world model) initialized: dim=4096")
+        except Exception as e:
+            logger.warning("Engine 2 initialization failed (non-fatal): %s", e)
+            world_model = None
+            transfer_matcher = None
+    else:
+        logger.warning("Engine 2 not available — world_model imports failed")
 
     # Shared state for all route modules
     state = AppState(

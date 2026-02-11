@@ -26,6 +26,7 @@ sidecar = [
     "httpx>=0.27",
     "boto3>=1.34",
     "pandas>=2.0",
+    "numpy>=1.26",
     "anthropic>=0.40",
     "python-multipart>=0.0.9",
     "reportlab>=4.0",
