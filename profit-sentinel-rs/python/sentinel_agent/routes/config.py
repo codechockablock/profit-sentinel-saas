@@ -13,7 +13,25 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ..world_model.config import ConfigPresets, DeadStockConfig
+# Import with graceful fallback — world_model/__init__.py imports pipeline/core
+# which need numpy. config.py itself only uses stdlib, but the package __init__
+# triggers the full import chain. If it fails, we still need config types.
+try:
+    from ..world_model.config import ConfigPresets, DeadStockConfig
+except ImportError:
+    import importlib.util
+    import os
+
+    _config_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "world_model",
+        "config.py",
+    )
+    _spec = importlib.util.spec_from_file_location("world_model_config", _config_path)
+    _config_mod = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
+    _spec.loader.exec_module(_config_mod)  # type: ignore[union-attr]
+    ConfigPresets = _config_mod.ConfigPresets  # type: ignore[misc]
+    DeadStockConfig = _config_mod.DeadStockConfig  # type: ignore[misc]
 from .state import AppState
 
 logger = logging.getLogger("sentinel.routes.config")
