@@ -88,9 +88,7 @@ def create_pos_router(require_auth) -> APIRouter:
         """Disconnect a POS integration."""
         result = disconnect_pos(connection_id, ctx.user_id)
         if not result:
-            raise HTTPException(
-                status_code=404, detail="Connection not found"
-            )
+            raise HTTPException(status_code=404, detail="Connection not found")
         return {"message": "Disconnected", "connection_id": connection_id}
 
     @router.delete(
@@ -104,9 +102,7 @@ def create_pos_router(require_auth) -> APIRouter:
         """Delete a POS connection."""
         result = delete_pos_connection(connection_id, ctx.user_id)
         if not result:
-            raise HTTPException(
-                status_code=404, detail="Connection not found"
-            )
+            raise HTTPException(status_code=404, detail="Connection not found")
         return {"message": "Connection deleted", "connection_id": connection_id}
 
     return router

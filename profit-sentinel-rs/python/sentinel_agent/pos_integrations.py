@@ -265,15 +265,9 @@ class InMemoryPosConnectionStore:
     def list_connections(self, user_id: str) -> list[PosConnection]:
         """List all connections for a user."""
         conn_ids = self._user_connections.get(user_id, [])
-        return [
-            self._connections[cid]
-            for cid in conn_ids
-            if cid in self._connections
-        ]
+        return [self._connections[cid] for cid in conn_ids if cid in self._connections]
 
-    def get_connection(
-        self, connection_id: str, user_id: str
-    ) -> PosConnection | None:
+    def get_connection(self, connection_id: str, user_id: str) -> PosConnection | None:
         """Get a specific connection."""
         conn = self._connections.get(connection_id)
         if conn and conn.user_id == user_id:

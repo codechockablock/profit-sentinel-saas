@@ -161,6 +161,7 @@ def create_upload_router(
     settings: SidecarSettings,
     engine: SentinelEngine | None,
     get_user_context,
+    app_state=None,
 ) -> APIRouter:
     """Create the upload/analysis router with dual auth (anonymous + authenticated).
 
@@ -169,6 +170,7 @@ def create_upload_router(
         engine: Rust pipeline engine (may be None if binary not found).
         get_user_context: FastAPI dependency that returns a UserContext.
                           Allows anonymous users (no 401 for missing token).
+        app_state: Optional AppState for Engine 1→2 bridging.
     """
 
     uploads_router = APIRouter(prefix="/uploads", tags=["uploads"])
@@ -383,6 +385,14 @@ def create_upload_router(
                 f"auth={ctx.is_authenticated})"
             )
 
+            # Engine 1→2 bridge: feed Rust pipeline results to world model
+            if app_state is not None:
+                try:
+                    app_state.feed_engine2(result)
+                except Exception as e:
+                    # Bridge failure must NOT block the analysis response
+                    logger.warning(f"Engine 1→2 bridge failed (non-fatal): {e}")
+
             # Persist analysis for authenticated users
             if ctx.is_authenticated:
                 try:
@@ -531,9 +541,7 @@ def create_upload_router(
             raise HTTPException(status_code=422, detail="Valid email address required")
 
         if not analysis_result or not isinstance(analysis_result, dict):
-            raise HTTPException(
-                status_code=422, detail="analysis_result is required"
-            )
+            raise HTTPException(status_code=422, detail="analysis_result is required")
 
         if "leaks" not in analysis_result or "summary" not in analysis_result:
             raise HTTPException(
@@ -561,14 +569,10 @@ def create_upload_router(
         # 1. Generate PDF
         try:
             pdf_bytes = generate_report_pdf(analysis_result)
-            logger.info(
-                "Generated PDF report: %d bytes for %s", len(pdf_bytes), email
-            )
+            logger.info("Generated PDF report: %d bytes for %s", len(pdf_bytes), email)
         except Exception as e:
             logger.error("PDF generation failed: %s", e, exc_info=True)
-            raise HTTPException(
-                status_code=500, detail="Failed to generate report PDF"
-            )
+            raise HTTPException(status_code=500, detail="Failed to generate report PDF")
 
         # 2. Send email with PDF attachment
         resend_key = settings.resend_api_key
@@ -607,12 +611,14 @@ def create_upload_router(
                     )
                     logger.info(
                         "Anonymization pipeline: stored %d facts from report to %s",
-                        stored, email,
+                        stored,
+                        email,
                     )
                 else:
                     logger.warning(
                         "Anonymization skipped: %d facts, supabase configured=%s",
-                        len(facts), bool(settings.supabase_url),
+                        len(facts),
+                        bool(settings.supabase_url),
                     )
             except Exception as e:
                 # Anonymization failure must NOT block the user response

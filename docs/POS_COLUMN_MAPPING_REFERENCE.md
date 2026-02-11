@@ -84,7 +84,7 @@ prioritization in column mapping and profit leak analysis.
 
 **Vendor:** Paladin Data Corporation
 **Market:** Independent hardware, lumber, paint stores
-**Confidence:** VERY HIGH (Sample Store adapter fully implemented)
+**Confidence:** VERY HIGH (sample store adapter fully implemented)
 
 #### Format Details
 
@@ -437,7 +437,7 @@ prioritization in column mapping and profit leak analysis.
 
 **Vendor:** IdoSoft
 **Market:** Independent hardware stores (smaller operations)
-**Confidence:** HIGH (Sample Store adapter fully implemented, real data validated)
+**Confidence:** HIGH (sample store adapter fully implemented, real data validated)
 
 #### Format Details
 
@@ -461,7 +461,7 @@ prioritization in column mapping and profit leak analysis.
 | `BIN`                  | `location`            | Bin location                    |
 | `Description Full`     | `description`         | Full description                |
 | `Description Short`    | `description` (short) | Short description               |
-| `Qty.`                 | `quantity`            | ⚠ Includes negatives (3,958 in Sample Store) |
+| `Qty.`                 | `quantity`            | ⚠ Includes negatives (3,958 in sample store) |
 | `Qty On Hand`          | `quantity` (phys)     | Physical count, never negative  |
 | `Std. Cost`            | `cost`                | Standard cost                   |
 | `Avg. Cost`            | `cost` (avg)          | Average cost (preferred)        |
@@ -1250,9 +1250,9 @@ DETECTION_RULES = [
 2. **Paladin "Qty." vs "Qty On Hand" distinction.** `Qty.` includes negatives
    (items sold but not received); `Qty On Hand` is physical count, never negative.
    For negative inventory detection, `Qty.` is the critical field.
-   Reference: Sample Store adapter lines 226-233.
+   Reference: sample store adapter lines 226-233.
 
-3. **IdoSoft large file sizes.** Sample Store custom_1.csv has 156K+ rows. Use
+3. **IdoSoft large file sizes.** Sample store custom_1.csv has 156K+ rows. Use
    streaming/chunked reading, not `pd.read_csv()` with full load.
 
 4. **Epicor Eagle commas in data.** Eagle's DAFL import converts commas to `?`.
@@ -1318,7 +1318,7 @@ def normalize_column(name: str) -> str:
 | `packages/sentinel-engine/src/sentinel_engine/core.py` | VSA alias lists | ~180 |
 | `apps/api/src/routes/analysis.py` | NUMERIC_COLUMN_ALIASES flat list | ~150 |
 | `scripts/hardware_inventory_analyzer.py` | COLUMN_ALIASES dict | ~100 |
-| `profit-sentinel-rs/python/sentinel_agent/adapters/generic_pos/inventory.py` | Sample Store/IdoSoft adapter | 35+ |
+| `profit-sentinel-rs/python/sentinel_agent/adapters/sample_store/inventory.py` | Sample store/IdoSoft adapter | 35+ |
 | `profit-sentinel-rs/python/sentinel_agent/adapters/orgill/po_parser.py` | Orgill PO parser | 28 |
 
 > ⚠ **Consolidation needed:** Column aliases exist in 3+ locations (YAML, core.py,

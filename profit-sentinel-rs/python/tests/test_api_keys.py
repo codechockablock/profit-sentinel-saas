@@ -11,13 +11,12 @@ Covers:
 """
 
 import pytest
-
 from sentinel_agent.api_keys import (
+    TIER_LIMITS,
     ApiKeyRecord,
     ApiKeyValidation,
     ApiTier,
     InMemoryApiKeyStore,
-    TIER_LIMITS,
     create_api_key,
     get_key_usage,
     init_api_key_store,
@@ -25,7 +24,6 @@ from sentinel_agent.api_keys import (
     revoke_api_key,
     validate_api_key,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -148,7 +146,7 @@ class TestRateLimiting:
 
     def test_pro_tier_higher_limit(self):
         plaintext, _ = create_api_key("user-1", tier=ApiTier.PRO)
-        limit = TIER_LIMITS[ApiTier.PRO].requests_per_hour
+        TIER_LIMITS[ApiTier.PRO].requests_per_hour
 
         # Make 50 requests (well under pro limit of 100)
         for _ in range(50):
@@ -221,7 +219,9 @@ class TestKeyManagement:
         assert stats is not None
         assert stats["usage_count_total"] == 5
         assert stats["usage_last_hour"] == 5
-        assert stats["remaining_hourly"] == TIER_LIMITS[ApiTier.FREE].requests_per_hour - 5
+        assert (
+            stats["remaining_hourly"] == TIER_LIMITS[ApiTier.FREE].requests_per_hour - 5
+        )
 
     def test_usage_stats_not_found(self):
         stats = get_key_usage("key_nonexistent", "user-1")
@@ -236,6 +236,7 @@ class TestKeyManagement:
 class TestSerialization:
     def test_record_to_dict(self):
         import json
+
         _, record = create_api_key("user-1", tier=ApiTier.PRO, name="Test")
         data = record.to_dict()
         assert data["tier"] == "pro"
@@ -246,6 +247,7 @@ class TestSerialization:
 
     def test_validation_to_dict(self):
         import json
+
         plaintext, _ = create_api_key("user-1")
         result = validate_api_key(plaintext)
         data = result.to_dict()

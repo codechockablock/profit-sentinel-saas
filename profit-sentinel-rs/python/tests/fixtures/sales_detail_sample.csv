@@ -1,21 +1,21 @@
 Date,SKU,Description,Qty Sold,Amount,Cost,Store ID
-2025-06-15,ELC-4401,Wire Stripper Pro,3,95.19,70.50,default-store
-2025-06-18,ELC-4401,Wire Stripper Pro,2,63.46,47.00,default-store
-2025-06-20,ELC-4401,Wire Stripper Pro,1,31.73,23.50,default-store
-2025-06-22,ELC-4401,Wire Stripper Pro,4,126.92,94.00,default-store
-2025-06-25,SEA-1201,Dead Stock Widget,0,0.00,0.00,default-store
-2025-06-10,PNT-1001,Paint Brush Set,5,525.00,500.00,default-store
-2025-06-15,PNT-1001,Paint Brush Set,3,315.00,300.00,default-store
-2025-06-20,PNT-1001,Paint Brush Set,2,210.00,200.00,default-store
-2025-06-05,HRD-3301,Hammer 16oz,2,31.20,24.00,default-store
-2025-06-12,HRD-3301,Hammer 16oz,1,15.60,12.00,default-store
-2025-06-19,HRD-3301,Hammer 16oz,3,46.80,36.00,default-store
-2025-06-26,HRD-3301,Hammer 16oz,2,31.20,24.00,default-store
-2025-06-01,PLB-2201,Pipe Wrench 14in,1,63.00,45.00,default-store
-2025-06-15,PLB-2201,Pipe Wrench 14in,2,126.00,90.00,default-store
-2025-06-28,PLB-2201,Pipe Wrench 14in,1,63.00,45.00,default-store
-2025-05-15,ELC-4401,Wire Stripper Pro,2,63.46,47.00,default-store
-2025-05-20,HRD-3301,Hammer 16oz,1,15.60,12.00,default-store
+2025-06-15,ELC-4401,Wire Stripper Pro,3,95.19,70.50,test-store
+2025-06-18,ELC-4401,Wire Stripper Pro,2,63.46,47.00,test-store
+2025-06-20,ELC-4401,Wire Stripper Pro,1,31.73,23.50,test-store
+2025-06-22,ELC-4401,Wire Stripper Pro,4,126.92,94.00,test-store
+2025-06-25,SEA-1201,Dead Stock Widget,0,0.00,0.00,test-store
+2025-06-10,PNT-1001,Paint Brush Set,5,525.00,500.00,test-store
+2025-06-15,PNT-1001,Paint Brush Set,3,315.00,300.00,test-store
+2025-06-20,PNT-1001,Paint Brush Set,2,210.00,200.00,test-store
+2025-06-05,HRD-3301,Hammer 16oz,2,31.20,24.00,test-store
+2025-06-12,HRD-3301,Hammer 16oz,1,15.60,12.00,test-store
+2025-06-19,HRD-3301,Hammer 16oz,3,46.80,36.00,test-store
+2025-06-26,HRD-3301,Hammer 16oz,2,31.20,24.00,test-store
+2025-06-01,PLB-2201,Pipe Wrench 14in,1,63.00,45.00,test-store
+2025-06-15,PLB-2201,Pipe Wrench 14in,2,126.00,90.00,test-store
+2025-06-28,PLB-2201,Pipe Wrench 14in,1,63.00,45.00,test-store
+2025-05-15,ELC-4401,Wire Stripper Pro,2,63.46,47.00,test-store
+2025-05-20,HRD-3301,Hammer 16oz,1,15.60,12.00,test-store
 2025-06-10,TLS-2001,Socket Set 40pc,1,83.20,65.00,store-12
 2025-06-18,TLS-2001,Socket Set 40pc,2,166.40,130.00,store-12
 2025-06-22,FLR-0501,Oak Flooring 3/4,10,337.50,250.00,store-3

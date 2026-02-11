@@ -83,9 +83,7 @@ def create_vendor_router(state: AppState, require_auth) -> APIRouter:
         store_id: str | None = Query(default=None),
     ) -> VendorScoresResponse:
         """Score all vendors on quality, delivery, pricing, and compliance."""
-        digest = state.get_or_run_digest(
-            [store_id] if store_id else None
-        )
+        digest = state.get_or_run_digest([store_id] if store_id else None)
         report = score_vendors(digest, store_id=store_id)
         return VendorScoresResponse(**report.to_dict())
 

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any
 
 import httpx
@@ -53,28 +53,22 @@ class SubscriptionStore(ABC):
         stores: list[str] | None = None,
         send_hour: int = 6,
         tz: str = "America/New_York",
-    ) -> dict:
-        ...
+    ) -> dict: ...
 
     @abstractmethod
-    def remove(self, email: str) -> bool:
-        ...
+    def remove(self, email: str) -> bool: ...
 
     @abstractmethod
-    def get(self, email: str) -> dict | None:
-        ...
+    def get(self, email: str) -> dict | None: ...
 
     @abstractmethod
-    def list_active(self) -> list[dict]:
-        ...
+    def list_active(self) -> list[dict]: ...
 
     @abstractmethod
-    def pause(self, email: str) -> bool:
-        ...
+    def pause(self, email: str) -> bool: ...
 
     @abstractmethod
-    def resume(self, email: str) -> bool:
-        ...
+    def resume(self, email: str) -> bool: ...
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +96,7 @@ class InMemoryStore(SubscriptionStore):
             "enabled": True,
             "send_hour": send_hour,
             "timezone": tz,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
         self._data[email] = sub
         logger.info("InMemoryStore: subscription added/updated: %s", email)
@@ -193,11 +187,14 @@ class SupabaseStore(SubscriptionStore):
             "enabled": True,
             "send_hour": send_hour,
             "timezone": tz,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
 
         # Upsert (POST with on_conflict)
-        headers = {**self._headers, "Prefer": "return=representation,resolution=merge-duplicates"}
+        headers = {
+            **self._headers,
+            "Prefer": "return=representation,resolution=merge-duplicates",
+        }
         resp = httpx.post(
             self._base_url,
             headers=headers,
@@ -213,7 +210,9 @@ class SupabaseStore(SubscriptionStore):
             return result
 
         # Fallback: if upsert not supported, try insert then patch
-        logger.warning("SupabaseStore: upsert returned %s, trying insert/update", resp.status_code)
+        logger.warning(
+            "SupabaseStore: upsert returned %s, trying insert/update", resp.status_code
+        )
         resp = self._request("POST", json=payload)
         if resp.status_code == 409:  # Conflict — already exists, update
             resp = self._request(
@@ -238,7 +237,9 @@ class SupabaseStore(SubscriptionStore):
             if removed:
                 logger.info("SupabaseStore: subscription removed: %s", email)
             return removed
-        logger.error("SupabaseStore: remove failed (%s): %s", resp.status_code, resp.text)
+        logger.error(
+            "SupabaseStore: remove failed (%s): %s", resp.status_code, resp.text
+        )
         return False
 
     def get(self, email: str) -> dict | None:
@@ -249,7 +250,9 @@ class SupabaseStore(SubscriptionStore):
         return None
 
     def list_active(self) -> list[dict]:
-        resp = self._request("GET", params={"enabled": "eq.true", "order": "created_at.asc"})
+        resp = self._request(
+            "GET", params={"enabled": "eq.true", "order": "created_at.asc"}
+        )
         if resp.status_code == 200:
             return resp.json()
         logger.error("SupabaseStore: list failed (%s): %s", resp.status_code, resp.text)
@@ -259,7 +262,10 @@ class SupabaseStore(SubscriptionStore):
         resp = self._request(
             "PATCH",
             params={"email": f"eq.{email}"},
-            json={"enabled": False, "updated_at": datetime.now(timezone.utc).isoformat()},
+            json={
+                "enabled": False,
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
         )
         if resp.status_code == 200:
             rows = resp.json()
@@ -270,7 +276,10 @@ class SupabaseStore(SubscriptionStore):
         resp = self._request(
             "PATCH",
             params={"email": f"eq.{email}"},
-            json={"enabled": True, "updated_at": datetime.now(timezone.utc).isoformat()},
+            json={
+                "enabled": True,
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
         )
         if resp.status_code == 200:
             rows = resp.json()
@@ -297,7 +306,9 @@ def create_store(
             logger.info("Using Supabase-backed subscription store")
             return store
         except Exception:
-            logger.exception("Failed to create SupabaseStore, falling back to InMemoryStore")
+            logger.exception(
+                "Failed to create SupabaseStore, falling back to InMemoryStore"
+            )
 
     logger.info("Using in-memory subscription store (non-persistent)")
     return InMemoryStore()

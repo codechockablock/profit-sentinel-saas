@@ -67,9 +67,7 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
     ) -> DiagnosticQuestionResponse | None:
         """Get the current question for a diagnostic session."""
         data = _get_session(session_id)
-        question = state.diagnostic_engine.get_current_question(
-            data["session"]
-        )
+        question = state.diagnostic_engine.get_current_question(data["session"])
 
         if not question:
             return None
@@ -99,9 +97,7 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
             data["status"] = "complete"
 
         next_q = result.get("next_question")
-        next_q_model = (
-            DiagnosticQuestionResponse(**next_q) if next_q else None
-        )
+        next_q_model = DiagnosticQuestionResponse(**next_q) if next_q else None
 
         return DiagnosticAnswerResponse(
             answered=result["answered"],

@@ -9,13 +9,10 @@ Covers:
 """
 
 import pytest
-
-from sentinel_agent.vendor_scoring import (
-    DimensionScore,
-    VendorPerformanceScorer,
-    VendorScorecard,
-    VendorScoringReport,
-    score_vendors,
+from sentinel_agent.coop_models import (
+    RebateTier,
+    VendorRebateProgram,
+    VendorRebateStatus,
 )
 from sentinel_agent.models import (
     Digest,
@@ -26,12 +23,13 @@ from sentinel_agent.models import (
     Summary,
     TrendDirection,
 )
-from sentinel_agent.coop_models import (
-    RebateTier,
-    VendorRebateProgram,
-    VendorRebateStatus,
+from sentinel_agent.vendor_scoring import (
+    DimensionScore,
+    VendorPerformanceScorer,
+    VendorScorecard,
+    VendorScoringReport,
+    score_vendors,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -480,9 +478,7 @@ class TestVendorPerformanceScorer:
         """Report should be JSON-serializable."""
         import json
 
-        issues = [
-            _make_issue(skus=[_make_sku(sku_id="DMG-001", is_damaged=True)])
-        ]
+        issues = [_make_issue(skus=[_make_sku(sku_id="DMG-001", is_damaged=True)])]
         digest = _make_digest(issues)
         report = score_vendors(digest, store_id="store-7")
 
@@ -511,9 +507,9 @@ class TestVendorPerformanceScorer:
         digest = _make_digest(issues)
         report = score_vendors(digest, store_id="store-7")
 
-        assert report.total_vendors_scored >= 2, (
-            f"Expected >=2 vendors scored for multi-vendor digest, got {report.total_vendors_scored}"
-        )
+        assert (
+            report.total_vendors_scored >= 2
+        ), f"Expected >=2 vendors scored for multi-vendor digest, got {report.total_vendors_scored}"
         # Worst vendor should be first
         assert report.scorecards[0].overall_score <= report.scorecards[1].overall_score
 

@@ -1,4 +1,4 @@
-"""Sample Store inventory adapter."""
+"""Generic POS inventory adapter."""
 
 from .inventory import GenericPosAdapter
 

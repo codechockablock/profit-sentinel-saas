@@ -14,14 +14,22 @@ from fastapi import HTTPException
 
 from ..api_models import TaskResponse
 from ..delegation import DelegationManager
-from ..digest import MorningDigestGenerator
 from ..diagnostics import DiagnosticEngine
+from ..digest import MorningDigestGenerator
+from ..digest_scheduler import DigestScheduler
 from ..engine import PipelineError, SentinelEngine
 from ..models import Digest, Issue
 from ..sidecar_config import SidecarSettings
 from ..symbolic_reasoning import SymbolicReasoner
 from ..vendor_assist import VendorCallAssistant
-from ..digest_scheduler import DigestScheduler
+
+# Lazy import to avoid circular dependencies — world_model is optional
+try:
+    from ..world_model import SentinelPipeline
+
+    _HAS_WORLD_MODEL = True
+except ImportError:
+    _HAS_WORLD_MODEL = False
 
 
 class DigestCacheEntry:
@@ -49,6 +57,11 @@ class AppState:
     digest_scheduler: DigestScheduler
     reasoner: SymbolicReasoner = field(default_factory=SymbolicReasoner)
     diagnostic_engine: DiagnosticEngine = field(default_factory=DiagnosticEngine)
+
+    # Engine 2: VSA World Model (optional — initialized lazily)
+    # This is the continuous monitoring engine that learns store patterns.
+    # Engine 1 (Rust pipeline) results are fed here via record_observation().
+    world_model: object | None = field(default=None)
 
     # In-memory stores
     digest_cache: dict[str, DigestCacheEntry] = field(default_factory=dict)
@@ -84,6 +97,51 @@ class AppState:
             self.settings.digest_cache_ttl_seconds,
         )
         return digest
+
+    def feed_engine2(self, analysis_result: dict) -> None:
+        """Feed Engine 1 (Rust pipeline) results into Engine 2 (world model).
+
+        This bridges the instant analysis from the Rust pipeline into the
+        continuous monitoring world model. Each flagged issue becomes an
+        observation that the world model can learn patterns from.
+
+        Args:
+            analysis_result: The full result dict from RustResultAdapter.transform()
+        """
+        if self.world_model is None:
+            return  # Engine 2 not initialized — skip silently
+
+        import logging
+
+        logger = logging.getLogger("sentinel.engine_bridge")
+
+        try:
+            leaks = analysis_result.get("leaks", {})
+            obs_count = 0
+            for leak_type, leak_data in leaks.items():
+                items = leak_data.get("items", [])
+                for item in items:
+                    sku = item.get("sku") or item.get("item_id", "unknown")
+                    # Build observation dict for the world model
+                    obs = {
+                        "entity_id": sku,
+                        "issue_type": leak_type,
+                        "severity": item.get("severity", "medium"),
+                        "dollar_impact": item.get("dollar_impact", 0.0),
+                        "description": item.get("description", ""),
+                    }
+                    # If world model has record_observation, use it
+                    if hasattr(self.world_model, "record_observation"):
+                        self.world_model.record_observation(obs)
+                        obs_count += 1
+
+            if obs_count > 0:
+                logger.info(
+                    "Engine 1→2 bridge: fed %d observations to world model",
+                    obs_count,
+                )
+        except Exception as e:
+            logger.warning("Engine 1→2 bridge failed (non-fatal): %s", e)
 
     def find_issue(self, issue_id: str) -> Issue:
         """Find an issue across all cached digests."""

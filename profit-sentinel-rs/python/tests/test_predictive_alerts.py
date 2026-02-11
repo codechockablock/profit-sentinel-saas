@@ -10,15 +10,6 @@ Covers:
 """
 
 import pytest
-
-from sentinel_agent.predictive_alerts import (
-    AlertSeverity,
-    InventoryPrediction,
-    PredictionType,
-    PredictiveAlertEngine,
-    PredictiveReport,
-    predict_inventory,
-)
 from sentinel_agent.models import (
     Digest,
     Issue,
@@ -27,7 +18,14 @@ from sentinel_agent.models import (
     Summary,
     TrendDirection,
 )
-
+from sentinel_agent.predictive_alerts import (
+    AlertSeverity,
+    InventoryPrediction,
+    PredictionType,
+    PredictiveAlertEngine,
+    PredictiveReport,
+    predict_inventory,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -200,9 +198,9 @@ class TestStockoutPrediction:
         digest = _make_digest([issue])
 
         report = predict_inventory(digest, store_id="store-7")
-        assert len(report.stockout_predictions) >= 2, (
-            f"Expected >=2 stockout predictions for 2 at-risk SKUs, got {len(report.stockout_predictions)}"
-        )
+        assert (
+            len(report.stockout_predictions) >= 2
+        ), f"Expected >=2 stockout predictions for 2 at-risk SKUs, got {len(report.stockout_predictions)}"
         near = next(p for p in report.stockout_predictions if p.sku_id == "DMG-001")
         far = next(p for p in report.stockout_predictions if p.sku_id == "DMG-002")
         assert near.confidence >= far.confidence
@@ -296,7 +294,8 @@ class TestVelocityChange:
 
         report = predict_inventory(digest, store_id="store-7")
         surges = [
-            p for p in report.velocity_alerts
+            p
+            for p in report.velocity_alerts
             if p.prediction_type == PredictionType.DEMAND_SURGE
         ]
         assert len(surges) >= 1
@@ -312,7 +311,8 @@ class TestVelocityChange:
 
         report = predict_inventory(digest, store_id="store-7")
         drops = [
-            p for p in report.velocity_alerts
+            p
+            for p in report.velocity_alerts
             if p.prediction_type == PredictionType.VELOCITY_DROP
         ]
         assert len(drops) >= 1
@@ -387,8 +387,12 @@ class TestPredictiveReport:
     def test_revenue_at_risk_aggregated(self):
         """Total revenue at risk should sum all stockout predictions."""
         skus = [
-            _make_sku(sku_id="DMG-001", qty_on_hand=3, sales_last_30d=60, retail_price=50),
-            _make_sku(sku_id="DMG-002", qty_on_hand=5, sales_last_30d=90, retail_price=30),
+            _make_sku(
+                sku_id="DMG-001", qty_on_hand=3, sales_last_30d=60, retail_price=50
+            ),
+            _make_sku(
+                sku_id="DMG-002", qty_on_hand=5, sales_last_30d=90, retail_price=30
+            ),
         ]
         issue = _make_issue(skus=skus)
         digest = _make_digest([issue])
@@ -398,9 +402,7 @@ class TestPredictiveReport:
             individual_sum = sum(
                 p.estimated_lost_revenue for p in report.stockout_predictions
             )
-            assert report.total_revenue_at_risk == pytest.approx(
-                individual_sum, abs=1
-            )
+            assert report.total_revenue_at_risk == pytest.approx(individual_sum, abs=1)
 
     def test_custom_horizon(self):
         """Custom horizon should change what gets flagged."""
@@ -413,7 +415,9 @@ class TestPredictiveReport:
         # 10-day horizon → should NOT flag
         report_10 = predict_inventory(digest, store_id="store-7", horizon_days=10)
 
-        assert len(report_30.stockout_predictions) >= len(report_10.stockout_predictions)
+        assert len(report_30.stockout_predictions) >= len(
+            report_10.stockout_predictions
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ import hashlib
 import json
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any
 
 import httpx
@@ -119,7 +119,9 @@ class InMemoryAnalysisStore(AnalysisStore):
             name_part = original_filename or "Analysis"
             if "." in name_part:
                 name_part = name_part.rsplit(".", 1)[0]
-            analysis_label = f"{name_part} — {file_row_count} rows, {total_issues} issues"
+            analysis_label = (
+                f"{name_part} — {file_row_count} rows, {total_issues} issues"
+            )
 
         record = {
             "id": analysis_id,
@@ -130,16 +132,22 @@ class InMemoryAnalysisStore(AnalysisStore):
             "original_filename": original_filename,
             "analysis_label": analysis_label,
             "detection_counts": detection_counts,
-            "total_impact_estimate_low": summary.get("estimated_impact", {}).get("low", 0),
-            "total_impact_estimate_high": summary.get("estimated_impact", {}).get("high", 0),
+            "total_impact_estimate_low": summary.get("estimated_impact", {}).get(
+                "low", 0
+            ),
+            "total_impact_estimate_high": summary.get("estimated_impact", {}).get(
+                "high", 0
+            ),
             "dataset_stats": summary.get("dataset_stats", {}),
             "processing_time_seconds": processing_time_seconds,
             "full_result": result,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
 
         self._data[analysis_id] = record
-        logger.info("InMemoryAnalysisStore: saved analysis %s for user %s", analysis_id, user_id)
+        logger.info(
+            "InMemoryAnalysisStore: saved analysis %s for user %s", analysis_id, user_id
+        )
         return record
 
     def list_for_user(
@@ -149,9 +157,7 @@ class InMemoryAnalysisStore(AnalysisStore):
         limit: int = 20,
         offset: int = 0,
     ) -> list[dict]:
-        user_analyses = [
-            r for r in self._data.values() if r["user_id"] == user_id
-        ]
+        user_analyses = [r for r in self._data.values() if r["user_id"] == user_id]
         # Sort by created_at descending
         user_analyses.sort(key=lambda r: r["created_at"], reverse=True)
 
@@ -265,7 +271,9 @@ class SupabaseAnalysisStore(AnalysisStore):
             name_part = original_filename or "Analysis"
             if "." in name_part:
                 name_part = name_part.rsplit(".", 1)[0]
-            analysis_label = f"{name_part} — {file_row_count} rows, {total_issues} issues"
+            analysis_label = (
+                f"{name_part} — {file_row_count} rows, {total_issues} issues"
+            )
 
         estimated_impact = summary.get("estimated_impact", {})
 
@@ -304,7 +312,7 @@ class SupabaseAnalysisStore(AnalysisStore):
         )
         # Return payload with a generated ID for graceful degradation
         payload["id"] = hashlib.sha256(
-            f"{user_id}:{file_hash}:{datetime.now(timezone.utc).isoformat()}".encode()
+            f"{user_id}:{file_hash}:{datetime.now(UTC).isoformat()}".encode()
         ).hexdigest()[:36]
         return payload
 

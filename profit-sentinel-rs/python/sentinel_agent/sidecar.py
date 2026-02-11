@@ -29,14 +29,18 @@ from .engine import PipelineError, SentinelEngine
 from .pos_integrations import init_pos_store
 from .routes.analyses import create_analyses_router
 from .routes.api_keys import create_api_keys_router
+from .routes.config import create_config_router
+from .routes.dashboard import create_dashboard_router
 from .routes.diagnostic import create_diagnostic_router
 from .routes.digest import create_digest_router
 from .routes.explain import create_explain_router
+from .routes.findings import create_findings_router
 from .routes.health import create_health_router
 from .routes.pos import create_pos_router
 from .routes.predictions import create_predictions_router
 from .routes.state import AppState
 from .routes.tasks import create_tasks_router
+from .routes.transfers import create_transfers_router
 from .routes.vendor import create_vendor_router
 from .sidecar_config import SidecarSettings, get_settings
 from .subscription_store import create_store
@@ -181,9 +185,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         )
 
     @app.exception_handler(Exception)
-    async def general_error_handler(
-        request: Request, exc: Exception
-    ) -> JSONResponse:
+    async def general_error_handler(request: Request, exc: Exception) -> JSONResponse:
         logger.exception("Unhandled error: %s", exc)
         return JSONResponse(
             status_code=500,
@@ -210,9 +212,16 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     app.include_router(create_api_keys_router(require_auth))
     app.include_router(create_pos_router(require_auth))
     app.include_router(create_analyses_router(require_auth))
+    app.include_router(create_findings_router(state, require_auth))
+    app.include_router(create_dashboard_router(state, require_auth))
+    app.include_router(create_config_router(state, require_auth))
+    app.include_router(create_transfers_router(state, require_auth))
 
     # Legacy-compatible upload & analysis routes (production frontend)
-    upload_router = create_upload_router(settings, engine, get_user_context)
+    # Pass app_state for Engine 1→2 bridging (feeds Rust results to world model)
+    upload_router = create_upload_router(
+        settings, engine, get_user_context, app_state=state
+    )
     app.include_router(upload_router)
 
     # -----------------------------------------------------------------

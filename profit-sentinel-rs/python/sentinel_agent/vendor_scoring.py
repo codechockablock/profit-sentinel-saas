@@ -239,9 +239,7 @@ class VendorPerformanceScorer:
             issues_for_vendor = vendor_issues.get(prefix, [])
             rebate_status = self._find_rebate_status(prefix)
 
-            card = self._score_vendor(
-                prefix, skus, issues_for_vendor, rebate_status
-            )
+            card = self._score_vendor(prefix, skus, issues_for_vendor, rebate_status)
             scorecards.append(card)
 
         # Sort by score ascending (worst vendors first for action prioritization)
@@ -302,9 +300,7 @@ class VendorPerformanceScorer:
         quality_cost = quality.dollar_impact + delivery.dollar_impact
 
         # Generate recommendations
-        recommendations = self._build_recommendations(
-            vendor_name, dimensions, issues
-        )
+        recommendations = self._build_recommendations(vendor_name, dimensions, issues)
 
         return VendorScorecard(
             vendor_id=prefix,
@@ -322,9 +318,7 @@ class VendorPerformanceScorer:
     # Dimension scorers
     # -----------------------------------------------------------------
 
-    def _score_quality(
-        self, skus: list[Sku], issues: list[Issue]
-    ) -> DimensionScore:
+    def _score_quality(self, skus: list[Sku], issues: list[Issue]) -> DimensionScore:
         """Score vendor quality: damaged rate, quality-related issues."""
         total = len(skus)
         if total == 0:
@@ -338,8 +332,10 @@ class VendorPerformanceScorer:
 
         # Count quality-related issues
         quality_issues = [
-            i for i in issues
-            if i.issue_type in (
+            i
+            for i in issues
+            if i.issue_type
+            in (
                 IssueType.VENDOR_SHORT_SHIP,
                 IssueType.SHRINKAGE_PATTERN,
             )
@@ -388,18 +384,14 @@ class VendorPerformanceScorer:
             dollar_impact=damaged_value + quality_issue_impact,
         )
 
-    def _score_delivery(
-        self, skus: list[Sku], issues: list[Issue]
-    ) -> DimensionScore:
+    def _score_delivery(self, skus: list[Sku], issues: list[Issue]) -> DimensionScore:
         """Score delivery: short-ship rate, fulfillment reliability."""
         total = len(skus)
         if total == 0:
             return DimensionScore("Delivery", 100.0, DELIVERY_WEIGHT)
 
         # On-order items with damage suggest delivery problems
-        on_order_damaged = sum(
-            1 for s in skus if s.on_order_qty > 0 and s.is_damaged
-        )
+        on_order_damaged = sum(1 for s in skus if s.on_order_qty > 0 and s.is_damaged)
         on_order_total = sum(1 for s in skus if s.on_order_qty > 0)
         on_order_value = sum(
             s.on_order_qty * s.unit_cost for s in skus if s.on_order_qty > 0
@@ -439,8 +431,7 @@ class VendorPerformanceScorer:
             )
         if on_order_total > 0:
             findings.append(
-                f"{on_order_total} SKU(s) on order "
-                f"(${on_order_value:,.0f} pending)"
+                f"{on_order_total} SKU(s) on order " f"(${on_order_value:,.0f} pending)"
             )
         if on_order_damaged > 0:
             findings.append(
@@ -458,24 +449,22 @@ class VendorPerformanceScorer:
             dollar_impact=short_ship_impact,
         )
 
-    def _score_pricing(
-        self, skus: list[Sku], issues: list[Issue]
-    ) -> DimensionScore:
+    def _score_pricing(self, skus: list[Sku], issues: list[Issue]) -> DimensionScore:
         """Score pricing: margin consistency, cost competitiveness."""
         total = len(skus)
         if total == 0:
             return DimensionScore("Pricing", 100.0, PRICING_WEIGHT)
 
         avg_margin = sum(s.margin_pct for s in skus) / total
-        below_benchmark = sum(
-            1 for s in skus if s.margin_pct < MARGIN_BENCHMARK
-        )
+        below_benchmark = sum(1 for s in skus if s.margin_pct < MARGIN_BENCHMARK)
         below_rate = below_benchmark / total
 
         # Pricing-related issues
         pricing_issues = [
-            i for i in issues
-            if i.issue_type in (
+            i
+            for i in issues
+            if i.issue_type
+            in (
                 IssueType.MARGIN_EROSION,
                 IssueType.PURCHASING_LEAKAGE,
                 IssueType.PRICE_DISCREPANCY,
@@ -510,8 +499,7 @@ class VendorPerformanceScorer:
                 f"margin benchmark ({below_rate:.0%})"
             )
         findings.append(
-            f"Average margin: {avg_margin:.1%} "
-            f"(benchmark: {MARGIN_BENCHMARK:.0%})"
+            f"Average margin: {avg_margin:.1%} " f"(benchmark: {MARGIN_BENCHMARK:.0%})"
         )
         if pricing_issues:
             findings.append(
@@ -594,9 +582,7 @@ class VendorPerformanceScorer:
     # Helpers
     # -----------------------------------------------------------------
 
-    def _find_rebate_status(
-        self, prefix: str
-    ) -> VendorRebateStatus | None:
+    def _find_rebate_status(self, prefix: str) -> VendorRebateStatus | None:
         """Find rebate status for a vendor prefix."""
         for status in self.rebate_statuses:
             if status.program.vendor_id == prefix:

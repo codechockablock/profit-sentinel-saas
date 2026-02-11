@@ -90,20 +90,20 @@ export default function AboutPage() {
           <h2 className="text-2xl font-bold text-emerald-400 mb-4">The Technology</h2>
           <div className="bg-white/5 rounded-2xl border border-slate-700 p-6">
             <p className="text-slate-300 leading-relaxed mb-4">
-              Profit Sentinel is powered by a <strong className="text-white">proprietary AI detection engine</strong> that
-              uses advanced pattern recognition to find profit leaks. Our system cross-references multiple
-              data sources and has been trained on millions of retail transactions to detect subtle patterns
-              that simple threshold-based rules miss.
+              Profit Sentinel is powered by a <strong className="text-white">deterministic analysis engine</strong> built
+              in Rust that uses Vector Symbolic Architecture (VSA) and rule-based pattern recognition to find
+              profit leaks. Our system cross-references inventory, sales, cost, and margin data to detect
+              patterns that simple threshold-based rules miss.
             </p>
             <p className="text-slate-300 leading-relaxed mb-4">
-              Our engine processes <strong className="text-white">156,000+ SKUs in seconds</strong>,
+              Our engine processes <strong className="text-white">36,000+ SKUs in under 300ms</strong>,
               making it practical for even large retail operations. Results are deterministic and
-              reproducible - the same data always produces the same findings.
+              reproducible — the same data always produces the same findings.
             </p>
             <p className="text-slate-300 leading-relaxed">
-              <strong className="text-white">Validated on real-world data:</strong> Retailers using Profit Sentinel
-              have seen an average 71% reduction in shrinkage. Our detection system identifies patterns humans miss,
-              turning inventory data into actionable intelligence.
+              <strong className="text-white">Built for real-world data:</strong> Profit Sentinel detects
+              dead stock, margin erosion, phantom inventory, shrinkage patterns, and more — turning
+              inventory data into actionable intelligence with specific dollar amounts and evidence.
             </p>
           </div>
         </section>

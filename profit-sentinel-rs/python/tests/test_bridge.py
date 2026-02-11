@@ -47,7 +47,7 @@ def sample_records():
             last_receipt_date=date(2025, 6, 1),
             last_sale_date=date(2025, 6, 15),
             bin_location="A1-03",
-            store_id="default-store",
+            store_id="test-store",
             category="Electrical",
             department="15",
             barcode="029069752040",
@@ -62,7 +62,7 @@ def sample_records():
             unit_cost=50.00,
             retail_price=67.50,
             last_receipt_date=date(2025, 1, 2),
-            store_id="default-store",
+            store_id="test-store",
             sales_ytd=0.0,
         ),
         NormalizedInventory(
@@ -73,7 +73,7 @@ def sample_records():
             unit_cost=100.00,
             retail_price=105.00,
             last_receipt_date=date(2025, 6, 1),
-            store_id="default-store",
+            store_id="test-store",
             department="Seasonal",
             sales_ytd=600.00,
         ),
@@ -83,7 +83,7 @@ def sample_records():
             qty_on_hand=10,
             unit_cost=5.00,
             retail_price=0.0,
-            store_id="default-store",
+            store_id="test-store",
         ),
         NormalizedInventory(
             sku_id="NO-DATES",
@@ -91,7 +91,7 @@ def sample_records():
             qty_on_hand=25,
             unit_cost=15.00,
             retail_price=25.00,
-            store_id="default-store",
+            store_id="test-store",
             sales_ytd=300.00,
         ),
     ]
@@ -110,7 +110,7 @@ class TestFieldMapping:
 
     def test_store_id_preserved(self, bridge, sample_records):
         row = bridge.convert_record(sample_records[0])
-        assert row["store_id"] == "default-store"
+        assert row["store_id"] == "test-store"
 
     def test_qty_as_float(self, bridge, sample_records):
         row = bridge.convert_record(sample_records[0])
@@ -367,7 +367,7 @@ class TestCSVOutput:
 class TestEnrichmentIndex:
     def test_index_by_store_sku(self, bridge, sample_records):
         index = bridge.build_enrichment_index(sample_records)
-        rec = index["default-store::ELC-4401"]
+        rec = index["test-store::ELC-4401"]
         assert rec.description == "Wire Stripper Pro"
         assert rec.vendor == "ORGILL"
 
@@ -384,7 +384,7 @@ class TestEnrichmentIndex:
 
     def test_enrichment_returns_full_record(self, bridge, sample_records):
         index = bridge.build_enrichment_index(sample_records)
-        rec = index["default-store::ELC-4401"]
+        rec = index["test-store::ELC-4401"]
         assert rec.bin_location == "A1-03"
         assert rec.barcode == "029069752040"
         assert rec.category == "Electrical"

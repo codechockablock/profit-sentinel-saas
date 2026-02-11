@@ -110,9 +110,7 @@ def create_digest_router(state: AppState, require_auth) -> APIRouter:
                 message=f"Digest sent to {body.email}",
             )
         except Exception as exc:
-            raise HTTPException(
-                status_code=502, detail=f"Email send failed: {exc}"
-            )
+            raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")
 
     @router.get(
         "/digest/scheduler-status",

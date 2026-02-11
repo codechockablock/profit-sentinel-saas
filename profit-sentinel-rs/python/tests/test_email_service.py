@@ -3,16 +3,16 @@
 Covers HTML template rendering, dollar formatting, and email sending (mocked).
 """
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from sentinel_agent.email_service import (
-    render_digest_html,
-    send_email,
-    send_digest_email,
     _format_dollar,
     _priority_color,
     _trend_arrow,
+    render_digest_html,
+    send_digest_email,
+    send_email,
 )
 
 # ---------------------------------------------------------------------------
@@ -280,7 +280,9 @@ class TestSendEmail:
 class TestSendDigestEmail:
     @pytest.mark.asyncio
     async def test_builds_correct_subject_with_issues(self):
-        with patch("sentinel_agent.email_service.send_email", new_callable=AsyncMock) as mock_send:
+        with patch(
+            "sentinel_agent.email_service.send_email", new_callable=AsyncMock
+        ) as mock_send:
             mock_send.return_value = {"id": "email-789"}
 
             await send_digest_email(
@@ -300,7 +302,9 @@ class TestSendDigestEmail:
 
     @pytest.mark.asyncio
     async def test_all_clear_subject(self):
-        with patch("sentinel_agent.email_service.send_email", new_callable=AsyncMock) as mock_send:
+        with patch(
+            "sentinel_agent.email_service.send_email", new_callable=AsyncMock
+        ) as mock_send:
             mock_send.return_value = {"id": "email-000"}
 
             await send_digest_email(
@@ -318,7 +322,9 @@ class TestSendDigestEmail:
 
     @pytest.mark.asyncio
     async def test_singular_issue_subject(self):
-        with patch("sentinel_agent.email_service.send_email", new_callable=AsyncMock) as mock_send:
+        with patch(
+            "sentinel_agent.email_service.send_email", new_callable=AsyncMock
+        ) as mock_send:
             mock_send.return_value = {"id": "email-111"}
 
             await send_digest_email(

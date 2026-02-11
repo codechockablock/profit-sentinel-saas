@@ -23,7 +23,7 @@ from __future__ import annotations
 import io
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any
 
 from reportlab.lib import colors
@@ -80,87 +80,138 @@ def _build_styles() -> dict[str, ParagraphStyle]:
     base = getSampleStyleSheet()
     return {
         "brand": ParagraphStyle(
-            "Brand", parent=base["Title"],
-            fontSize=28, textColor=EMERALD, alignment=TA_CENTER,
-            spaceAfter=2, fontName="Helvetica-Bold",
+            "Brand",
+            parent=base["Title"],
+            fontSize=28,
+            textColor=EMERALD,
+            alignment=TA_CENTER,
+            spaceAfter=2,
+            fontName="Helvetica-Bold",
         ),
         "report_title": ParagraphStyle(
-            "ReportTitle", parent=base["Normal"],
-            fontSize=12, textColor=SLATE_700, alignment=TA_LEFT,
-            spaceBefore=4, spaceAfter=2, fontName="Helvetica-Bold",
+            "ReportTitle",
+            parent=base["Normal"],
+            fontSize=12,
+            textColor=SLATE_700,
+            alignment=TA_LEFT,
+            spaceBefore=4,
+            spaceAfter=2,
+            fontName="Helvetica-Bold",
         ),
         "meta": ParagraphStyle(
-            "Meta", parent=base["Normal"],
-            fontSize=9, textColor=SLATE_500, leading=14,
+            "Meta",
+            parent=base["Normal"],
+            fontSize=9,
+            textColor=SLATE_500,
+            leading=14,
         ),
         "h2": ParagraphStyle(
-            "H2", parent=base["Heading2"],
-            fontSize=16, textColor=SLATE_900,
-            spaceBefore=20, spaceAfter=10,
+            "H2",
+            parent=base["Heading2"],
+            fontSize=16,
+            textColor=SLATE_900,
+            spaceBefore=20,
+            spaceAfter=10,
             fontName="Helvetica-Bold",
         ),
         "h3": ParagraphStyle(
-            "H3", parent=base["Heading3"],
-            fontSize=12, textColor=SLATE_900,
-            spaceBefore=14, spaceAfter=6,
+            "H3",
+            parent=base["Heading3"],
+            fontSize=12,
+            textColor=SLATE_900,
+            spaceBefore=14,
+            spaceAfter=6,
             fontName="Helvetica-Bold",
         ),
         "body": ParagraphStyle(
-            "Body", parent=base["Normal"],
-            fontSize=9, textColor=SLATE_700, leading=14,
+            "Body",
+            parent=base["Normal"],
+            fontSize=9,
+            textColor=SLATE_700,
+            leading=14,
         ),
         "body_bold": ParagraphStyle(
-            "BodyBold", parent=base["Normal"],
-            fontSize=9, textColor=SLATE_700, leading=14,
+            "BodyBold",
+            parent=base["Normal"],
+            fontSize=9,
+            textColor=SLATE_700,
+            leading=14,
             fontName="Helvetica-Bold",
         ),
         "note": ParagraphStyle(
-            "Note", parent=base["Normal"],
-            fontSize=8, textColor=SLATE_500, leading=11,
+            "Note",
+            parent=base["Normal"],
+            fontSize=8,
+            textColor=SLATE_500,
+            leading=11,
             fontStyle="italic",
         ),
         "big_number": ParagraphStyle(
-            "BigNumber", parent=base["Normal"],
-            fontSize=28, textColor=EMERALD,
-            alignment=TA_CENTER, fontName="Helvetica-Bold",
+            "BigNumber",
+            parent=base["Normal"],
+            fontSize=28,
+            textColor=EMERALD,
+            alignment=TA_CENTER,
+            fontName="Helvetica-Bold",
         ),
         "big_number_red": ParagraphStyle(
-            "BigNumberRed", parent=base["Normal"],
-            fontSize=28, textColor=RED,
-            alignment=TA_CENTER, fontName="Helvetica-Bold",
+            "BigNumberRed",
+            parent=base["Normal"],
+            fontSize=28,
+            textColor=RED,
+            alignment=TA_CENTER,
+            fontName="Helvetica-Bold",
         ),
         "metric_label": ParagraphStyle(
-            "MetricLabel", parent=base["Normal"],
-            fontSize=9, textColor=SLATE_400,
+            "MetricLabel",
+            parent=base["Normal"],
+            fontSize=9,
+            textColor=SLATE_400,
             alignment=TA_CENTER,
         ),
         "arrow": ParagraphStyle(
-            "Arrow", parent=base["Normal"],
-            fontSize=20, textColor=SLATE_400,
+            "Arrow",
+            parent=base["Normal"],
+            fontSize=20,
+            textColor=SLATE_400,
             alignment=TA_CENTER,
         ),
         "table_header": ParagraphStyle(
-            "TH", parent=base["Normal"],
-            fontSize=8, textColor=WHITE, leading=11,
+            "TH",
+            parent=base["Normal"],
+            fontSize=8,
+            textColor=WHITE,
+            leading=11,
             fontName="Helvetica-Bold",
         ),
         "table_cell": ParagraphStyle(
-            "TD", parent=base["Normal"],
-            fontSize=8, textColor=SLATE_700, leading=11,
+            "TD",
+            parent=base["Normal"],
+            fontSize=8,
+            textColor=SLATE_700,
+            leading=11,
         ),
         "table_cell_right": ParagraphStyle(
-            "TDR", parent=base["Normal"],
-            fontSize=8, textColor=SLATE_700, leading=11,
+            "TDR",
+            parent=base["Normal"],
+            fontSize=8,
+            textColor=SLATE_700,
+            leading=11,
             alignment=TA_RIGHT,
         ),
         "table_cell_bold": ParagraphStyle(
-            "TDB", parent=base["Normal"],
-            fontSize=8, textColor=SLATE_900, leading=11,
+            "TDB",
+            parent=base["Normal"],
+            fontSize=8,
+            textColor=SLATE_900,
+            leading=11,
             fontName="Helvetica-Bold",
         ),
         "footer": ParagraphStyle(
-            "Footer", parent=base["Normal"],
-            fontSize=7, textColor=SLATE_400,
+            "Footer",
+            parent=base["Normal"],
+            fontSize=7,
+            textColor=SLATE_400,
         ),
     }
 
@@ -196,11 +247,13 @@ def _make_table(
         ("GRID", (0, 0), (-1, -1), 0.5, SLATE_200),
     ]
     if header:
-        style_cmds.extend([
-            ("BACKGROUND", (0, 0), (-1, 0), SLATE_900),
-            ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ])
+        style_cmds.extend(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), SLATE_900),
+                ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ]
+        )
     # Zebra striping
     for i in range(1, len(data)):
         if i % 2 == 0:
@@ -233,15 +286,19 @@ def _extract_metrics(analysis_result: dict) -> dict:
 
     # Process issues: things we can classify (not just "investigate")
     process_issues = 0
-    for key in ("negative_inventory", "dead_item", "overstock",
-                "zero_cost_anomaly", "price_discrepancy"):
+    for key in (
+        "negative_inventory",
+        "dead_item",
+        "overstock",
+        "zero_cost_anomaly",
+        "price_discrepancy",
+    ):
         process_issues += breakdown.get(key, 0)
     process_issues += neg_inv_value
 
     to_investigate = max(0, apparent_shrinkage - process_issues)
     reduction_pct = (
-        (process_issues / apparent_shrinkage * 100)
-        if apparent_shrinkage > 0 else 0
+        (process_issues / apparent_shrinkage * 100) if apparent_shrinkage > 0 else 0
     )
 
     # Compute shrinkage rates as % of estimated annual retail sales.
@@ -256,7 +313,7 @@ def _extract_metrics(analysis_result: dict) -> dict:
     # estimate.  For the revenue estimate, we use the relationship:
     #   shrinkage ≈ 1-2% of revenue (NRF benchmark)
     # but anchor on the flagged-item data when available.
-    mid_est = (low_est + high_est) / 2 if (low_est + high_est) > 0 else 0
+    (low_est + high_est) / 2 if (low_est + high_est) > 0 else 0
 
     # Use flagged items' retail value (qty × revenue) to get a sense of
     # per-item inventory value, then extrapolate across all items.
@@ -291,15 +348,18 @@ def _extract_metrics(analysis_result: dict) -> dict:
 
     shrinkage_rate = (
         (apparent_shrinkage / estimated_annual_revenue * 100)
-        if estimated_annual_revenue > 0 else 0
+        if estimated_annual_revenue > 0
+        else 0
     )
     adjusted_rate = (
         (to_investigate / estimated_annual_revenue * 100)
-        if estimated_annual_revenue > 0 else 0
+        if estimated_annual_revenue > 0
+        else 0
     )
     process_rate = (
         (process_issues / estimated_annual_revenue * 100)
-        if estimated_annual_revenue > 0 else 0
+        if estimated_annual_revenue > 0
+        else 0
     )
 
     # Margin variance: how much the reported gross margin may be off.
@@ -342,10 +402,13 @@ def _add_page_footer(canvas, doc):
     canvas.setFont("Helvetica", 7)
     canvas.setFillColor(SLATE_400)
     canvas.drawString(
-        doc.leftMargin, 0.35 * inch, _FOOTER_TEXT,
+        doc.leftMargin,
+        0.35 * inch,
+        _FOOTER_TEXT,
     )
     canvas.drawRightString(
-        letter[0] - doc.rightMargin, 0.35 * inch,
+        letter[0] - doc.rightMargin,
+        0.35 * inch,
         f"Page {canvas.getPageNumber()}",
     )
     canvas.restoreState()
@@ -374,8 +437,8 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
 
     S = _build_styles()
     story: list = []
-    report_id = f"PS-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}"
-    now = datetime.now(timezone.utc)
+    report_id = f"PS-{datetime.now(UTC).strftime('%Y%m%d%H%M')}"
+    now = datetime.now(UTC)
     m = _extract_metrics(analysis_result)
 
     # =====================================================================
@@ -405,27 +468,34 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
         meta_data,
         colWidths=[1.0 * inch, 2.0 * inch, 1.0 * inch, 2.5 * inch],
     )
-    meta_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-    ]))
+    meta_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ]
+        )
+    )
     story.append(meta_table)
     story.append(Spacer(1, 6))
-    story.append(HRFlowable(
-        width="100%", thickness=1, color=SLATE_200,
-        spaceAfter=12, spaceBefore=4, dash=[2, 2],
-    ))
+    story.append(
+        HRFlowable(
+            width="100%",
+            thickness=1,
+            color=SLATE_200,
+            spaceAfter=12,
+            spaceBefore=4,
+            dash=[2, 2],
+        )
+    )
 
     # =====================================================================
     # 2. EXECUTIVE SUMMARY — Big Numbers
     # =====================================================================
     story.append(Paragraph("Executive Summary", S["h2"]))
 
-    num_style = (
-        S["big_number"] if m["apparent_shrinkage"] == 0
-        else S["big_number_red"]
-    )
+    num_style = S["big_number"] if m["apparent_shrinkage"] == 0 else S["big_number_red"]
     big_data = [
         [
             Paragraph("Apparent Shrinkage", S["metric_label"]),
@@ -442,13 +512,24 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
             Paragraph(_fmt_pct(m["reduction_pct"]), S["big_number"]),
         ],
     ]
-    big_table = Table(big_data, colWidths=[
-        1.6 * inch, 0.4 * inch, 1.6 * inch, 0.4 * inch, 1.6 * inch,
-    ])
-    big_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-    ]))
+    big_table = Table(
+        big_data,
+        colWidths=[
+            1.6 * inch,
+            0.4 * inch,
+            1.6 * inch,
+            0.4 * inch,
+            1.6 * inch,
+        ],
+    )
+    big_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ]
+        )
+    )
     story.append(big_table)
     story.append(Spacer(1, 16))
 
@@ -456,39 +537,61 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
     story.append(Paragraph("<b>Potential Financial Impact</b>", S["h3"]))
 
     fi_rows = [["Area", "Potential Impact", "Estimated Amount", "Notes"]]
-    fi_rows.append([
-        "Cost of Goods Sold", "May be overstated",
-        _fmt_dollar(m["apparent_shrinkage"]),
-        "Depends on accounting method",
-    ])
-    fi_rows.append([
-        "Gross Margin", "May be understated",
-        f"~{_fmt_pct(m['margin_variance'])} variance",
-        "Review with accountant",
-    ])
-    fi_rows.append([
-        "Inventory Valuation", "May be understated",
-        _fmt_dollar(m["apparent_shrinkage"]),
-        "Balance sheet consideration",
-    ])
-    fi_rows.append([
-        "Tax Implications", "Varies by situation",
-        f"Up to {_fmt_dollar(m['apparent_shrinkage'])}",
-        "Consult your CPA",
-    ])
-    story.append(_make_table(fi_rows, col_widths=[
-        1.3 * inch, 1.3 * inch, 1.4 * inch, 2.2 * inch,
-    ]))
+    fi_rows.append(
+        [
+            "Cost of Goods Sold",
+            "May be overstated",
+            _fmt_dollar(m["apparent_shrinkage"]),
+            "Depends on accounting method",
+        ]
+    )
+    fi_rows.append(
+        [
+            "Gross Margin",
+            "May be understated",
+            f"~{_fmt_pct(m['margin_variance'])} variance",
+            "Review with accountant",
+        ]
+    )
+    fi_rows.append(
+        [
+            "Inventory Valuation",
+            "May be understated",
+            _fmt_dollar(m["apparent_shrinkage"]),
+            "Balance sheet consideration",
+        ]
+    )
+    fi_rows.append(
+        [
+            "Tax Implications",
+            "Varies by situation",
+            f"Up to {_fmt_dollar(m['apparent_shrinkage'])}",
+            "Consult your CPA",
+        ]
+    )
+    story.append(
+        _make_table(
+            fi_rows,
+            col_widths=[
+                1.3 * inch,
+                1.3 * inch,
+                1.4 * inch,
+                2.2 * inch,
+            ],
+        )
+    )
     story.append(Spacer(1, 6))
 
-    story.append(Paragraph(
-        "<i>Note: These figures represent potential impacts based on the "
-        "diagnostic findings. Actual financial impact depends on your specific "
-        "accounting methods, how inventory adjustments are currently recorded, "
-        "and your tax situation. We recommend reviewing these findings with "
-        "your accountant or CPA.</i>",
-        S["note"],
-    ))
+    story.append(
+        Paragraph(
+            "<i>Note: These figures represent potential impacts based on the "
+            "diagnostic findings. Actual financial impact depends on your specific "
+            "accounting methods, how inventory adjustments are currently recorded, "
+            "and your tax situation. We recommend reviewing these findings with "
+            "your accountant or CPA.</i>",
+            S["note"],
+        )
+    )
     story.append(Spacer(1, 12))
 
     # =====================================================================
@@ -496,20 +599,25 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
     # =====================================================================
     story.append(Paragraph("Understanding the COGS Impact", S["h2"]))
 
-    story.append(Paragraph(
-        f"<b>What This Diagnostic Found:</b> This analysis identified "
-        f"{_fmt_dollar(m['apparent_shrinkage'])} in inventory discrepancies "
-        f"that appear related to process issues rather than actual theft or "
-        f"loss. Depending on how your inventory system feeds into your "
-        f"accounting, this could affect your Cost of Goods Sold in several "
-        f"ways:",
-        S["body"],
-    ))
+    story.append(
+        Paragraph(
+            f"<b>What This Diagnostic Found:</b> This analysis identified "
+            f"{_fmt_dollar(m['apparent_shrinkage'])} in inventory discrepancies "
+            f"that appear related to process issues rather than actual theft or "
+            f"loss. Depending on how your inventory system feeds into your "
+            f"accounting, this could affect your Cost of Goods Sold in several "
+            f"ways:",
+            S["body"],
+        )
+    )
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph(
-        "<b>Process Issues Identified:</b>", S["body_bold"],
-    ))
+    story.append(
+        Paragraph(
+            "<b>Process Issues Identified:</b>",
+            S["body_bold"],
+        )
+    )
 
     # Build process issue bullets from actual leak data
     neg_inv = m["leaks"].get("negative_inventory", {})
@@ -583,18 +691,22 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
     # =====================================================================
     story.append(Paragraph("Profit Margin Considerations", S["h2"]))
 
-    story.append(Paragraph(
-        "<b>How Process Issues May Affect Reported Margins:</b>",
-        S["body_bold"],
-    ))
+    story.append(
+        Paragraph(
+            "<b>How Process Issues May Affect Reported Margins:</b>",
+            S["body_bold"],
+        )
+    )
     story.append(Spacer(1, 4))
-    story.append(Paragraph(
-        "When inventory shows discrepancies due to process issues (rather "
-        "than actual loss), it can create a mismatch between what your "
-        "system reports and actual business performance. Here's what to "
-        "consider:",
-        S["body"],
-    ))
+    story.append(
+        Paragraph(
+            "When inventory shows discrepancies due to process issues (rather "
+            "than actual loss), it can create a mismatch between what your "
+            "system reports and actual business performance. Here's what to "
+            "consider:",
+            S["body"],
+        )
+    )
     story.append(Spacer(1, 6))
 
     margin_bullets = [
@@ -602,14 +714,14 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
             "If COGS is being inflated:",
             "Your gross margin may appear lower than your actual performance. "
             "This could lead to overly conservative pricing decisions or "
-            "unnecessary concern about profitability."
+            "unnecessary concern about profitability.",
         ),
         (
             "If adjustments are made elsewhere:",
             "Some businesses make periodic inventory adjustments or use "
             "different methods to account for shrinkage. If you're already "
             "accounting for these items through other means, the impact may "
-            "already be reflected correctly."
+            "already be reflected correctly.",
         ),
         (
             "What this means for you:",
@@ -617,13 +729,16 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
             f"<b>{_fmt_pct(m['margin_variance'])}</b> variance in your "
             f"reported margin. We recommend discussing these findings with "
             f"your accountant to understand how they apply to your specific "
-            f"situation."
+            f"situation.",
         ),
     ]
     for title, desc in margin_bullets:
-        story.append(Paragraph(
-            f"\u2022 <b>{title}</b> {desc}", S["body"],
-        ))
+        story.append(
+            Paragraph(
+                f"\u2022 <b>{title}</b> {desc}",
+                S["body"],
+            )
+        )
         story.append(Spacer(1, 4))
 
     story.append(Spacer(1, 8))
@@ -633,17 +748,21 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
     # =====================================================================
     story.append(Paragraph("Tax &amp; Compliance Considerations", S["h2"]))
 
-    story.append(Paragraph(
-        "<b>Important: Please consult your CPA or tax advisor regarding "
-        "these findings.</b>",
-        S["body_bold"],
-    ))
+    story.append(
+        Paragraph(
+            "<b>Important: Please consult your CPA or tax advisor regarding "
+            "these findings.</b>",
+            S["body_bold"],
+        )
+    )
     story.append(Spacer(1, 6))
-    story.append(Paragraph(
-        "Inventory discrepancies can have various tax implications depending "
-        "on your situation:",
-        S["body"],
-    ))
+    story.append(
+        Paragraph(
+            "Inventory discrepancies can have various tax implications depending "
+            "on your situation:",
+            S["body"],
+        )
+    )
     story.append(Spacer(1, 6))
 
     tax_scenarios = [
@@ -652,7 +771,7 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
             "If negative inventory balances are inflating your Cost of Goods "
             "Sold, this would reduce your taxable income. While this means "
             "lower taxes in the short term, it may not accurately reflect "
-            "your business performance and could create issues if audited."
+            "your business performance and could create issues if audited.",
         ),
         (
             "Scenario B - Separate Shrinkage Deductions",
@@ -660,35 +779,39 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
             "your tax returns (which is allowable), AND your COGS is inflated "
             "from process issues, there may be a risk of inadvertent "
             "double-counting. Your CPA can review whether this applies to "
-            "your situation."
+            "your situation.",
         ),
         (
             "Scenario C - Inventory Corrections",
             "If you make adjustments to correct these process issues, it "
             "could affect your taxable income in the period of adjustment. "
             "Your accountant can help you understand the timing and approach "
-            "that works best for your business."
+            "that works best for your business.",
         ),
     ]
     for title, desc in tax_scenarios:
         story.append(Paragraph(f"<b>{title}:</b> {desc}", S["body"]))
         story.append(Spacer(1, 6))
 
-    story.append(Paragraph(
-        "<b>Balance Sheet Consideration:</b> Persistent negative inventory "
-        "balances represent an understatement of assets. If inventory is "
-        "used as collateral for financing, or if you're preparing financial "
-        "statements for investors or lenders, accurate inventory valuation "
-        "is important.",
-        S["body"],
-    ))
+    story.append(
+        Paragraph(
+            "<b>Balance Sheet Consideration:</b> Persistent negative inventory "
+            "balances represent an understatement of assets. If inventory is "
+            "used as collateral for financing, or if you're preparing financial "
+            "statements for investors or lenders, accurate inventory valuation "
+            "is important.",
+            S["body"],
+        )
+    )
     story.append(Spacer(1, 6))
-    story.append(Paragraph(
-        "<b>Documentation:</b> This report provides documentation of the "
-        "analysis performed. Maintaining records of how shrinkage was "
-        "identified and categorized can be valuable for audit purposes.",
-        S["body"],
-    ))
+    story.append(
+        Paragraph(
+            "<b>Documentation:</b> This report provides documentation of the "
+            "analysis performed. Maintaining records of how shrinkage was "
+            "identified and categorized can be valuable for audit purposes.",
+            S["body"],
+        )
+    )
     story.append(Spacer(1, 8))
 
     # =====================================================================
@@ -697,36 +820,52 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
     story.append(Paragraph("Industry Context", S["h2"]))
 
     bench_rows = [["Metric", "Your Results", "Industry Average*", "Context"]]
-    bench_rows.append([
-        "Apparent Shrinkage Rate",
-        _fmt_pct(m["shrinkage_rate"], 2),
-        _fmt_pct(NRF_SHRINKAGE_RATE, 2),
-        "Before diagnostic analysis",
-    ])
-    bench_rows.append([
-        "Adjusted Shrinkage Rate",
-        _fmt_pct(m["adjusted_rate"], 2),
-        _fmt_pct(NRF_SHRINKAGE_RATE, 2),
-        "After identifying process issues",
-    ])
-    bench_rows.append([
-        "Process Issues Identified",
-        _fmt_pct(m["process_rate"], 2),
-        "Varies",
-        "Opportunity for improvement",
-    ])
-    story.append(_make_table(bench_rows, col_widths=[
-        1.5 * inch, 1.1 * inch, 1.2 * inch, 2.4 * inch,
-    ]))
+    bench_rows.append(
+        [
+            "Apparent Shrinkage Rate",
+            _fmt_pct(m["shrinkage_rate"], 2),
+            _fmt_pct(NRF_SHRINKAGE_RATE, 2),
+            "Before diagnostic analysis",
+        ]
+    )
+    bench_rows.append(
+        [
+            "Adjusted Shrinkage Rate",
+            _fmt_pct(m["adjusted_rate"], 2),
+            _fmt_pct(NRF_SHRINKAGE_RATE, 2),
+            "After identifying process issues",
+        ]
+    )
+    bench_rows.append(
+        [
+            "Process Issues Identified",
+            _fmt_pct(m["process_rate"], 2),
+            "Varies",
+            "Opportunity for improvement",
+        ]
+    )
+    story.append(
+        _make_table(
+            bench_rows,
+            col_widths=[
+                1.5 * inch,
+                1.1 * inch,
+                1.2 * inch,
+                2.4 * inch,
+            ],
+        )
+    )
     story.append(Spacer(1, 6))
-    story.append(Paragraph(
-        f"<i>*Industry benchmark based on {NRF_SOURCE}. Hardware and "
-        f"building materials retailers typically experience shrinkage rates "
-        f"between {_fmt_pct(NRF_RANGE_LOW)}-{_fmt_pct(NRF_RANGE_HIGH)}. "
-        f"These benchmarks include all sources of shrinkage (theft, "
-        f"administrative error, vendor fraud, etc.).</i>",
-        S["note"],
-    ))
+    story.append(
+        Paragraph(
+            f"<i>*Industry benchmark based on {NRF_SOURCE}. Hardware and "
+            f"building materials retailers typically experience shrinkage rates "
+            f"between {_fmt_pct(NRF_RANGE_LOW)}-{_fmt_pct(NRF_RANGE_HIGH)}. "
+            f"These benchmarks include all sources of shrinkage (theft, "
+            f"administrative error, vendor fraud, etc.).</i>",
+            S["note"],
+        )
+    )
     story.append(Spacer(1, 12))
 
     # =====================================================================
@@ -735,34 +874,57 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
     story.append(Paragraph("Summary of Findings", S["h2"]))
 
     findings_rows = [["#", "Finding", "Amount", "Recommended Action"]]
-    findings_rows.append([
-        "1", "Process issues identified in inventory",
-        _fmt_dollar(m["process_issues"]),
-        "Review with operations team",
-    ])
-    findings_rows.append([
-        "2", "Potential margin variance identified",
-        f"~{_fmt_pct(m['margin_variance'])}",
-        "Discuss with accountant",
-    ])
-    findings_rows.append([
-        "3", "Inventory valuation may need review",
-        _fmt_dollar(m["apparent_shrinkage"]),
-        "Consider adjustment",
-    ])
-    findings_rows.append([
-        "4", "Tax implications should be evaluated",
-        "Varies",
-        "Consult your CPA",
-    ])
-    findings_rows.append([
-        "5", "Remaining shrinkage to investigate",
-        _fmt_dollar(m["to_investigate"]),
-        "Investigate root causes",
-    ])
-    story.append(_make_table(findings_rows, col_widths=[
-        0.3 * inch, 2.5 * inch, 1.1 * inch, 2.3 * inch,
-    ]))
+    findings_rows.append(
+        [
+            "1",
+            "Process issues identified in inventory",
+            _fmt_dollar(m["process_issues"]),
+            "Review with operations team",
+        ]
+    )
+    findings_rows.append(
+        [
+            "2",
+            "Potential margin variance identified",
+            f"~{_fmt_pct(m['margin_variance'])}",
+            "Discuss with accountant",
+        ]
+    )
+    findings_rows.append(
+        [
+            "3",
+            "Inventory valuation may need review",
+            _fmt_dollar(m["apparent_shrinkage"]),
+            "Consider adjustment",
+        ]
+    )
+    findings_rows.append(
+        [
+            "4",
+            "Tax implications should be evaluated",
+            "Varies",
+            "Consult your CPA",
+        ]
+    )
+    findings_rows.append(
+        [
+            "5",
+            "Remaining shrinkage to investigate",
+            _fmt_dollar(m["to_investigate"]),
+            "Investigate root causes",
+        ]
+    )
+    story.append(
+        _make_table(
+            findings_rows,
+            col_widths=[
+                0.3 * inch,
+                2.5 * inch,
+                1.1 * inch,
+                2.3 * inch,
+            ],
+        )
+    )
     story.append(Spacer(1, 12))
 
     # =====================================================================
@@ -771,11 +933,13 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
     story.append(Paragraph("Pattern Analysis", S["h2"]))
 
     active = m["active_leaks"]
-    story.append(Paragraph(
-        f"During the diagnostic, <b>{len(active)}</b> leak patterns were "
-        f"identified and reviewed:",
-        S["body"],
-    ))
+    story.append(
+        Paragraph(
+            f"During the diagnostic, <b>{len(active)}</b> leak patterns were "
+            f"identified and reviewed:",
+            S["body"],
+        )
+    )
     story.append(Spacer(1, 6))
 
     if active:
@@ -783,22 +947,34 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
             ["Pattern", "Items", "Value", "Severity", "Category"],
         ]
         for key, leak_data in sorted(
-            active.items(), key=lambda x: x[1].get("priority", 99),
+            active.items(),
+            key=lambda x: x[1].get("priority", 99),
         ):
             count = leak_data.get("count", 0)
             val = m["breakdown"].get(key, 0)
             if key == "negative_inventory":
                 val = m["neg_inv_value"]
-            pattern_rows.append([
-                leak_data.get("title", key),
-                str(count),
-                _fmt_dollar(val),
-                leak_data.get("severity", "").upper(),
-                leak_data.get("category", ""),
-            ])
-        story.append(_make_table(pattern_rows, col_widths=[
-            1.6 * inch, 0.6 * inch, 0.9 * inch, 0.9 * inch, 1.3 * inch,
-        ]))
+            pattern_rows.append(
+                [
+                    leak_data.get("title", key),
+                    str(count),
+                    _fmt_dollar(val),
+                    leak_data.get("severity", "").upper(),
+                    leak_data.get("category", ""),
+                ]
+            )
+        story.append(
+            _make_table(
+                pattern_rows,
+                col_widths=[
+                    1.6 * inch,
+                    0.6 * inch,
+                    0.9 * inch,
+                    0.9 * inch,
+                    1.3 * inch,
+                ],
+            )
+        )
     story.append(Spacer(1, 8))
 
     # Summary by classification
@@ -818,19 +994,38 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
         ["Classification", "Description", "Items", "Value", "Status"],
     ]
     if m["process_issues"] > 0 or explained_items > 0:
-        class_rows.append([
-            "Total Explained", "", str(explained_items),
-            _fmt_dollar(m["process_issues"]), "EXPLAINED",
-        ])
+        class_rows.append(
+            [
+                "Total Explained",
+                "",
+                str(explained_items),
+                _fmt_dollar(m["process_issues"]),
+                "EXPLAINED",
+            ]
+        )
     if m["to_investigate"] > 0 or investigate_items > 0:
-        class_rows.append([
-            "Total to Investigate", "", str(investigate_items),
-            _fmt_dollar(m["to_investigate"]), "INVESTIGATE",
-        ])
+        class_rows.append(
+            [
+                "Total to Investigate",
+                "",
+                str(investigate_items),
+                _fmt_dollar(m["to_investigate"]),
+                "INVESTIGATE",
+            ]
+        )
     if len(class_rows) > 1:
-        story.append(_make_table(class_rows, col_widths=[
-            1.3 * inch, 1.3 * inch, 0.6 * inch, 0.8 * inch, 1.2 * inch,
-        ]))
+        story.append(
+            _make_table(
+                class_rows,
+                col_widths=[
+                    1.3 * inch,
+                    1.3 * inch,
+                    0.6 * inch,
+                    0.8 * inch,
+                    1.2 * inch,
+                ],
+            )
+        )
     story.append(Spacer(1, 12))
 
     # =====================================================================
@@ -883,26 +1078,31 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
     story.append(PageBreak())
     story.append(Paragraph("Complete Inventory Analysis", S["h2"]))
 
-    story.append(Paragraph(
-        f"The following pages contain the complete analysis of all "
-        f"{m['total_rows']:,} inventory items. This includes "
-        f"{m['total_flagged']:,} items that were flagged in this diagnostic.",
-        S["body"],
-    ))
+    story.append(
+        Paragraph(
+            f"The following pages contain the complete analysis of all "
+            f"{m['total_rows']:,} inventory items. This includes "
+            f"{m['total_flagged']:,} items that were flagged in this diagnostic.",
+            S["body"],
+        )
+    )
     story.append(Spacer(1, 12))
 
     for key, leak_data in sorted(
-        m["leaks"].items(), key=lambda x: x[1].get("priority", 99),
+        m["leaks"].items(),
+        key=lambda x: x[1].get("priority", 99),
     ):
         items = leak_data.get("item_details", [])
         if not items:
             continue
 
-        story.append(Paragraph(
-            f'<b>{leak_data.get("title", key)}</b> '
-            f'({len(items)} item{"s" if len(items) != 1 else ""})',
-            S["h3"],
-        ))
+        story.append(
+            Paragraph(
+                f'<b>{leak_data.get("title", key)}</b> '
+                f'({len(items)} item{"s" if len(items) != 1 else ""})',
+                S["h3"],
+            )
+        )
 
         sku_rows = [
             ["SKU", "Description", "Stock", "Cost", "Value", "Classification"],
@@ -912,19 +1112,28 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
             cost = item.get("cost", 0)
             value = abs(qty) * cost
             sev = leak_data.get("severity", "low")
-            sku_rows.append([
-                str(item.get("sku", ""))[:20],
-                str(item.get("description", ""))[:35],
-                str(int(qty)),
-                _fmt_dollar(cost),
-                _fmt_dollar(value),
-                sev.upper(),
-            ])
+            sku_rows.append(
+                [
+                    str(item.get("sku", ""))[:20],
+                    str(item.get("description", ""))[:35],
+                    str(int(qty)),
+                    _fmt_dollar(cost),
+                    _fmt_dollar(value),
+                    sev.upper(),
+                ]
+            )
 
-        t = _make_table(sku_rows, col_widths=[
-            0.9 * inch, 1.8 * inch, 0.6 * inch,
-            0.7 * inch, 0.8 * inch, 1.0 * inch,
-        ])
+        t = _make_table(
+            sku_rows,
+            col_widths=[
+                0.9 * inch,
+                1.8 * inch,
+                0.6 * inch,
+                0.7 * inch,
+                0.8 * inch,
+                1.0 * inch,
+            ],
+        )
         story.append(t)
         story.append(Spacer(1, 10))
 
@@ -937,32 +1146,36 @@ def generate_report_pdf(analysis_result: dict[str, Any]) -> bytes:
     stats_lines = [
         f"<b>Total Items in Inventory:</b> {m['total_rows']:,}",
         f"<b>Items Flagged:</b> {m['total_flagged']:,}",
-        f"<b>Total Apparent Shrinkage:</b> "
-        f"{_fmt_dollar(m['apparent_shrinkage'])}",
+        f"<b>Total Apparent Shrinkage:</b> " f"{_fmt_dollar(m['apparent_shrinkage'])}",
         f"<b>Explained as Process Issues:</b> "
         f"{_fmt_dollar(m['process_issues'])} "
         f"({_fmt_pct(m['reduction_pct'])})",
-        f"<b>Remaining to Investigate:</b> "
-        f"{_fmt_dollar(m['to_investigate'])}",
+        f"<b>Remaining to Investigate:</b> " f"{_fmt_dollar(m['to_investigate'])}",
     ]
     for line in stats_lines:
         story.append(Paragraph(line, S["body"]))
 
     story.append(Spacer(1, 16))
-    story.append(Paragraph(
-        f"<i>This report was generated by Profit Sentinel on "
-        f"{now.strftime('%B %d, %Y')} at {now.strftime('%I:%M %p')} UTC.</i>",
-        S["note"],
-    ))
+    story.append(
+        Paragraph(
+            f"<i>This report was generated by Profit Sentinel on "
+            f"{now.strftime('%B %d, %Y')} at {now.strftime('%I:%M %p')} UTC.</i>",
+            S["note"],
+        )
+    )
 
     # Build PDF with footer callback
     doc.build(
-        story, onFirstPage=_add_page_footer, onLaterPages=_add_page_footer,
+        story,
+        onFirstPage=_add_page_footer,
+        onLaterPages=_add_page_footer,
     )
     pdf_bytes = buf.getvalue()
     buf.close()
 
     logger.info(
-        "Generated PDF report %s: %d bytes", report_id, len(pdf_bytes),
+        "Generated PDF report %s: %d bytes",
+        report_id,
+        len(pdf_bytes),
     )
     return pdf_bytes

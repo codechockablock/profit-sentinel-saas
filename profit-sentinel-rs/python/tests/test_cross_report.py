@@ -8,15 +8,13 @@ Covers:
 """
 
 import pytest
-
-from sentinel_agent.cross_report import compare_analyses, CrossReportResult, LeakTrend
 from sentinel_agent.analysis_store import (
     InMemoryAnalysisStore,
+    get_analysis,
     init_analysis_store,
     save_analysis,
-    get_analysis,
 )
-
+from sentinel_agent.cross_report import CrossReportResult, LeakTrend, compare_analyses
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -289,6 +287,7 @@ class TestCompareAnalyses:
 
         # Verify it's JSON-serializable
         import json
+
         json_str = json.dumps(d)
         assert len(json_str) > 10
 
@@ -380,7 +379,11 @@ class TestCompareEndpoint:
         saved = save_analysis(
             user_id="dev-user",
             result={
-                "summary": {"total_items_flagged": 1, "estimated_impact": {}, "dataset_stats": {}},
+                "summary": {
+                    "total_items_flagged": 1,
+                    "estimated_impact": {},
+                    "dataset_stats": {},
+                },
                 "leaks": {},
             },
             file_hash="x" * 64,

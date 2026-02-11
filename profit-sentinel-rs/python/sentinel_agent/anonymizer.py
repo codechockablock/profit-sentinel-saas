@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any
 
 import httpx
@@ -33,8 +33,26 @@ logger = logging.getLogger("sentinel.anonymizer")
 # Common retail categories inferred from product descriptions
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "lumber": ["lumber", "2x4", "2x6", "4x4", "plywood", "osb", "deck board", "stud"],
-    "electrical": ["wire", "outlet", "switch", "breaker", "conduit", "romex", "led", "bulb"],
-    "plumbing": ["pipe", "pvc", "fitting", "faucet", "valve", "copper", "drain", "toilet"],
+    "electrical": [
+        "wire",
+        "outlet",
+        "switch",
+        "breaker",
+        "conduit",
+        "romex",
+        "led",
+        "bulb",
+    ],
+    "plumbing": [
+        "pipe",
+        "pvc",
+        "fitting",
+        "faucet",
+        "valve",
+        "copper",
+        "drain",
+        "toilet",
+    ],
     "hardware": ["screw", "nail", "bolt", "nut", "hinge", "lock", "latch", "anchor"],
     "paint": ["paint", "stain", "primer", "brush", "roller", "caulk", "sealant"],
     "tools": ["drill", "saw", "hammer", "wrench", "socket", "level", "tape measure"],
@@ -68,7 +86,15 @@ def _infer_industry(descriptions: list[str]) -> str:
 
     top = max(category_counts, key=category_counts.get)  # type: ignore[arg-type]
     # Map top category to industry
-    hardware_cats = {"lumber", "electrical", "plumbing", "hardware", "tools", "concrete", "hvac"}
+    hardware_cats = {
+        "lumber",
+        "electrical",
+        "plumbing",
+        "hardware",
+        "tools",
+        "concrete",
+        "hvac",
+    }
     if top in hardware_cats:
         return "hardware"
     if top in {"outdoor"}:
@@ -81,6 +107,7 @@ def _infer_industry(descriptions: list[str]) -> str:
 # ---------------------------------------------------------------------------
 # Anonymization: analysis result → dorian_facts rows
 # ---------------------------------------------------------------------------
+
 
 def anonymize_analysis(analysis_result: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract anonymized facts from a full analysis result.
@@ -115,7 +142,7 @@ def anonymize_analysis(analysis_result: dict[str, Any]) -> list[dict[str, Any]]:
                 all_descriptions.append(desc)
 
     industry = _infer_industry(all_descriptions)
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
 
     # ── Per-leak-type facts ──────────────────────────────────────
     for leak_key, leak_data in leaks.items():
@@ -138,7 +165,8 @@ def anonymize_analysis(analysis_result: dict[str, Any]) -> list[dict[str, Any]]:
             item_categories[cat] = item_categories.get(cat, 0) + 1
         dominant_category = (
             max(item_categories, key=item_categories.get)  # type: ignore[arg-type]
-            if item_categories else "general_merchandise"
+            if item_categories
+            else "general_merchandise"
         )
 
         fact = {
@@ -151,16 +179,21 @@ def anonymize_analysis(analysis_result: dict[str, Any]) -> list[dict[str, Any]]:
             "sku_category": dominant_category,
             "metadata": {
                 "item_count": count,
-                "flag_rate_pct": round(count / total_rows * 100, 2) if total_rows > 0 else 0,
+                "flag_rate_pct": (
+                    round(count / total_rows * 100, 2) if total_rows > 0 else 0
+                ),
                 "severity": leak_data.get("severity", "low"),
-                "impact_estimate_usd": round(breakdown_impact, 2) if breakdown_impact else None,
+                "impact_estimate_usd": (
+                    round(breakdown_impact, 2) if breakdown_impact else None
+                ),
                 "avg_cost": round(sum(costs) / len(costs), 2) if costs else None,
-                "avg_margin_pct": round(sum(margins) / len(margins), 2) if margins else None,
+                "avg_margin_pct": (
+                    round(sum(margins) / len(margins), 2) if margins else None
+                ),
                 "avg_score": round(sum(scores) / len(scores), 3) if scores else None,
                 "category_distribution": {
-                    k: v for k, v in sorted(
-                        item_categories.items(), key=lambda x: -x[1]
-                    )[:5]
+                    k: v
+                    for k, v in sorted(item_categories.items(), key=lambda x: -x[1])[:5]
                 },
                 "analyzed_at": now_iso,
             },
@@ -169,45 +202,53 @@ def anonymize_analysis(analysis_result: dict[str, Any]) -> list[dict[str, Any]]:
 
     # ── Overall analysis fact ────────────────────────────────────
     active_count = sum(1 for v in leaks.values() if v.get("count", 0) > 0)
-    facts.append({
-        "subject": f"{industry}_store",
-        "predicate": "analysis_summary",
-        "object": f"{active_count}_of_11_leaks_detected",
-        "confidence": 1.0,
-        "industry": industry,
-        "pattern_type": "analysis_summary",
-        "sku_category": None,
-        "metadata": {
-            "total_items_analyzed": total_rows,
-            "total_items_flagged": total_flagged,
-            "flag_rate_pct": round(total_flagged / total_rows * 100, 2) if total_rows > 0 else 0,
-            "active_leak_types": active_count,
-            "impact_low_usd": round(impact.get("low_estimate", 0), 2),
-            "impact_high_usd": round(impact.get("high_estimate", 0), 2),
-            "analysis_time_seconds": summary.get("analysis_time_seconds", 0),
-            "analyzed_at": now_iso,
-        },
-    })
+    facts.append(
+        {
+            "subject": f"{industry}_store",
+            "predicate": "analysis_summary",
+            "object": f"{active_count}_of_11_leaks_detected",
+            "confidence": 1.0,
+            "industry": industry,
+            "pattern_type": "analysis_summary",
+            "sku_category": None,
+            "metadata": {
+                "total_items_analyzed": total_rows,
+                "total_items_flagged": total_flagged,
+                "flag_rate_pct": (
+                    round(total_flagged / total_rows * 100, 2) if total_rows > 0 else 0
+                ),
+                "active_leak_types": active_count,
+                "impact_low_usd": round(impact.get("low_estimate", 0), 2),
+                "impact_high_usd": round(impact.get("high_estimate", 0), 2),
+                "analysis_time_seconds": summary.get("analysis_time_seconds", 0),
+                "analyzed_at": now_iso,
+            },
+        }
+    )
 
     # ── Root cause fact (if available) ───────────────────────────
     if cause and cause.get("top_cause"):
-        facts.append({
-            "subject": f"{industry}_store",
-            "predicate": "root_cause_detected",
-            "object": cause["top_cause"],
-            "confidence": cause.get("confidence", 0.5),
-            "industry": industry,
-            "pattern_type": "root_cause",
-            "sku_category": None,
-            "metadata": {
-                "hypotheses_count": len(cause.get("hypotheses", [])),
-                "analyzed_at": now_iso,
-            },
-        })
+        facts.append(
+            {
+                "subject": f"{industry}_store",
+                "predicate": "root_cause_detected",
+                "object": cause["top_cause"],
+                "confidence": cause.get("confidence", 0.5),
+                "industry": industry,
+                "pattern_type": "root_cause",
+                "sku_category": None,
+                "metadata": {
+                    "hypotheses_count": len(cause.get("hypotheses", [])),
+                    "analyzed_at": now_iso,
+                },
+            }
+        )
 
     logger.info(
         "Anonymized analysis: %d facts from %d items (%s industry)",
-        len(facts), total_rows, industry,
+        len(facts),
+        total_rows,
+        industry,
     )
     return facts
 
@@ -215,6 +256,7 @@ def anonymize_analysis(analysis_result: dict[str, Any]) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Persistence: insert anonymized facts into Supabase dorian_facts
 # ---------------------------------------------------------------------------
+
 
 async def store_anonymized_facts(
     facts: list[dict[str, Any]],
@@ -245,20 +287,22 @@ async def store_anonymized_facts(
     # Build rows for insertion (without vector — application can backfill later)
     rows = []
     for fact in facts:
-        rows.append({
-            "subject": fact["subject"],
-            "predicate": fact["predicate"],
-            "object": fact["object"],
-            "confidence": fact.get("confidence", 1.0),
-            "industry": fact.get("industry"),
-            "pattern_type": fact.get("pattern_type"),
-            "sku_category": fact.get("sku_category"),
-            "metadata": fact.get("metadata", {}),
-            "agent_id": "guest_analysis",
-            "domain": "retail",
-            "source": "auto_anonymization",
-            "status": "active",
-        })
+        rows.append(
+            {
+                "subject": fact["subject"],
+                "predicate": fact["predicate"],
+                "object": fact["object"],
+                "confidence": fact.get("confidence", 1.0),
+                "industry": fact.get("industry"),
+                "pattern_type": fact.get("pattern_type"),
+                "sku_category": fact.get("sku_category"),
+                "metadata": fact.get("metadata", {}),
+                "agent_id": "guest_analysis",
+                "domain": "retail",
+                "source": "auto_anonymization",
+                "status": "active",
+            }
+        )
 
     rest_url = f"{supabase_url}/rest/v1/dorian_facts"
 
@@ -281,7 +325,8 @@ async def store_anonymized_facts(
     except httpx.HTTPStatusError as e:
         logger.error(
             "Failed to store anonymized facts: %s %s",
-            e.response.status_code, e.response.text,
+            e.response.status_code,
+            e.response.text,
         )
         return 0
     except Exception as e:

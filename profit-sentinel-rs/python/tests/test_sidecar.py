@@ -110,7 +110,6 @@ def _dev_settings() -> SidecarSettings:
 def client():
     """Create a test client with mocked engine."""
 
-
     settings = _dev_settings()
 
     with patch("sentinel_agent.sidecar.SentinelEngine") as MockEngine:
@@ -123,12 +122,9 @@ def client():
         yield TestClient(app)
 
 
-
-
 @pytest.fixture
 def client_no_binary():
     """Create a test client where binary is not found."""
-
 
     settings = _dev_settings()
 
@@ -140,12 +136,9 @@ def client_no_binary():
         yield TestClient(app)
 
 
-
-
 @pytest.fixture
 def auth_client():
     """Create a test client with auth REQUIRED (not dev mode)."""
-
 
     settings = SidecarSettings(
         sidecar_dev_mode=False,
@@ -163,8 +156,6 @@ def auth_client():
 
         app = create_app(settings)
         yield TestClient(app)
-
-
 
 
 # ---------------------------------------------------------------------------

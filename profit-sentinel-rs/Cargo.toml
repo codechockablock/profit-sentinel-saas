@@ -2,6 +2,7 @@
 members = [
     "sentinel-pipeline",
     "sentinel-vsa",
+    "sentinel-bridge",
     "sentinel-server",
 ]
 resolver = "2"

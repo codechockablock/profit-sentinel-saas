@@ -1,12 +1,12 @@
-"""Sample Store inventory adapter.
+"""Generic POS inventory adapter.
 
-Maps the Sample Store POS export format to the canonical NormalizedInventory
-schema. Sample Store exports come in two main formats:
+Maps a common POS export format to the canonical NormalizedInventory
+schema. Supports two main CSV layouts:
 
-1. custom_1.csv / Inventory_Report_AllSKUs_SHLP_YTD.csv — Full inventory
+1. custom_1.csv / Full inventory report — Full inventory
    with 50+ columns (Qty On Hand, Std. Cost, Retail, etc.)
 
-2. Inventory_Report_AllSKUs_SHLP_YTD.csv — Orgill-sourced inventory report
+2. SHLP_YTD report — Orgill-sourced inventory report
    with monthly sales columns (Jan, Feb, ..., Year Total)
 
 Column mapping (custom_1 / full inventory):
@@ -53,18 +53,18 @@ _SHLP_COLUMNS = {"SKU", "Vendor", "Vendor SKU", "Stock", "Avg. Cost", "Gross Sal
 
 
 class GenericPosAdapter(BaseAdapter):
-    """Adapter for Sample Store Community Hardware POS exports."""
+    """Adapter for generic POS inventory exports."""
 
     @property
     def name(self) -> str:
-        return "Sample Store Inventory"
+        return "Generic POS Inventory"
 
     def can_handle(self, path: Path) -> bool:
-        """Detect Sample Store inventory by column signature."""
+        """Detect compatible inventory by column signature."""
         path = Path(path)
 
         if path.is_dir():
-            # Look for known Sample Store filenames
+            # Look for known filenames
             known_files = [
                 "Inventory_Report_AllSKUs_SHLP_YTD.csv",
                 "custom_1.csv",
@@ -83,7 +83,7 @@ class GenericPosAdapter(BaseAdapter):
         return False
 
     def _check_file(self, path: Path) -> bool:
-        """Check if a CSV has Sample Store column signatures."""
+        """Check if a CSV has compatible column signatures."""
         try:
             with open(path, encoding="utf-8", errors="replace") as f:
                 header = f.readline()
@@ -93,7 +93,7 @@ class GenericPosAdapter(BaseAdapter):
             return False
 
     def ingest(self, path: Path, store_id: str = "default-store") -> AdapterResult:
-        """Parse Sample Store inventory files.
+        """Parse POS inventory files.
 
         Supports:
         - Single CSV file
@@ -131,7 +131,7 @@ class GenericPosAdapter(BaseAdapter):
                 return AdapterResult(
                     source=str(path),
                     adapter_name=self.name,
-                    errors=["No compatible Sample Store CSV found in directory"],
+                    errors=["No compatible inventory CSV found in directory"],
                 )
 
             result = self._parse_inventory_csv(target, store_id)
@@ -228,8 +228,7 @@ class GenericPosAdapter(BaseAdapter):
             return None
 
         # Parse qty_on_hand — prefer "Qty." (includes negatives from sold-not-received),
-        # fall back to "Qty On Hand" (physical count, never negative in Sample Store data).
-        # In the real data, "Qty." has 3,958 negative entries; "Qty On Hand" has zero.
+        # fall back to "Qty On Hand" (physical count, typically non-negative).
         # The negatives are critical for the pipeline's NegativeInventory detection.
         qty_raw = _safe_int(row.get("Qty.", ""))
         if qty_raw is None:

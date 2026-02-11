@@ -7,7 +7,7 @@ Supports both HTML and plain text emails.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 import httpx
 
@@ -140,7 +140,7 @@ def render_digest_html(
     generated_at : str, optional
         ISO timestamp for when digest was generated
     """
-    now = generated_at or datetime.now(timezone.utc).strftime("%B %d, %Y")
+    now = generated_at or datetime.now(UTC).strftime("%B %d, %Y")
 
     # Build issue rows
     issue_rows = ""
@@ -148,8 +148,7 @@ def render_digest_html(
         for issue in issues[:10]:
             bg, fg = _priority_color(issue.get("priority_score", 0))
             issue_type = (
-                issue.get("issue_type", "Unknown")
-                .replace("_", " ")
+                issue.get("issue_type", "Unknown").replace("_", " ")
                 # CamelCase to spaces
             )
             # Insert space before capitals for CamelCase
@@ -315,7 +314,9 @@ async def send_digest_email(
 # ---------------------------------------------------------------------------
 
 
-def _render_report_email_html(total_items: int, total_flagged: int, leak_count: int) -> str:
+def _render_report_email_html(
+    total_items: int, total_flagged: int, leak_count: int
+) -> str:
     """Render the HTML body for the guest report delivery email."""
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -418,8 +419,10 @@ async def send_report_email(
             f"Save this report — your uploaded files are automatically deleted "
             f"within 24 hours."
         ),
-        attachments=[{
-            "filename": "Profit_Sentinel_Shrinkage_Report.pdf",
-            "content": base64.b64encode(pdf_bytes).decode("ascii"),
-        }],
+        attachments=[
+            {
+                "filename": "Profit_Sentinel_Shrinkage_Report.pdf",
+                "content": base64.b64encode(pdf_bytes).decode("ascii"),
+            }
+        ],
     )

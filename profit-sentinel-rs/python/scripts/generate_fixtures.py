@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Generate real Sample Store test fixtures from actual data.
+"""Generate test fixtures from real inventory data.
 
-This script reads real Sample Store inventory data, runs it through the
-adapter and bridge, and writes pipeline-ready CSV fixtures for testing.
+This script reads real inventory data, runs it through the adapter and
+bridge, and writes pipeline-ready CSV fixtures for testing.
 
 Output:
-    tests/fixtures/generic_pos_sample.csv  — 1000 diverse rows for unit tests
-    tests/fixtures/generic_pos_full.csv    — All 156K rows for integration tests
+    tests/fixtures/inventory_sample.csv  — 1000 diverse rows for unit tests
+    tests/fixtures/inventory_full.csv    — All rows for integration tests
 
 Usage:
     cd profit-sentinel-rs/python
@@ -47,7 +47,7 @@ def main():
     bridge = PipelineBridge()
 
     # --- Full fixture (all records) ---
-    full_path = FIXTURE_DIR / "generic_pos_full.csv"
+    full_path = FIXTURE_DIR / "inventory_full.csv"
     print(f"\nGenerating full fixture → {full_path}")
     bridge.to_pipeline_csv(records, full_path)
     print(f"  Written: {len(records):,} records")
@@ -95,7 +95,7 @@ def main():
 
     sample_list = sorted(sample_by_sku.values(), key=lambda r: r.sku_id)
 
-    sample_path = FIXTURE_DIR / "generic_pos_sample.csv"
+    sample_path = FIXTURE_DIR / "inventory_sample.csv"
     print(f"\nGenerating sample fixture → {sample_path}")
     bridge.to_pipeline_csv(sample_list, sample_path)
 

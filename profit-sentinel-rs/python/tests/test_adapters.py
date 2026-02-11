@@ -3,7 +3,7 @@
 Tests cover:
 - Base models (NormalizedInventory, PurchaseOrder, POLineItem)
 - Orgill PO parser (header extraction, line items, short-ships)
-- Sample Store inventory mapper (column mapping, date parsing)
+- Default POS inventory mapper (column mapping, date parsing)
 - Auto-detection (correct adapter selection)
 - Adapter result aggregation (summaries, fill rates)
 """
@@ -26,8 +26,8 @@ from sentinel_agent.adapters.detection import (
     detect_and_ingest,
     list_adapters,
 )
-from sentinel_agent.adapters.orgill import OrgillPOAdapter
 from sentinel_agent.adapters.generic_pos import GenericPosAdapter
+from sentinel_agent.adapters.orgill import OrgillPOAdapter
 
 # ---------------------------------------------------------------------------
 # Fixtures — sample data files
@@ -58,7 +58,7 @@ Line ,  Retail,Item   , ,Ord Qty,Unit ,Description                   , Unit Cost
 """
 
 
-SAMPLE_INVENTORY_CSV = """\
+SAMPLE_POS_CSV = """\
 SKU,Vendor SKU,Vendor,Alt. Vendor/Mfgr.,Cat.,Dpt.,BIN,Description Full,Description Short,Qty.,Qty On Hand,Std. Cost,Inventory @Cost,Avg. Cost,Inventory @AvgCost,Retail,Inventory @Retail,Margin @Cost,Sug. Retail,Retail Dif.,On Hold,Sales,$ Sold,Last Sale,Returns,$ Returned,Last Return,Last Ordered,On Order,Last Purchase,Min.,Max.,Pkg.,Whse.,Mfgr. SKU,Barcode,Alt. Barcode ,Level Option,Level Type,Level 1 Retail,Level 2 Retail,Level 3 Retail,Level 4 Retail,Level 1 % Off/Over,Level 2 % Off/Over,Level 3 % Off/Over,Level 4 % Off/Over,Promtion From,Promotion To,Promo. Retail,Promo. Margin %,Tax Account,
 TEST-SKU-001,VS001,TESTVENDOR,MFG1,101,15,A1-01,Test Widget Full Name,Test Widget,10,10,5.99,59.90,5.99,59.90,9.99,99.90,40.07,9.99,,0,25,249.75,20250601,2,19.98,20250301,20250515,5,20250515,2,10,1,,MFG-001,123456789012,,OFF,Retail,0.000,0.000,0.000,0.000,0,0,0,0,,,,,Y,
 TEST-SKU-002,VS002,TESTVENDOR,MFG2,103,25,B2-05,Another Product Full,Another Product,-3,0,12.50,0.00,12.50,0.00,19.99,,36.47,,,0,5,99.95,20250815,0,0.00,,,0,,0,0,1,,MFG-002,987654321098,,OFF,Retail,0.000,0.000,0.000,0.000,0,0,0,0,,,,,Y,
@@ -91,18 +91,18 @@ def orgill_po_dir(tmp_path):
 
 
 @pytest.fixture
-def generic_pos_file(tmp_path):
-    """Write a sample Sample Store CSV to a temp file."""
+def pos_inventory_file(tmp_path):
+    """Write a sample POS inventory CSV to a temp file."""
     f = tmp_path / "custom_1.csv"
-    f.write_text(SAMPLE_INVENTORY_CSV)
+    f.write_text(SAMPLE_POS_CSV)
     return f
 
 
 @pytest.fixture
-def generic_pos_dir(tmp_path):
-    """Directory with Sample Store files."""
+def pos_inventory_dir(tmp_path):
+    """Directory with POS inventory files."""
     f = tmp_path / "custom_1.csv"
-    f.write_text(SAMPLE_INVENTORY_CSV)
+    f.write_text(SAMPLE_POS_CSV)
     return tmp_path
 
 
@@ -302,9 +302,9 @@ class TestOrgillPOAdapter:
         adapter = OrgillPOAdapter()
         assert adapter.can_handle(orgill_po_dir)
 
-    def test_cannot_handle_generic_pos(self, generic_pos_file):
+    def test_cannot_handle_pos_inventory(self, pos_inventory_file):
         adapter = OrgillPOAdapter()
-        assert not adapter.can_handle(generic_pos_file)
+        assert not adapter.can_handle(pos_inventory_file)
 
     def test_parse_single_file(self, orgill_po_file):
         adapter = OrgillPOAdapter()
@@ -376,32 +376,32 @@ class TestOrgillPOAdapter:
 
 
 # ---------------------------------------------------------------------------
-# Sample Store Inventory Tests
+# Default POS Inventory Tests
 # ---------------------------------------------------------------------------
 
 
-class TestGenericPosAdapter:
-    def test_can_handle_file(self, generic_pos_file):
+class TestDefaultPosAdapter:
+    def test_can_handle_file(self, pos_inventory_file):
         adapter = GenericPosAdapter()
-        assert adapter.can_handle(generic_pos_file)
+        assert adapter.can_handle(pos_inventory_file)
 
-    def test_can_handle_directory(self, generic_pos_dir):
+    def test_can_handle_directory(self, pos_inventory_dir):
         adapter = GenericPosAdapter()
-        assert adapter.can_handle(generic_pos_dir)
+        assert adapter.can_handle(pos_inventory_dir)
 
     def test_cannot_handle_orgill(self, orgill_po_file):
         adapter = GenericPosAdapter()
         assert not adapter.can_handle(orgill_po_file)
 
-    def test_parse_inventory(self, generic_pos_file):
+    def test_parse_inventory(self, pos_inventory_file):
         adapter = GenericPosAdapter()
-        result = adapter.ingest(generic_pos_file)
+        result = adapter.ingest(pos_inventory_file)
         assert result.total_inventory_records == 3
         assert not result.has_errors
 
-    def test_column_mapping(self, generic_pos_file):
+    def test_column_mapping(self, pos_inventory_file):
         adapter = GenericPosAdapter()
-        result = adapter.ingest(generic_pos_file)
+        result = adapter.ingest(pos_inventory_file)
         rec = result.inventory_records[0]
 
         assert rec.sku_id == "TEST-SKU-001"
@@ -419,41 +419,41 @@ class TestGenericPosAdapter:
         assert rec.max_qty == 10
         assert rec.description == "Test Widget Full Name"
 
-    def test_date_parsing_yyyymmdd(self, generic_pos_file):
+    def test_date_parsing_yyyymmdd(self, pos_inventory_file):
         adapter = GenericPosAdapter()
-        result = adapter.ingest(generic_pos_file)
+        result = adapter.ingest(pos_inventory_file)
         rec = result.inventory_records[0]
         assert rec.last_sale_date == date(2025, 6, 1)
         assert rec.last_receipt_date == date(2025, 5, 15)
 
-    def test_sales_ytd(self, generic_pos_file):
+    def test_sales_ytd(self, pos_inventory_file):
         adapter = GenericPosAdapter()
-        result = adapter.ingest(generic_pos_file)
+        result = adapter.ingest(pos_inventory_file)
         rec = result.inventory_records[0]
         assert abs(rec.sales_ytd - 249.75) < 0.01
 
-    def test_negative_qty_on_hand(self, generic_pos_file):
+    def test_negative_qty_on_hand(self, pos_inventory_file):
         adapter = GenericPosAdapter()
-        result = adapter.ingest(generic_pos_file)
+        result = adapter.ingest(pos_inventory_file)
         # Second item has Qty On Hand = 0, Qty. = -3
         rec = result.inventory_records[1]
         assert rec.sku_id == "TEST-SKU-002"
         # Adapter prefers "Qty." over "Qty On Hand" because "Qty."
         # captures negatives critical for NegativeInventory detection.
-        # In real Sample Store data: "Qty." has 3,958 negatives, "Qty On Hand" has zero.
+        # In real data: "Qty." has 3,958 negatives, "Qty On Hand" has zero.
         assert rec.qty_on_hand == -3
 
-    def test_empty_fields_handled(self, generic_pos_file):
+    def test_empty_fields_handled(self, pos_inventory_file):
         adapter = GenericPosAdapter()
-        result = adapter.ingest(generic_pos_file)
+        result = adapter.ingest(pos_inventory_file)
         rec = result.inventory_records[2]
         assert rec.sku_id == "TEST-SKU-003"
         assert rec.vendor is None
         assert rec.unit_cost == 0.0
 
-    def test_store_id_propagation(self, generic_pos_file):
+    def test_store_id_propagation(self, pos_inventory_file):
         adapter = GenericPosAdapter()
-        result = adapter.ingest(generic_pos_file, store_id="my-store")
+        result = adapter.ingest(pos_inventory_file, store_id="my-store")
         for rec in result.inventory_records:
             assert rec.store_id == "my-store"
 
@@ -476,12 +476,12 @@ class TestGenericPosAdapter:
 
     def test_adapter_name(self):
         adapter = GenericPosAdapter()
-        assert adapter.name == "Sample Store Inventory"
+        assert adapter.name == "Generic POS Inventory"
 
-    def test_directory_picks_custom1(self, generic_pos_dir):
+    def test_directory_picks_custom1(self, pos_inventory_dir):
         """When directory has custom_1.csv, it should be picked first."""
         adapter = GenericPosAdapter()
-        result = adapter.ingest(generic_pos_dir)
+        result = adapter.ingest(pos_inventory_dir)
         assert result.total_inventory_records == 3  # 3 rows in our fixture
 
 
@@ -501,10 +501,10 @@ class TestDetection:
         assert adapter is not None
         assert adapter.name == "Orgill PO"
 
-    def test_detect_generic_pos(self, generic_pos_file):
-        adapter = detect_adapter(generic_pos_file)
+    def test_detect_pos_inventory(self, pos_inventory_file):
+        adapter = detect_adapter(pos_inventory_file)
         assert adapter is not None
-        assert adapter.name == "Sample Store Inventory"
+        assert adapter.name == "Generic POS Inventory"
 
     def test_detect_unknown(self, tmp_path):
         f = tmp_path / "random.csv"
@@ -517,9 +517,9 @@ class TestDetection:
         assert result.adapter_name == "Orgill PO"
         assert result.total_purchase_orders == 1
 
-    def test_detect_and_ingest_generic_pos(self, generic_pos_file):
-        result = detect_and_ingest(generic_pos_file)
-        assert result.adapter_name == "Sample Store Inventory"
+    def test_detect_and_ingest_pos_inventory(self, pos_inventory_file):
+        result = detect_and_ingest(pos_inventory_file)
+        assert result.adapter_name == "Generic POS Inventory"
         assert result.total_inventory_records == 3
 
     def test_detect_and_ingest_unknown(self, tmp_path):
@@ -534,7 +534,7 @@ class TestDetection:
         assert len(adapters) == 5
         names = [a["name"] for a in adapters]
         assert "Orgill PO" in names
-        assert "Sample Store Inventory" in names
+        assert "Generic POS Inventory" in names
         assert "Sales Data" in names
         assert "Do It Best" in names
         assert "Ace Hardware" in names
@@ -584,7 +584,7 @@ class TestEdgeCases:
         result = adapter.ingest(f)
         assert result.total_purchase_orders == 0
 
-    def test_generic_pos_empty_csv(self, tmp_path):
+    def test_pos_inventory_empty_csv(self, tmp_path):
         f = tmp_path / "empty.csv"
         f.write_text("SKU,Vendor SKU,Vendor,Qty On Hand,Avg. Cost,Retail\n")
         adapter = GenericPosAdapter()
@@ -622,10 +622,10 @@ _REAL_REPORTS_DIR = Path("/Users/joseph/Downloads/Reports")
 
 @pytest.mark.skipif(
     not _REAL_CUSTOM1.exists(),
-    reason="Real Sample Store custom_1.csv not available",
+    reason="Real custom_1.csv not available",
 )
-class TestRealGenericPosNegativeInventory:
-    """Tests against real Sample Store data to verify negative inventory handling.
+class TestRealNegativeInventory:
+    """Tests against real data to verify negative inventory handling.
 
     The real custom_1.csv has 156,157 data rows. The 'Qty.' column contains
     3,958 negative entries which are critical for NegativeInventory detection

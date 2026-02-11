@@ -108,11 +108,16 @@ def validate_configs(config_dir: str | Path) -> None:
     hybrid_path = config_dir / "hybrid_pipeline_config.yaml"
 
     if not anomaly_path.exists():
-        logger.warning("anomaly_detection.yaml not found at %s, skipping validation", anomaly_path)
+        logger.warning(
+            "anomaly_detection.yaml not found at %s, skipping validation", anomaly_path
+        )
         return
 
     if not hybrid_path.exists():
-        logger.warning("hybrid_pipeline_config.yaml not found at %s, skipping validation", hybrid_path)
+        logger.warning(
+            "hybrid_pipeline_config.yaml not found at %s, skipping validation",
+            hybrid_path,
+        )
         return
 
     anomaly_raw = _load_yaml(anomaly_path)

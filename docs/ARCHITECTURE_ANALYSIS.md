@@ -26,7 +26,7 @@ The new system (`profit-sentinel-rs/`) is a Rust+Python hybrid totaling approxim
 
 ### The Critical Gap
 
-The **single most important missing piece** is the data bridge: Python adapters produce `NormalizedInventory` records (18 fields from real POS data), but the Rust pipeline expects `InventoryRecord` structs (11 fields in a specific CSV format). There is currently no converter between them. Closing this gap is the prerequisite for running real analysis on Sample Store data.
+The **single most important missing piece** is the data bridge: Python adapters produce `NormalizedInventory` records (18 fields from real POS data), but the Rust pipeline expects `InventoryRecord` structs (11 fields in a specific CSV format). There is currently no converter between them. Closing this gap is the prerequisite for running real analysis on store data.
 
 ### What's Complete, What's Not
 
@@ -35,7 +35,7 @@ The **single most important missing piece** is the data bridge: Python adapters 
 | VSA bundling (hot path) | Python (~90s) | Rust (~2s) | ✅ Done, 45x faster |
 | Issue classification | 11 primitives | 7 types w/ dollar impact | ✅ Done, typed |
 | Pipeline architecture | Ad-hoc service | Async trait-based 9-stage | ✅ Done, extensible |
-| POS data adapters | AI mapping service | Sample Store + Orgill parsers | ✅ Done for Sample Store |
+| POS data adapters | AI mapping service | Sample store + Orgill parsers | ✅ Done for sample store |
 | NormalizedInventory→Rust bridge | N/A | **Missing** | ❌ Critical gap |
 | Morning digest | Email-based | Text rendering + mobile API | ✅ Done |
 | Co-op intelligence | Not present | Full suite (patronage, GMROI, rebates) | ✅ New capability |
@@ -358,8 +358,8 @@ python/sentinel_agent/
 ├── adapters/
 │   ├── base.py                  # BaseAdapter ABC + canonical models ★
 │   ├── detection.py             # Auto-detection logic
-│   ├── generic_pos/
-│   │   ├── inventory.py         # Sample Store/IdoSoft adapter ★
+│   ├── sample_store/
+│   │   ├── inventory.py         # Sample store/IdoSoft adapter ★
 │   │   └── __init__.py
 │   ├── orgill/
 │   │   ├── po_parser.py         # Orgill PO parser ★
@@ -403,7 +403,7 @@ store_id, category, department, barcode, on_order_qty,
 min_qty, max_qty, sales_ytd, cost_ytd
 ```
 
-**Sample Store adapter** — Handles two formats:
+**Sample store adapter** — Handles two formats:
 1. `custom_1.csv` (53 columns) → Full inventory with 50+ fields
 2. `Inventory_Report_AllSKUs_SHLP_YTD.csv` (36 columns) → Monthly sales rollup
 
@@ -497,14 +497,14 @@ Field mapping required:
 | (not present) | `is_seasonal` | Default false |
 
 Missing data problems:
-- **`sales_last_30d`**: Not in any Sample Store export. `sales_ytd` exists but is annual. Could approximate as `sales_ytd / months_elapsed` or require a separate sales report.
+- **`sales_last_30d`**: Not in any sample store export. `sales_ytd` exists but is annual. Could approximate as `sales_ytd / months_elapsed` or require a separate sales report.
 - **`is_damaged`**: Not in POS data. Default to `false`.
 - **`is_seasonal`**: Not in POS data. Could derive from category/department (e.g., "Christmas", "Seasonal").
 - **`days_since_receipt`**: Calculable from `last_receipt_date` when present.
 
 #### Gap 2: No Real Fixtures ❌❌
 
-The only fixture is `sample_inventory.csv` with 21 synthetic rows. There are no test fixtures generated from real Sample Store data. The entire pipeline has never been tested against real-world data.
+The only fixture is `sample_inventory.csv` with 21 synthetic rows. There are no test fixtures generated from real store data. The entire pipeline has never been tested against real-world data.
 
 ### 4.2 Significant Gaps (Missing Production Capabilities)
 
@@ -532,7 +532,7 @@ The bridge translates anomalies into proof trees. Without it, the system can't e
 
 The original system's 3-tier mapping (AI → heuristic → sample value) lets it accept any unknown POS format. The new system uses hardcoded adapters per vendor.
 
-**Port priority: LOW for now** — The adapter-per-vendor approach works fine for Sample Store + known vendors. The AI mapping becomes important only when onboarding many unknown POS systems rapidly.
+**Port priority: LOW for now** — The adapter-per-vendor approach works fine for the sample store + known vendors. The AI mapping becomes important only when onboarding many unknown POS systems rapidly.
 
 ### 4.3 Minor Gaps (Nice to Have)
 
@@ -631,8 +631,8 @@ The inference engine (`reasoning/inference.py`, 432 LOC) is a good Rust candidat
 
 | Source | Path | Files | Rows | Format |
 |---|---|---|---|---|
-| Sample Store inventory | `/Users/joseph/Downloads/Reports/` | 17 CSVs | 861K+ | SHLP (36 col) + sales detail |
-| Sample Store inventory | `/Users/joseph/Downloads/custom_1.csv` | 1 CSV | 156K | IdoSoft custom (53 col) |
+| Sample store inventory | `Reports/` | 17 CSVs | 861K+ | SHLP (36 col) + sales detail |
+| Sample store inventory | `custom_1.csv` | 1 CSV | 156K | IdoSoft custom (53 col) |
 | Orgill POs | `/Users/joseph/Downloads/OrgilPO/` | 148 files | ~15K items | PO format (14-row header + items) |
 
 **Total**: 166 files, ~176 MB, ~1M rows.
@@ -642,15 +642,15 @@ The inference engine (`reasoning/inference.py`, 432 LOC) is a good Rust candidat
 ```
                     ┌─────────────┐
                     │  Raw Files  │
-                    │  (Sample Store│
+                    │ (Store Data │
                     │   + Orgill) │
                     └──────┬──────┘
                            │
                     ┌──────▼──────┐
                     │   Python    │
                     │  Adapters   │
-                    │ (generic_pos/│
-                    │  orgill/)   │
+                    │(sample_store│
+                    │  /orgill/)  │
                     └──────┬──────┘
                            │
                     NormalizedInventory (18 fields)
@@ -689,7 +689,7 @@ The inference engine (`reasoning/inference.py`, 432 LOC) is a good Rust candidat
 
 ### 6.3 Missing Data Fields
 
-The Rust pipeline needs fields that aren't directly in Sample Store exports:
+The Rust pipeline needs fields that aren't directly in sample store exports:
 
 | Required Field | Source | Derivation Strategy |
 |---|---|---|
@@ -705,7 +705,7 @@ The Rust pipeline needs fields that aren't directly in Sample Store exports:
 
 ### Phase 8: Data Bridge & Real Pipeline (NEXT — Highest Priority)
 
-**Goal:** Run the full pipeline on real Sample Store data and produce actual insights.
+**Goal:** Run the full pipeline on real store data and produce actual insights.
 
 #### Step 1: NormalizedInventory → Pipeline CSV Converter (~150 LOC Python)
 
@@ -718,9 +718,9 @@ Create `python/sentinel_agent/adapters/pipeline_bridge.py`:
 #### Step 2: Real Data Fixture Generation (~100 LOC Python)
 
 Create `python/scripts/generate_real_fixtures.py`:
-- Reads `custom_1.csv` through `GenericPosInventoryAdapter`
+- Reads `custom_1.csv` through the sample store inventory adapter
 - Converts via bridge to pipeline CSV format
-- Writes to `fixtures/generic_pos_real.csv` (sanitized subset: first 1000 rows)
+- Writes to `fixtures/sample_store_real.csv` (sanitized subset: first 1000 rows)
 - Creates `fixtures/orgill_po_sample.csv` from one PO file
 
 #### Step 3: Integration Test (~100 LOC Python)
@@ -816,7 +816,7 @@ This unlocks accurate `DeadStock` and `Overstock` detection.
 | Decision | Rationale |
 |---|---|
 | Subprocess bridge over PyO3 | Simpler, binary already works, subprocess overhead negligible vs pipeline time |
-| Adapter-per-vendor over AI mapping | Deterministic, testable, handles real edge cases (Sample Store's "Qty." vs "Qty On Hand") |
+| Adapter-per-vendor over AI mapping | Deterministic, testable, handles real edge cases (e.g., "Qty." vs "Qty On Hand") |
 | Rust for hot path only | VSA bundling + classification benefit from parallelism; domain logic stays in Python |
 | FastAPI sidecar over Axum | All business logic in Python; avoids FFI for every endpoint |
 | In-memory task store for MVP | Simple, sufficient for single-store; database in Phase 16 |

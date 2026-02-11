@@ -9,7 +9,6 @@ Covers:
 """
 
 import pytest
-
 from sentinel_agent.pos_integrations import (
     ConnectionStatus,
     InMemoryPosConnectionStore,
@@ -26,7 +25,6 @@ from sentinel_agent.pos_integrations import (
     list_pos_connections,
     trigger_sync,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -51,7 +49,12 @@ class TestSupportedSystems:
         systems = get_supported_systems()
         assert len(systems) == 4
         names = {s.system for s in systems}
-        assert names == {PosSystem.SQUARE, PosSystem.LIGHTSPEED, PosSystem.CLOVER, PosSystem.SHOPIFY}
+        assert names == {
+            PosSystem.SQUARE,
+            PosSystem.LIGHTSPEED,
+            PosSystem.CLOVER,
+            PosSystem.SHOPIFY,
+        }
 
     def test_system_has_setup_steps(self):
         systems = get_supported_systems()
@@ -66,6 +69,7 @@ class TestSupportedSystems:
 
     def test_system_to_dict(self):
         import json
+
         systems = get_supported_systems()
         for system in systems:
             data = system.to_dict()
@@ -164,6 +168,7 @@ class TestConnectionCrud:
 
     def test_connection_to_dict(self):
         import json
+
         conn = create_pos_connection("user-1", "square", "My Store")
         data = conn.to_dict()
         assert data["pos_system"] == "square"
@@ -198,6 +203,7 @@ class TestSync:
 
     def test_sync_result_to_dict(self):
         import json
+
         conn = create_pos_connection("user-1", "square", "My Store")
         result = trigger_sync(conn.connection_id, "user-1")
         data = result.to_dict()

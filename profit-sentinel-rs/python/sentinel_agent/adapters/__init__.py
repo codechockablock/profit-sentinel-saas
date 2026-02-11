@@ -5,7 +5,7 @@ data to the canonical schema expected by the Rust pipeline engine.
 
 Supported sources:
     - Orgill POs (CSV with header block, line items, short-ship markers)
-    - Sample Store inventory reports (POS export with 50+ columns)
+    - Inventory reports (POS export with 50+ columns)
     - Sales transaction data (Phase 12)
     - Do It Best (future)
     - Ace Hardware (future)

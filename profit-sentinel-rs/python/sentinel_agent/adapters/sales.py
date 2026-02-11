@@ -9,7 +9,7 @@ Supported formats:
     1. **Paladin Transaction Export** — daily sales CSV with columns:
        Date, SKU, Description, Qty Sold, Amount, Cost, Customer
     2. **Generic Sales Detail** — minimal: sku, date, qty_sold, amount
-    3. **Monthly Columnar** — already handled by Sample Store SHLP parser;
+    3. **Monthly Columnar** — already handled by the SHLP parser;
        this module focuses on transaction-level data.
 
 Usage:

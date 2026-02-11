@@ -29,7 +29,7 @@ Built for independent retailers (hardware, lumber, garden centers, auto parts, a
 └───────────┬─────────────────────┬─────────────────┬─────────┘
             │                     │                 │
       ┌─────▼─────┐         ┌────▼──────┐     ┌────▼──────┐
-      │  AWS S3   │         │ Supabase  │     │  Grok AI  │
+      │  AWS S3   │         │ Supabase  │     │ Anthropic │
       │  Storage  │         │ Auth/DB   │     │  Mapping  │
       └───────────┘         └───────────┘     └───────────┘
             │
@@ -55,7 +55,7 @@ Built for independent retailers (hardware, lumber, garden centers, auto parts, a
 | **Frontend** | Next.js 16, React 19, Tailwind CSS 4 |
 | **Python Sidecar** | FastAPI, Uvicorn, Python 3.13 |
 | **Rust Pipeline** | Rust 1.84, sentinel-vsa, sentinel-pipeline, sentinel-server |
-| **AI/ML** | VSA/Hyperdimensional Computing (1024-dim Complex64), Grok API |
+| **AI/ML** | VSA/Hyperdimensional Computing (1024-dim Complex64), Anthropic Claude API |
 | **Database** | Supabase (PostgreSQL), AWS RDS |
 | **Storage** | AWS S3 |
 | **Auth** | Supabase Auth (JWT) |
@@ -74,17 +74,17 @@ profit-sentinel-saas/
 │   │   ├── sentinel_agent/
 │   │   │   ├── sidecar.py         # FastAPI app
 │   │   │   ├── engine.py          # Rust subprocess bridge
-│   │   │   ├── adapters/          # POS data adapters (Orgill, Sample Store)
+│   │   │   ├── adapters/          # POS data adapters (Orgill, Do It Best, Ace, etc.)
 │   │   │   ├── category_mix.py    # Category mix optimizer
 │   │   │   ├── coop_models.py     # Co-op alert models
-│   │   │   └── llm_layer.py       # LLM digest rendering
-│   │   └── tests/                 # Python tests (243 passing)
+│   │   │   ├── llm_layer.py       # LLM digest rendering
+│   │   │   └── world_model/       # VSA world model (Engine 2)
+│   │   └── tests/                 # Python tests
 │   └── Dockerfile.sidecar         # Multi-stage Rust+Python container
 │
-├── _legacy/                       # Archived v1 code (tag: v1.0-legacy-final)
-│   ├── apps/api/                  # Old Python-only backend (port 8000)
-│   ├── apps/web/                  # Next.js frontend
-│   └── README.md                  # Archive documentation
+├── web/                           # Next.js 16 frontend (active)
+│   ├── src/app/                   # App router pages
+│   └── src/components/            # React components
 │
 ├── config/                        # Analysis configuration (YAML)
 │   ├── primitives/                # Semantic primitive definitions
@@ -115,7 +115,7 @@ profit-sentinel-saas/
 - Docker (optional, for containers)
 - AWS Account (for S3 storage)
 - Supabase Account (for auth/database)
-- xAI API Key (recommended, for AI-powered column mapping)
+- Anthropic API Key (recommended, for AI-powered column mapping)
 
 ### 1. Build the Rust Pipeline
 
@@ -139,7 +139,7 @@ pip install -e "python/[dev]"
 ```bash
 cp .env.example .env
 # Edit with your credentials:
-# AWS keys, S3 bucket, Supabase URL/keys, XAI_API_KEY
+# AWS keys, S3 bucket, Supabase URL/keys, ANTHROPIC_API_KEY
 ```
 
 ### 4. Run Development Servers
@@ -156,7 +156,7 @@ cd profit-sentinel-rs
 python -m sentinel_agent serve
 
 # Terminal 2: Frontend (port 3000)
-cd _legacy/apps/web
+cd web
 npm run dev
 ```
 
@@ -174,39 +174,52 @@ npm run dev
 | `/uploads/presign` | POST | Generate S3 presigned URLs |
 | `/uploads/suggest-mapping` | POST | AI-powered column mapping |
 | `/analysis/analyze` | POST | Run Rust pipeline analysis |
+| `/api/v1/findings` | GET | Paginated findings with acknowledge support |
+| `/api/v1/dashboard` | GET | Dashboard summary (recovery $, department status) |
+| `/api/v1/config` | GET | Fetch dead stock configuration |
+| `/api/v1/config` | PUT | Save dead stock configuration |
+| `/api/v1/transfers` | GET | Transfer recommendations for dead stock |
+| `/api/v1/predictions` | GET | Active predictions with confidence |
 
 ## Detected Issue Types
 
 | Issue Type | Description | Severity |
 |-----------|-------------|----------|
 | `NegativeInventory` | System shows impossible negative quantity | Critical |
-| `MarginErosion` | Margin below target (benchmark: 35-45%) | High |
-| `DeadStock` | Zero sales in 90+ days with inventory | Medium |
+| `MarginLeak` | Margin below target or cost > price | High |
+| `DeadStock` | Configurable — watchlist at 60 days (default) | Medium |
 | `Overstock` | Excessive inventory relative to sales velocity | Medium |
-| `SevereDeficit` | Critically low stock vs demand | High |
 | `Shrinkage` | Unexplained inventory loss patterns | High |
+| `CostSpike` | Sudden cost increase without price adjustment | High |
+| `PhantomInventory` | Stock discrepancy between system and reality | High |
+| `VendorAnomaly` | Multiple SKUs from same vendor showing pattern | Medium |
+| `SeasonalMisalignment` | Stock levels mismatched with seasonal velocity | Medium |
+| `UnrecordedCOGS` | Cost of goods sold not properly recorded | High |
+| `PricingGap` | Significant gap between cost and selling price | Medium |
 
 ## Testing
 
-### Test Suite (355 tests passing)
+### Test Suite (145 tests passing)
 
 | Suite | Framework | Count | Command |
 |-------|-----------|-------|---------|
-| Rust Pipeline | `cargo test` | 85 | `cd profit-sentinel-rs && cargo test` |
-| Python Sidecar | Pytest | 243 | `cd profit-sentinel-rs && pytest python/tests/ -v` |
-| Frontend | Jest | 27 | `cd _legacy/apps/web && npm test` |
+| Rust Pipeline | `cargo test` | 132 | `cd profit-sentinel-rs && cargo test --workspace` |
+| Python World Model | Pytest | 9 | `cd profit-sentinel-rs && python -m pytest python/sentinel_agent/world_model/tests/ -v` |
+| Python Standalone | manual | 4 | See below |
+
+See [docs/TEST_STATUS.md](docs/TEST_STATUS.md) for detailed breakdown and coverage gaps.
 
 ### Quick Test Commands
 
 ```bash
-# All Rust tests
-cd profit-sentinel-rs && cargo test
+# All Rust tests (132 passing)
+cd profit-sentinel-rs && cargo test --workspace
 
-# All Python tests
-cd profit-sentinel-rs && pytest python/tests/ -v
+# Python world model tests (9 passing)
+cd profit-sentinel-rs && python -m pytest python/sentinel_agent/world_model/tests/ -v
 
-# Frontend tests
-cd _legacy/apps/web && npm test
+# Python standalone verification
+cd profit-sentinel-rs && python -m sentinel_agent.world_model.config
 ```
 
 ## Performance
@@ -248,7 +261,7 @@ See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the full M1-M8 roadmap.
 | M4 | Done | Integration testing (355 tests) |
 | M5 | In Progress | Staging deployment |
 | M6 | Pending | Production cutover |
-| M7 | Pending | Legacy removal |
+| M7 | Done | Legacy removal (`_legacy/` archived, tag: v1.0-legacy-final) |
 | M8 | Pending | Monitoring & observability |
 
 ## Security
@@ -266,4 +279,4 @@ MIT License - see [LICENSE.md](LICENSE.md)
 
 ---
 
-**Profit Sentinel** - Protecting retail margins with AI-powered forensic analysis.
+**Profit Sentinel** — Protecting retail margins with deterministic forensic analysis.

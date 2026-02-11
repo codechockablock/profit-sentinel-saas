@@ -5,6 +5,7 @@ pub mod math;
 pub mod primitives;
 pub mod similarity;
 pub mod thresholds;
+pub mod world_model_ops;
 
 #[cfg(feature = "python")]
 pub mod py_bindings;

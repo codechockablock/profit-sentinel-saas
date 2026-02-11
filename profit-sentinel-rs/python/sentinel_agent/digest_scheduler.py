@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, time, timezone
+from datetime import UTC, datetime, time, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -147,7 +147,7 @@ class DigestScheduler:
 
     async def _check_and_send(self) -> None:
         """Check if any subscriptions need sending."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         today = now.strftime("%Y-%m-%d")
 
         # Reset sent tracker on day change
@@ -195,23 +195,29 @@ class DigestScheduler:
             # Build issue dicts for HTML template
             issues = []
             for issue in digest.issues[:10]:
-                issues.append({
-                    "issue_type": issue.issue_type.value
-                    if hasattr(issue.issue_type, "value")
-                    else str(issue.issue_type),
-                    "store_id": issue.store_id,
-                    "dollar_impact": issue.dollar_impact,
-                    "priority_score": issue.priority_score,
-                    "trend_direction": issue.trend_direction.value
-                    if hasattr(issue.trend_direction, "value")
-                    else str(issue.trend_direction),
-                    "root_cause": (
-                        issue.root_cause.value
-                        if issue.root_cause and hasattr(issue.root_cause, "value")
-                        else str(issue.root_cause or "")
-                    ),
-                    "skus": [{"sku_id": s.sku_id} for s in issue.skus],
-                })
+                issues.append(
+                    {
+                        "issue_type": (
+                            issue.issue_type.value
+                            if hasattr(issue.issue_type, "value")
+                            else str(issue.issue_type)
+                        ),
+                        "store_id": issue.store_id,
+                        "dollar_impact": issue.dollar_impact,
+                        "priority_score": issue.priority_score,
+                        "trend_direction": (
+                            issue.trend_direction.value
+                            if hasattr(issue.trend_direction, "value")
+                            else str(issue.trend_direction)
+                        ),
+                        "root_cause": (
+                            issue.root_cause.value
+                            if issue.root_cause and hasattr(issue.root_cause, "value")
+                            else str(issue.root_cause or "")
+                        ),
+                        "skus": [{"sku_id": s.sku_id} for s in issue.skus],
+                    }
+                )
 
             # Send
             await send_digest_email(
@@ -226,7 +232,9 @@ class DigestScheduler:
                 generated_at=digest.generated_at,
             )
 
-            logger.info("Digest sent to %s (%d issues)", email, digest.summary.total_issues)
+            logger.info(
+                "Digest sent to %s (%d issues)", email, digest.summary.total_issues
+            )
 
         except Exception:
             logger.exception("Failed to send digest to %s", email)
@@ -253,23 +261,29 @@ class DigestScheduler:
 
         issues = []
         for issue in digest.issues[:10]:
-            issues.append({
-                "issue_type": issue.issue_type.value
-                if hasattr(issue.issue_type, "value")
-                else str(issue.issue_type),
-                "store_id": issue.store_id,
-                "dollar_impact": issue.dollar_impact,
-                "priority_score": issue.priority_score,
-                "trend_direction": issue.trend_direction.value
-                if hasattr(issue.trend_direction, "value")
-                else str(issue.trend_direction),
-                "root_cause": (
-                    issue.root_cause.value
-                    if issue.root_cause and hasattr(issue.root_cause, "value")
-                    else str(issue.root_cause or "")
-                ),
-                "skus": [{"sku_id": s.sku_id} for s in issue.skus],
-            })
+            issues.append(
+                {
+                    "issue_type": (
+                        issue.issue_type.value
+                        if hasattr(issue.issue_type, "value")
+                        else str(issue.issue_type)
+                    ),
+                    "store_id": issue.store_id,
+                    "dollar_impact": issue.dollar_impact,
+                    "priority_score": issue.priority_score,
+                    "trend_direction": (
+                        issue.trend_direction.value
+                        if hasattr(issue.trend_direction, "value")
+                        else str(issue.trend_direction)
+                    ),
+                    "root_cause": (
+                        issue.root_cause.value
+                        if issue.root_cause and hasattr(issue.root_cause, "value")
+                        else str(issue.root_cause or "")
+                    ),
+                    "skus": [{"sku_id": s.sku_id} for s in issue.skus],
+                }
+            )
 
         return await send_digest_email(
             api_key=self.resend_api_key,

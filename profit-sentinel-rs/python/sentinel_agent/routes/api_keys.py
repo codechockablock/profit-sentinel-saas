@@ -70,9 +70,7 @@ def create_api_keys_router(require_auth) -> APIRouter:
         """Revoke an API key."""
         revoked = revoke_api_key(key_id, ctx.user_id)
         if not revoked:
-            raise HTTPException(
-                status_code=404, detail=f"API key '{key_id}' not found"
-            )
+            raise HTTPException(status_code=404, detail=f"API key '{key_id}' not found")
         return {"message": "API key revoked", "key_id": key_id}
 
     @router.get(
@@ -86,9 +84,7 @@ def create_api_keys_router(require_auth) -> APIRouter:
         """Get usage statistics for an API key."""
         stats = get_key_usage(key_id, ctx.user_id)
         if not stats:
-            raise HTTPException(
-                status_code=404, detail=f"API key '{key_id}' not found"
-            )
+            raise HTTPException(status_code=404, detail=f"API key '{key_id}' not found")
         return stats
 
     return router

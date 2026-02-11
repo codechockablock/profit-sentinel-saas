@@ -277,6 +277,7 @@ pub fn sentinel_vsa(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyInventoryRow>()?;
     m.add_class::<PySimilarityResult>()?;
     m.add_class::<PyVsaEngine>()?;
+    m.add_class::<crate::world_model_ops::py::PyPhasorAlgebra>()?;
     m.add_function(wrap_pyfunction!(bundle_inventory, m)?)?;
     m.add_function(wrap_pyfunction!(find_similar_vectors, m)?)?;
     Ok(())

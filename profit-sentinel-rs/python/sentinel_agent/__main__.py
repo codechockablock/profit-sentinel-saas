@@ -7,7 +7,7 @@ Usage:
 
     # Ingest data from a source
     python -m sentinel_agent ingest --source /path/to/data
-    python -m sentinel_agent ingest --source /path/to/data --store-id default-store
+    python -m sentinel_agent ingest --source /path/to/data --store-id my-store
     python -m sentinel_agent ingest --source /path/to/data --adapter orgill
 
     # Ingest AND run analysis pipeline
@@ -59,12 +59,9 @@ def _cmd_ingest(args: argparse.Namespace) -> None:
     # Auto-detect or use specified adapter
     if args.adapter:
         from .adapters.orgill import OrgillPOAdapter
-        from .adapters.generic_pos import GenericPosAdapter
 
         adapter_map = {
             "orgill": OrgillPOAdapter(),
-            "generic_pos": GenericPosAdapter(),
-            "default-store": GenericPosAdapter(),
         }
         adapter = adapter_map.get(args.adapter.lower())
         if not adapter:
@@ -265,7 +262,7 @@ def _run_analysis(result, store_id: str, top_k: int) -> None:
     digest = analysis.digest
     if digest.issues:
         print("=" * 64)
-        print("  MORNING DIGEST — REAL TEST STORE ISSUES")
+        print("  MORNING DIGEST — DETECTED ISSUES")
         print("=" * 64)
         print()
         print(render_digest(digest))
@@ -342,7 +339,7 @@ def main() -> None:
     )
     ingest_parser.add_argument(
         "--adapter",
-        help="Force a specific adapter (orgill, generic_pos)",
+        help="Force a specific adapter (orgill)",
     )
     ingest_parser.add_argument(
         "--output",

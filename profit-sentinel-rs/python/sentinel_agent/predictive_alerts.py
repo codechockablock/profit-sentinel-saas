@@ -221,13 +221,13 @@ class PredictiveAlertEngine:
 
         # Sort by severity then days
         stockouts.sort(key=lambda p: (p.severity.value, p.days_until_event))
-        overstocks.sort(
-            key=lambda p: p.estimated_carrying_cost, reverse=True
-        )
+        overstocks.sort(key=lambda p: p.estimated_carrying_cost, reverse=True)
         velocity_alerts.sort(key=lambda p: p.severity.value)
 
         all_predictions = stockouts + overstocks + velocity_alerts
-        critical = sum(1 for p in all_predictions if p.severity == AlertSeverity.CRITICAL)
+        critical = sum(
+            1 for p in all_predictions if p.severity == AlertSeverity.CRITICAL
+        )
         warning = sum(1 for p in all_predictions if p.severity == AlertSeverity.WARNING)
         revenue_risk = sum(p.estimated_lost_revenue for p in stockouts)
         carrying_risk = sum(p.estimated_carrying_cost for p in overstocks)
@@ -298,9 +298,7 @@ class PredictiveAlertEngine:
         lost_revenue = daily_revenue * 7
 
         # Confidence decays further out
-        confidence = max(
-            0.3, 1.0 - (days_to_stockout * CONFIDENCE_DECAY_PER_DAY)
-        )
+        confidence = max(0.3, 1.0 - (days_to_stockout * CONFIDENCE_DECAY_PER_DAY))
 
         # Boost confidence if there are related low-stock issues
         has_low_stock_issue = any(
@@ -425,9 +423,7 @@ class PredictiveAlertEngine:
         daily_velocity = sku.sales_last_30d / 30.0
 
         # Check for demand surge signals
-        receiving_gap = any(
-            i.issue_type == IssueType.RECEIVING_GAP for i in issues
-        )
+        receiving_gap = any(i.issue_type == IssueType.RECEIVING_GAP for i in issues)
         if receiving_gap and daily_velocity > 1.0 and sku.qty_on_hand < 10:
             return InventoryPrediction(
                 sku_id=sku.sku_id,
@@ -449,9 +445,7 @@ class PredictiveAlertEngine:
             )
 
         # Check for demand drop signals
-        overstock_issue = any(
-            i.issue_type == IssueType.OVERSTOCK for i in issues
-        )
+        overstock_issue = any(i.issue_type == IssueType.OVERSTOCK for i in issues)
         if overstock_issue and daily_velocity < 0.5 and sku.qty_on_hand > 50:
             inventory_value = sku.qty_on_hand * sku.unit_cost
             return InventoryPrediction(

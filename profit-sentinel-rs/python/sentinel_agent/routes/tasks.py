@@ -82,9 +82,7 @@ def create_tasks_router(state: AppState, require_auth) -> APIRouter:
         """Get a single task by ID."""
         task_resp = state.task_store.get(task_id)
         if not task_resp:
-            raise HTTPException(
-                status_code=404, detail=f"Task '{task_id}' not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
         return task_resp
 
     @router.patch(
@@ -99,9 +97,7 @@ def create_tasks_router(state: AppState, require_auth) -> APIRouter:
         """Update a task's status (complete, escalate, etc.)."""
         task_resp = state.task_store.get(task_id)
         if not task_resp:
-            raise HTTPException(
-                status_code=404, detail=f"Task '{task_id}' not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
 
         task_resp.status = body.status
         if body.notes:

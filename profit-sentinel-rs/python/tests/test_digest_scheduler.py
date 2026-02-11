@@ -4,7 +4,7 @@ Covers subscription CRUD, scheduler lifecycle, and timezone handling.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,7 +19,6 @@ from sentinel_agent.digest_scheduler import (
     resume_subscription,
 )
 from sentinel_agent.subscription_store import InMemoryStore
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -195,7 +194,7 @@ class TestSchedulerLifecycle:
     async def _check_rollover(self, scheduler):
         # _check_and_send will see today != _last_date and clear
         await scheduler._check_and_send()
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         assert scheduler._last_date == today
         # sent_today was cleared (old entry removed)
         assert "test@example.com" not in scheduler._sent_today

@@ -6,21 +6,20 @@ Covers:
     - History API endpoints (list, get, rename, delete)
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from sentinel_agent.analysis_store import (
     InMemoryAnalysisStore,
-    init_analysis_store,
-    save_analysis,
-    list_user_analyses,
-    get_analysis,
-    delete_analysis,
-    rename_analysis,
-    get_comparison_pair,
     compute_file_hash,
+    delete_analysis,
+    get_analysis,
+    get_comparison_pair,
+    init_analysis_store,
+    list_user_analyses,
+    rename_analysis,
+    save_analysis,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -305,8 +304,12 @@ class TestModuleFunctions:
         assert fetched["analysis_label"] == "Renamed"
 
     def test_comparison_pair(self):
-        save_analysis(user_id="u1", result=_make_result(), file_hash="a" * 64, file_row_count=10)
-        save_analysis(user_id="u1", result=_make_result(), file_hash="b" * 64, file_row_count=20)
+        save_analysis(
+            user_id="u1", result=_make_result(), file_hash="a" * 64, file_row_count=10
+        )
+        save_analysis(
+            user_id="u1", result=_make_result(), file_hash="b" * 64, file_row_count=20
+        )
         current, previous = get_comparison_pair("u1")
         assert current is not None
         assert previous is not None

@@ -58,9 +58,9 @@ def _make_sku(sku_id: str = "SKU-001", **kwargs) -> Sku:
 def _make_theft_issue() -> Issue:
     """An issue with strong theft signals."""
     return Issue(
-        id="default-store-NegativeInventory-001",
+        id="test-store-NegativeInventory-001",
         issue_type=IssueType.NEGATIVE_INVENTORY,
-        store_id="default-store",
+        store_id="test-store",
         dollar_impact=1104.50,
         confidence=0.85,
         trend_direction=TrendDirection.WORSENING,
@@ -128,9 +128,9 @@ def _make_pricing_error_issue() -> Issue:
 def _make_quality_issue() -> Issue:
     """An issue with damaged goods and on-order signals."""
     return Issue(
-        id="default-store-VendorShortShip-001",
+        id="test-store-VendorShortShip-001",
         issue_type=IssueType.VENDOR_SHORT_SHIP,
-        store_id="default-store",
+        store_id="test-store",
         dollar_impact=3250.0,
         confidence=0.80,
         trend_direction=TrendDirection.WORSENING,
@@ -201,9 +201,9 @@ def _make_no_cause_issue() -> Issue:
 def _make_demand_shift_issue() -> Issue:
     """An issue with demand shift signals and high dollar impact."""
     return Issue(
-        id="default-store-Overstock-001",
+        id="test-store-Overstock-001",
         issue_type=IssueType.OVERSTOCK,
-        store_id="default-store",
+        store_id="test-store",
         dollar_impact=15000.0,
         confidence=0.75,
         trend_direction=TrendDirection.WORSENING,
@@ -363,7 +363,7 @@ class TestSymbolicReasoner:
         issue = _make_theft_issue()
         proof = reasoner.explain(issue)
 
-        assert proof.issue_id == "default-store-NegativeInventory-001"
+        assert proof.issue_id == "test-store-NegativeInventory-001"
         assert proof.root_cause == "Theft"
         assert proof.root_cause_confidence == 0.68
         assert proof.root_cause_ambiguity == 0.77
@@ -837,7 +837,7 @@ class TestSidecarExplainEndpoints:
         issue = _make_theft_issue()
         digest = Digest(
             generated_at="2025-01-15T06:00:00Z",
-            store_filter=["default-store"],
+            store_filter=["test-store"],
             pipeline_ms=100,
             issues=[issue],
             summary=Summary(
@@ -852,7 +852,7 @@ class TestSidecarExplainEndpoints:
         # Inject into cache via app state
         state = client.app.extra["sentinel_state"]
         entry = DigestCacheEntry(digest, 3600)
-        state.digest_cache["default-store:5"] = entry
+        state.digest_cache["test-store:5"] = entry
         state.digest_cache[":5"] = entry  # Default cache key
 
         yield client
@@ -869,11 +869,11 @@ class TestSidecarExplainEndpoints:
     def test_explain_endpoint(self, client_with_digest):
         """GET /api/v1/explain/{issue_id} should return proof tree."""
         resp = client_with_digest.get(
-            "/api/v1/explain/default-store-NegativeInventory-001"
+            "/api/v1/explain/test-store-NegativeInventory-001"
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["issue_id"] == "default-store-NegativeInventory-001"
+        assert data["issue_id"] == "test-store-NegativeInventory-001"
         assert "proof_tree" in data
         assert "rendered_text" in data
 
@@ -893,19 +893,19 @@ class TestSidecarExplainEndpoints:
     def test_backward_chain_endpoint(self, client_with_digest):
         """POST /api/v1/explain/{id}/why should return reasoning steps."""
         resp = client_with_digest.post(
-            "/api/v1/explain/default-store-NegativeInventory-001/why",
+            "/api/v1/explain/test-store-NegativeInventory-001/why",
             json={"goal": "detected(negative_qty)"},
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["issue_id"] == "default-store-NegativeInventory-001"
+        assert data["issue_id"] == "test-store-NegativeInventory-001"
         assert data["goal"] == "detected(negative_qty)"
         assert len(data["reasoning_steps"]) >= 1
 
     def test_backward_chain_unproven(self, client_with_digest):
         """Backward chain for impossible goal should still return."""
         resp = client_with_digest.post(
-            "/api/v1/explain/default-store-NegativeInventory-001/why",
+            "/api/v1/explain/test-store-NegativeInventory-001/why",
             json={"goal": "suspect(impossible)"},
         )
         assert resp.status_code == 200

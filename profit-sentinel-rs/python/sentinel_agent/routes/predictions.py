@@ -22,12 +22,8 @@ def create_predictions_router(state: AppState, require_auth) -> APIRouter:
         horizon_days: int = Query(default=30, ge=7, le=90),
     ) -> PredictiveReportResponse:
         """Predict stockouts and overstock situations."""
-        digest = state.get_or_run_digest(
-            [store_id] if store_id else None
-        )
-        report = predict_inventory(
-            digest, store_id=store_id, horizon_days=horizon_days
-        )
+        digest = state.get_or_run_digest([store_id] if store_id else None)
+        report = predict_inventory(digest, store_id=store_id, horizon_days=horizon_days)
         return PredictiveReportResponse(**report.to_dict())
 
     return router

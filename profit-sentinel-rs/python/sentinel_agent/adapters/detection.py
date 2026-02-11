@@ -5,7 +5,7 @@ based on file naming patterns, header signatures, and column names.
 
 Detection order (first match wins):
 1. Orgill PO — "Shipto:" signature in first line
-2. Sample Store Inventory — column signature match
+2. Inventory CSV — column signature match
 3. Do It Best — (future) TBD
 4. Ace Hardware — (future) TBD
 """
@@ -17,8 +17,8 @@ from pathlib import Path
 from .ace import AceAdapter
 from .base import AdapterResult, BaseAdapter
 from .do_it_best import DoItBestAdapter
-from .orgill import OrgillPOAdapter
 from .generic_pos import GenericPosAdapter
+from .orgill import OrgillPOAdapter
 from .sales import SalesDataAdapter
 
 # Registry of all adapters, ordered by detection priority
@@ -74,7 +74,7 @@ def detect_and_ingest(
             adapter_name="unknown",
             errors=[
                 f"No adapter found for: {path}. "
-                "Supported formats: Orgill PO, Sample Store Inventory, Sales Data"
+                "Supported formats: Orgill PO, Inventory CSV, Sales Data"
             ],
         )
 

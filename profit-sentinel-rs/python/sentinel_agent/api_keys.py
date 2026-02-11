@@ -24,7 +24,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from .rate_limits import ApiTier, TierLimits, TIER_LIMITS
+from .rate_limits import TIER_LIMITS, ApiTier, TierLimits
 
 logger = logging.getLogger("sentinel.api_keys")
 
@@ -120,7 +120,9 @@ class InMemoryApiKeyStore:
 
     def __init__(self):
         self._keys: dict[str, ApiKeyRecord] = {}  # key_hash -> record
-        self._user_keys: dict[str, list[str]] = defaultdict(list)  # user_id -> [key_hash]
+        self._user_keys: dict[str, list[str]] = defaultdict(
+            list
+        )  # user_id -> [key_hash]
         self._hourly_usage: dict[str, list[datetime]] = defaultdict(list)
         self._daily_usage: dict[str, list[datetime]] = defaultdict(list)
 
@@ -161,9 +163,7 @@ class InMemoryApiKeyStore:
         record = self._keys.get(key_hash)
 
         if not record:
-            return ApiKeyValidation(
-                is_valid=False, error="Invalid API key"
-            )
+            return ApiKeyValidation(is_valid=False, error="Invalid API key")
 
         if not record.is_active:
             return ApiKeyValidation(
@@ -245,14 +245,12 @@ class InMemoryApiKeyStore:
                 hour_ago = now - timedelta(hours=1)
                 day_ago = now - timedelta(days=1)
 
-                hourly = len([
-                    t for t in self._hourly_usage.get(key_hash, [])
-                    if t > hour_ago
-                ])
-                daily = len([
-                    t for t in self._daily_usage.get(key_hash, [])
-                    if t > day_ago
-                ])
+                hourly = len(
+                    [t for t in self._hourly_usage.get(key_hash, []) if t > hour_ago]
+                )
+                daily = len(
+                    [t for t in self._daily_usage.get(key_hash, []) if t > day_ago]
+                )
 
                 limits = TIER_LIMITS[record.tier]
                 return {

@@ -97,9 +97,9 @@ class TestPatronageLeakage:
             _make_purchase("EXT-0001", "Big Vendor", "Electrical", 20000),
         ]
         leakages = self.coop.detect_patronage_leakage(purchases)
-        assert len(leakages) >= 2, (
-            f"Expected >=2 leakages for 2 vendors, got {len(leakages)}"
-        )
+        assert (
+            len(leakages) >= 2
+        ), f"Expected >=2 leakages for 2 vendors, got {len(leakages)}"
         assert leakages[0].annual_leakage >= leakages[1].annual_leakage
 
     def test_affected_skus_tracked(self):

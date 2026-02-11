@@ -208,13 +208,8 @@ export default function PrivacyPage() {
               </div>
 
               <div className="border-l-4 border-emerald-500 pl-4">
-                <h3 className="font-bold text-slate-200">xAI</h3>
-                <p className="text-sm text-slate-400">AI-powered column mapping to identify data fields in your uploads (receives column headers and a small data sample)</p>
-              </div>
-
-              <div className="border-l-4 border-emerald-500 pl-4">
                 <h3 className="font-bold text-slate-200">Anthropic</h3>
-                <p className="text-sm text-slate-400">AI-powered column mapping fallback (receives column headers and a small data sample when primary service is unavailable)</p>
+                <p className="text-sm text-slate-400">AI-powered column mapping to identify data fields in your uploads (receives column headers and a small data sample — no full inventory data)</p>
               </div>
             </div>
           </section>

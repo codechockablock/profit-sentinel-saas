@@ -188,7 +188,9 @@ def _extract_impact_breakdown(result: dict) -> dict[str, float]:
         return {k: float(v) for k, v in estimated_impact["breakdown"].items() if v}
 
     # Estimate from leak counts * average
-    total_impact = estimated_impact.get("high", 0) or estimated_impact.get("annual_estimate", 0)
+    total_impact = estimated_impact.get("high", 0) or estimated_impact.get(
+        "annual_estimate", 0
+    )
     counts = _extract_detection_counts(result)
     total_count = sum(counts.values()) or 1
 
@@ -226,12 +228,24 @@ def compare_analyses(
     result.previous_rows = previous.get("file_row_count", 0)
 
     # Impact
-    result.current_total_impact_low = float(current.get("total_impact_estimate_low", 0) or 0)
-    result.current_total_impact_high = float(current.get("total_impact_estimate_high", 0) or 0)
-    result.previous_total_impact_low = float(previous.get("total_impact_estimate_low", 0) or 0)
-    result.previous_total_impact_high = float(previous.get("total_impact_estimate_high", 0) or 0)
-    result.impact_delta_low = result.current_total_impact_low - result.previous_total_impact_low
-    result.impact_delta_high = result.current_total_impact_high - result.previous_total_impact_high
+    result.current_total_impact_low = float(
+        current.get("total_impact_estimate_low", 0) or 0
+    )
+    result.current_total_impact_high = float(
+        current.get("total_impact_estimate_high", 0) or 0
+    )
+    result.previous_total_impact_low = float(
+        previous.get("total_impact_estimate_low", 0) or 0
+    )
+    result.previous_total_impact_high = float(
+        previous.get("total_impact_estimate_high", 0) or 0
+    )
+    result.impact_delta_low = (
+        result.current_total_impact_low - result.previous_total_impact_low
+    )
+    result.impact_delta_high = (
+        result.current_total_impact_high - result.previous_total_impact_high
+    )
 
     # Detection counts
     current_counts = _extract_detection_counts(current)

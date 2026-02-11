@@ -94,7 +94,9 @@ class TestSentinelEngine:
             ),
             None,
         )
-        assert neg_inv is not None, "Pipeline should produce a NegativeInventory issue for store-7"
+        assert (
+            neg_inv is not None
+        ), "Pipeline should produce a NegativeInventory issue for store-7"
         # -47 * $23.50 = $1,104.50
         assert abs(neg_inv.dollar_impact - 1104.5) < 0.01
         assert neg_inv.skus[0].sku_id == "ELC-4401"
@@ -163,7 +165,9 @@ class TestFullRoundTrip:
             ),
             None,
         )
-        assert vendor_issue is not None, "Pipeline should produce a vendor issue (short ship or margin erosion)"
+        assert (
+            vendor_issue is not None
+        ), "Pipeline should produce a vendor issue (short ship or margin erosion)"
         prep = assistant.prepare_call(vendor_issue)
         text = assistant.render(prep)
         assert "VENDOR CALL BRIEF" in text

@@ -57,28 +57,28 @@ def sample_transactions() -> list[SalesTransaction]:
             sale_date=ref - timedelta(days=5),
             qty_sold=3,
             amount=95.19,
-            store_id="default-store",
+            store_id="test-store",
         ),
         SalesTransaction(
             sku="ELC-4401",
             sale_date=ref - timedelta(days=10),
             qty_sold=2,
             amount=63.46,
-            store_id="default-store",
+            store_id="test-store",
         ),
         SalesTransaction(
             sku="ELC-4401",
             sale_date=ref - timedelta(days=15),
             qty_sold=1,
             amount=31.73,
-            store_id="default-store",
+            store_id="test-store",
         ),
         SalesTransaction(
             sku="ELC-4401",
             sale_date=ref - timedelta(days=2),
             qty_sold=4,
             amount=126.92,
-            store_id="default-store",
+            store_id="test-store",
         ),
         # 3 transactions for PNT-1001
         SalesTransaction(
@@ -86,21 +86,21 @@ def sample_transactions() -> list[SalesTransaction]:
             sale_date=ref - timedelta(days=20),
             qty_sold=5,
             amount=525.00,
-            store_id="default-store",
+            store_id="test-store",
         ),
         SalesTransaction(
             sku="PNT-1001",
             sale_date=ref - timedelta(days=15),
             qty_sold=3,
             amount=315.00,
-            store_id="default-store",
+            store_id="test-store",
         ),
         SalesTransaction(
             sku="PNT-1001",
             sale_date=ref - timedelta(days=10),
             qty_sold=2,
             amount=210.00,
-            store_id="default-store",
+            store_id="test-store",
         ),
         # 1 transaction OUTSIDE the 30-day window (should be excluded)
         SalesTransaction(
@@ -108,7 +108,7 @@ def sample_transactions() -> list[SalesTransaction]:
             sale_date=ref - timedelta(days=45),
             qty_sold=2,
             amount=63.46,
-            store_id="default-store",
+            store_id="test-store",
         ),
         # Multi-store: TLS-2001 in store-12
         SalesTransaction(
@@ -138,7 +138,7 @@ def sample_inventory() -> list[NormalizedInventory]:
             qty_on_hand=-47,
             unit_cost=23.50,
             retail_price=31.73,
-            store_id="default-store",
+            store_id="test-store",
             sales_ytd=1200.00,
         ),
         NormalizedInventory(
@@ -147,7 +147,7 @@ def sample_inventory() -> list[NormalizedInventory]:
             qty_on_hand=50,
             unit_cost=100.00,
             retail_price=105.00,
-            store_id="default-store",
+            store_id="test-store",
             sales_ytd=600.00,
         ),
         NormalizedInventory(
@@ -156,7 +156,7 @@ def sample_inventory() -> list[NormalizedInventory]:
             qty_on_hand=100,
             unit_cost=50.00,
             retail_price=67.50,
-            store_id="default-store",
+            store_id="test-store",
             sales_ytd=0.0,
         ),
         NormalizedInventory(
@@ -310,34 +310,34 @@ class TestSalesDataAdapter:
 
     def test_cannot_handle_inventory_csv(self, adapter):
         """Should not detect an inventory CSV as sales data."""
-        inv_path = FIXTURE_DIR / "generic_pos_sample.csv"
+        inv_path = FIXTURE_DIR / "inventory_sample.csv"
         if inv_path.exists():
             # Only run if fixture exists
             adapter.can_handle(inv_path)
             # Sales adapter should not claim inventory files
-            # (the Sample Store inventory file has different column signatures)
+            # (the POS inventory file has different column signatures)
 
     def test_ingest_fixture(self, adapter):
-        result = adapter.ingest_sales(SALES_FIXTURE, store_id="default-store")
+        result = adapter.ingest_sales(SALES_FIXTURE, store_id="test-store")
         assert isinstance(result, SalesAdapterResult)
         assert result.total_transactions == 21
         assert result.files_processed == 1
         assert len(result.errors) == 0
 
     def test_ingest_date_range(self, adapter):
-        result = adapter.ingest_sales(SALES_FIXTURE, store_id="default-store")
+        result = adapter.ingest_sales(SALES_FIXTURE, store_id="test-store")
         assert result.date_range_start == date(2025, 5, 15)
         assert result.date_range_end == date(2025, 6, 28)
 
     def test_ingest_unique_skus(self, adapter):
-        result = adapter.ingest_sales(SALES_FIXTURE, store_id="default-store")
+        result = adapter.ingest_sales(SALES_FIXTURE, store_id="test-store")
         assert result.unique_skus == 7  # ELC, SEA, PNT, HRD, PLB, TLS, FLR
 
     def test_ingest_store_from_csv(self, adapter):
         """Store ID should come from CSV column when present."""
         result = adapter.ingest_sales(SALES_FIXTURE, store_id="default-store")
         stores = {t.store_id for t in result.transactions}
-        assert "default-store" in stores
+        assert "test-store" in stores
         assert "store-12" in stores
         assert "store-3" in stores
 
@@ -395,14 +395,14 @@ class TestSalesAggregation:
         ref = date(2025, 6, 30)
         aggs = aggregate_sales_30d(sample_transactions, reference_date=ref)
         # ELC-4401 has 4 txns in window (the 5th is outside)
-        elc = aggs["default-store::ELC-4401"]
+        elc = aggs["test-store::ELC-4401"]
         assert elc.total_qty_sold == 10  # 3+2+1+4
         assert elc.transaction_count == 4
 
     def test_aggregate_excludes_old(self, sample_transactions):
         ref = date(2025, 6, 30)
         aggs = aggregate_sales_30d(sample_transactions, reference_date=ref)
-        elc = aggs["default-store::ELC-4401"]
+        elc = aggs["test-store::ELC-4401"]
         # Old transaction (45 days ago) should be excluded
         assert elc.total_qty_sold == 10  # not 12
 
@@ -416,7 +416,7 @@ class TestSalesAggregation:
     def test_aggregate_amount(self, sample_transactions):
         ref = date(2025, 6, 30)
         aggs = aggregate_sales_30d(sample_transactions, reference_date=ref)
-        pnt = aggs["default-store::PNT-1001"]
+        pnt = aggs["test-store::PNT-1001"]
         assert abs(pnt.total_amount - 1050.00) < 0.01  # 525+315+210
 
     def test_aggregate_empty(self):
@@ -429,7 +429,7 @@ class TestSalesAggregation:
         aggs = aggregate_sales_30d(
             sample_transactions, reference_date=ref, window_days=7
         )
-        elc = aggs.get("default-store::ELC-4401")
+        elc = aggs.get("test-store::ELC-4401")
         # Jun 25 (5 days ago, qty=3) and Jun 28 (2 days ago, qty=4)
         assert elc is not None
         assert elc.total_qty_sold == 7  # 3 + 4
@@ -438,7 +438,7 @@ class TestSalesAggregation:
     def test_aggregate_date_range(self, sample_transactions):
         ref = date(2025, 6, 30)
         aggs = aggregate_sales_30d(sample_transactions, reference_date=ref)
-        elc = aggs["default-store::ELC-4401"]
+        elc = aggs["test-store::ELC-4401"]
         assert elc.first_sale is not None
         assert elc.last_sale is not None
         assert elc.first_sale <= elc.last_sale
@@ -464,7 +464,7 @@ class TestSalesOverlay:
             sample_transactions,
             reference_date=ref,
         )
-        agg = overlay.lookup("default-store", "ELC-4401")
+        agg = overlay.lookup("test-store", "ELC-4401")
         assert agg is not None
         assert agg.total_qty_sold == 10
 
@@ -484,7 +484,7 @@ class TestSalesOverlay:
             sample_transactions,
             reference_date=ref,
         )
-        assert overlay.lookup("default-store", "NONEXISTENT") is None
+        assert overlay.lookup("test-store", "NONEXISTENT") is None
 
     def test_get_sales_last_30d(self, sample_transactions):
         ref = date(2025, 6, 30)
@@ -492,7 +492,7 @@ class TestSalesOverlay:
             sample_transactions,
             reference_date=ref,
         )
-        qty = overlay.get_sales_last_30d("default-store", "PNT-1001")
+        qty = overlay.get_sales_last_30d("test-store", "PNT-1001")
         assert qty == 10  # 5+3+2
 
     def test_get_sales_last_30d_missing(self, sample_transactions):
@@ -501,7 +501,7 @@ class TestSalesOverlay:
             sample_transactions,
             reference_date=ref,
         )
-        assert overlay.get_sales_last_30d("default-store", "NOPE") is None
+        assert overlay.get_sales_last_30d("test-store", "NOPE") is None
 
     def test_apply_overlay(self, sample_transactions, sample_inventory):
         ref = date(2025, 6, 30)
@@ -704,7 +704,7 @@ class TestDetectionRegistry:
 
     def test_detect_adapter_for_sales(self):
         detected = detect_adapter(SALES_FIXTURE)
-        # May be detected as Sample Store (higher priority) or Sales Data
+        # May be detected as POS inventory (higher priority) or Sales Data
         # depending on column overlap. What matters is it's not None.
         assert detected is not None
 
@@ -744,7 +744,7 @@ class TestSalesAggregationModel:
     def test_basic_creation(self):
         agg = SalesAggregation(
             sku="ABC",
-            store_id="default-store",
+            store_id="test-store",
             total_qty_sold=15,
             total_amount=300.00,
             transaction_count=5,
@@ -843,7 +843,7 @@ class TestEdgeCases:
 
     def test_adapter_standard_ingest(self, adapter):
         """Standard ingest() returns AdapterResult (not SalesAdapterResult)."""
-        result = adapter.ingest(SALES_FIXTURE, store_id="default-store")
+        result = adapter.ingest(SALES_FIXTURE, store_id="test-store")
         assert isinstance(result, AdapterResult)
         assert result.adapter_name == "Sales Data"
         assert result.files_processed == 1
