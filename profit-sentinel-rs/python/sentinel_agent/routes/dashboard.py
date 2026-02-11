@@ -1,10 +1,12 @@
 """Dashboard summary endpoint.
 
 GET /api/v1/dashboard — pre-computed dashboard summary with recovery
-                        amounts, department status, and finding counts.
+                        amounts, department status, finding counts,
+                        and Engine 2 predictions.
 
-STUB: Computes from cached digest data. Production should add
-      time-series tracking for trends.
+Engine 1 findings always display. Engine 2 predictions are additive —
+if the world model is unhealthy or warming up, prediction_count = 0
+and the dashboard still works fine from Engine 1 data alone.
 """
 
 from __future__ import annotations
@@ -34,7 +36,11 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
             department_status: Per-department traffic-light (green/yellow/red)
             top_findings: Top 5 findings by dollar impact
             prediction_count: Number of active predictions (confidence > 0.7)
+            engine2_status: World model status (active/warming_up/not_initialized)
         """
+        # ---------------------------------------------------------------
+        # Engine 1 data: always available from digest cache
+        # ---------------------------------------------------------------
         all_issues = []
         for entry in state.digest_cache.values():
             if entry.is_expired:
@@ -89,13 +95,74 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
                 }
             )
 
+        # ---------------------------------------------------------------
+        # Engine 2 data: predictions from PredictiveEngine (additive)
+        # ---------------------------------------------------------------
+        prediction_count = 0
+        top_predictions = []
+        engine2_status = "not_initialized"
+        engine2_summary = {}
+
+        if state.world_model is not None:
+            try:
+                pipeline = state.world_model
+
+                # Count active interventions with confidence > 0.7
+                if hasattr(pipeline, "predictive"):
+                    # Expire stale interventions first
+                    pipeline.predictive.expire_stale_interventions()
+
+                    high_conf = [
+                        i
+                        for i in pipeline.predictive.active_interventions.values()
+                        if i.confidence > 0.7
+                    ]
+                    prediction_count = len(high_conf)
+
+                    # Top 3 most urgent predictions
+                    sorted_interventions = (
+                        pipeline.predictive.prioritized_interventions(top_k=3)
+                    )
+                    top_predictions = [i.to_dict() for i in sorted_interventions]
+
+                # Pipeline status summary
+                engine2_summary = pipeline.pipeline_status()
+
+                # Determine overall status
+                n_observations = sum(len(h) for h in pipeline.entity_history.values())
+                if n_observations == 0:
+                    engine2_status = "warming_up"
+                else:
+                    engine2_status = "active"
+
+            except Exception as e:
+                logger.warning("Engine 2 dashboard data failed (non-fatal): %s", e)
+                engine2_status = "error"
+
+        # ---------------------------------------------------------------
+        # Transfer matching stats (additive)
+        # ---------------------------------------------------------------
+        transfer_stats = {"stores_registered": 0, "total_recommendations": 0}
+        if state.transfer_matcher is not None:
+            try:
+                matcher = state.transfer_matcher
+                transfer_stats["stores_registered"] = len(matcher.agents)
+            except Exception:
+                pass
+
         return {
+            # Engine 1 (always available)
             "recovery_total": round(recovery_total, 2),
             "finding_count": len(all_issues),
             "department_count": len(dept_findings),
             "department_status": department_status,
             "top_findings": top_findings,
-            "prediction_count": 0,  # TODO: wire to PredictiveEngine
+            # Engine 2 (additive — 0/empty if unavailable)
+            "prediction_count": prediction_count,
+            "top_predictions": top_predictions,
+            "engine2_status": engine2_status,
+            "engine2_summary": engine2_summary,
+            "transfer_stats": transfer_stats,
         }
 
     return router

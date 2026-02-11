@@ -7,6 +7,7 @@ variables with explicit dependency injection.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 
@@ -26,10 +27,13 @@ from ..vendor_assist import VendorCallAssistant
 # Lazy import to avoid circular dependencies — world_model is optional
 try:
     from ..world_model import SentinelPipeline
+    from ..world_model.transfer_matching import TransferMatcher
 
     _HAS_WORLD_MODEL = True
 except ImportError:
     _HAS_WORLD_MODEL = False
+
+logger = logging.getLogger("sentinel.state")
 
 
 class DigestCacheEntry:
@@ -58,10 +62,14 @@ class AppState:
     reasoner: SymbolicReasoner = field(default_factory=SymbolicReasoner)
     diagnostic_engine: DiagnosticEngine = field(default_factory=DiagnosticEngine)
 
-    # Engine 2: VSA World Model (optional — initialized lazily)
-    # This is the continuous monitoring engine that learns store patterns.
-    # Engine 1 (Rust pipeline) results are fed here via record_observation().
+    # Engine 2: VSA World Model (initialized eagerly in sidecar.create_app)
+    # Consumes Engine 1 (Rust pipeline) results via feed_engine2().
+    # Adds predictions, transfer recommendations, tier classification.
+    # If None, Engine 2 features are silently disabled — Engine 1 is unaffected.
     world_model: object | None = field(default=None)
+
+    # Transfer matching engine (shares algebra with world_model)
+    transfer_matcher: object | None = field(default=None)
 
     # In-memory stores
     digest_cache: dict[str, DigestCacheEntry] = field(default_factory=dict)
@@ -105,42 +113,67 @@ class AppState:
         continuous monitoring world model. Each flagged issue becomes an
         observation that the world model can learn patterns from.
 
+        Flow: Engine 1 runs → findings displayed immediately → same data
+        fed here as observations → Engine 2 adds predictions/transfers/tier
+        classification on top.
+
+        Sovereign collapse rule: if Engine 2 fails here, Engine 1 findings
+        are already returned to the user. This is fire-and-forget.
+
         Args:
             analysis_result: The full result dict from RustResultAdapter.transform()
         """
         if self.world_model is None:
             return  # Engine 2 not initialized — skip silently
 
-        import logging
-
-        logger = logging.getLogger("sentinel.engine_bridge")
-
         try:
+            store_id = analysis_result.get("store_id", "default-store")
             leaks = analysis_result.get("leaks", {})
             obs_count = 0
+            timestamp = time.time()
+
             for leak_type, leak_data in leaks.items():
                 items = leak_data.get("items", [])
                 for item in items:
                     sku = item.get("sku") or item.get("item_id", "unknown")
-                    # Build observation dict for the world model
+
+                    # Build observation dict matching SentinelPipeline.record_observation
+                    # signature: (store_id, entity_id, observation, timestamp)
                     obs = {
-                        "entity_id": sku,
                         "issue_type": leak_type,
                         "severity": item.get("severity", "medium"),
                         "dollar_impact": item.get("dollar_impact", 0.0),
+                        "velocity": item.get("velocity", item.get("qty_sold", 0.0)),
+                        "stock": item.get("quantity", item.get("stock", 0)),
+                        "cost": item.get("cost", item.get("unit_cost", 0.0)),
+                        "price": item.get("price", item.get("retail", 0.0)),
+                        "margin": item.get("margin", item.get("margin_pct", 0.0)),
+                        "vendor_id": item.get("vendor_id"),
+                        "vendor_name": item.get("vendor_name"),
                         "description": item.get("description", ""),
+                        "category": item.get("category", item.get("department", "")),
+                        "subcategory": item.get("subcategory", ""),
                     }
-                    # If world model has record_observation, use it
-                    if hasattr(self.world_model, "record_observation"):
-                        self.world_model.record_observation(obs)
-                        obs_count += 1
+
+                    self.world_model.record_observation(
+                        store_id=store_id,
+                        entity_id=sku,
+                        observation=obs,
+                        timestamp=timestamp,
+                    )
+                    obs_count += 1
 
             if obs_count > 0:
                 logger.info(
-                    "Engine 1→2 bridge: fed %d observations to world model",
+                    "Engine 1→2 bridge: fed %d observations from %d leak types "
+                    "to world model (store=%s)",
                     obs_count,
+                    len(leaks),
+                    store_id,
                 )
         except Exception as e:
+            # Sovereign collapse: Engine 2 failure is non-fatal.
+            # Engine 1 findings are already returned to the user.
             logger.warning("Engine 1→2 bridge failed (non-fatal): %s", e)
 
     def find_issue(self, issue_id: str) -> Issue:

@@ -46,6 +46,9 @@ from .sidecar_config import SidecarSettings, get_settings
 from .subscription_store import create_store
 from .upload_routes import create_upload_router
 from .vendor_assist import VendorCallAssistant
+from .world_model import SentinelPipeline
+from .world_model.config import DeadStockConfig
+from .world_model.transfer_matching import EntityHierarchy, TransferMatcher
 
 logger = logging.getLogger("sentinel.sidecar")
 
@@ -98,6 +101,34 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         csv_path=settings.csv_path,
     )
 
+    # -----------------------------------------------------------------
+    # Engine 2: VSA World Model (continuous monitoring + predictions)
+    # -----------------------------------------------------------------
+    # Initialized eagerly at startup. Engine 1 (Rust pipeline) results
+    # flow into this via feed_engine2(). Engine 2 adds predictions,
+    # transfer recommendations, and tier classification on top of
+    # Engine 1's instant analysis. Engine 1 findings always display —
+    # if Engine 2 is unhealthy it goes quiet, not Engine 1.
+    try:
+        dead_stock_config = DeadStockConfig()
+        world_model = SentinelPipeline(
+            dim=4096,
+            seed=42,
+            use_rust=False,  # Start with pure numpy; flip when Rust maturin is built
+            dead_stock_config=dead_stock_config,
+        )
+        # Transfer matching subsystem — shared algebra
+        hierarchy = EntityHierarchy(world_model.algebra)
+        transfer_matcher = TransferMatcher(
+            algebra=world_model.algebra,
+            hierarchy=hierarchy,
+        )
+        logger.info("Engine 2 (VSA world model) initialized: dim=4096")
+    except Exception as e:
+        logger.warning("Engine 2 initialization failed (non-fatal): %s", e)
+        world_model = None
+        transfer_matcher = None
+
     # Shared state for all route modules
     state = AppState(
         settings=settings,
@@ -106,6 +137,8 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         delegation_mgr=DelegationManager(),
         vendor_assistant=VendorCallAssistant(),
         digest_scheduler=digest_scheduler,
+        world_model=world_model,
+        transfer_matcher=transfer_matcher,
     )
 
     # -----------------------------------------------------------------

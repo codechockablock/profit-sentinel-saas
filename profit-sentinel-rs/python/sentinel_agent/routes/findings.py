@@ -4,14 +4,14 @@ GET  /api/v1/findings       — list findings for current user
 POST /api/v1/findings/{id}/acknowledge — mark a finding as acknowledged
 POST /api/v1/findings/{id}/restore     — restore an acknowledged finding
 
-STUB: Responses use in-memory store. Production should read from
-      Supabase analysis results and persist acknowledge state.
+Engine 1 findings always display. Engine 2 enriches findings with
+tier classification, prediction data, and confidence scores when
+available. If Engine 2 is unavailable, findings show without enrichment.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -26,13 +26,59 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
     # In-memory acknowledge store (production: move to Supabase)
     acknowledged_ids: set[str] = set()
 
+    def _enrich_finding(finding: dict) -> dict:
+        """Add Engine 2 enrichment to a finding if world model is available.
+
+        This is additive — it never removes Engine 1 data, only adds
+        Engine 2 insights (tier, predictions, confidence) on top.
+        """
+        if state.world_model is None:
+            return finding
+
+        try:
+            pipeline = state.world_model
+            entity_id = finding.get("id", "")
+            sku = finding.get("sku", entity_id)
+
+            # Check if we have observation history for this entity
+            # entity_history keys are "store_id:entity_id"
+            matching_keys = [
+                k for k in pipeline.entity_history if k.endswith(f":{sku}")
+            ]
+
+            if matching_keys:
+                history_key = matching_keys[0]
+                history = pipeline.entity_history[history_key]
+                store_id = history_key.split(":")[0]
+
+                # Add observation count (shows Engine 2 is tracking)
+                finding["engine2_observations"] = len(history)
+
+                # Generate predictions if enough history
+                if len(history) >= 7:
+                    interventions = pipeline.predict_interventions(
+                        store_id=store_id,
+                        entity_id=sku,
+                    )
+                    if interventions:
+                        top = interventions[0]
+                        finding["prediction"] = top.to_dict()
+            else:
+                finding["engine2_observations"] = 0
+
+        except Exception as e:
+            # Enrichment failure is silent — Engine 1 data is preserved
+            logger.debug("Finding enrichment failed for %s: %s", finding.get("id"), e)
+
+        return finding
+
     @router.get("/findings")
     async def list_findings(
         page: int = Query(1, ge=1),
         page_size: int = Query(20, ge=1, le=100),
-        status: str | None = Query(None, regex="^(active|acknowledged|all)$"),
+        status: str | None = Query(None, pattern="^(active|acknowledged|all)$"),
         sort_by: str | None = Query(
-            "dollar_impact", regex="^(dollar_impact|priority|date)$"
+            "dollar_impact", pattern="^(dollar_impact|priority|date)$"
         ),
         department: str | None = Query(None),
         _user=Depends(require_auth),
@@ -46,7 +92,7 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
             sort_by: Sort order — dollar_impact, priority, or date
             department: Filter by department/category
         """
-        # Collect all issues from cached digests
+        # Collect all issues from cached digests (Engine 1 data)
         all_findings = []
         for entry in state.digest_cache.values():
             if entry.is_expired:
@@ -62,7 +108,10 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
                     "department": getattr(issue, "department", None),
                     "recommended_action": getattr(issue, "recommendation", None),
                     "acknowledged": issue.id in acknowledged_ids,
+                    "sku": getattr(issue, "sku", None),
                 }
+                # Engine 2 enrichment (additive, never blocks)
+                finding = _enrich_finding(finding)
                 all_findings.append(finding)
 
         # Filter by status
@@ -96,6 +145,15 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
         end = start + page_size
         page_items = all_findings[start:end]
 
+        # Engine 2 status summary
+        engine2_status = "not_initialized"
+        if state.world_model is not None:
+            try:
+                n_obs = sum(len(h) for h in state.world_model.entity_history.values())
+                engine2_status = "active" if n_obs > 0 else "warming_up"
+            except Exception:
+                engine2_status = "error"
+
         return {
             "findings": page_items,
             "pagination": {
@@ -104,6 +162,7 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
                 "total": total,
                 "total_pages": max(1, (total + page_size - 1) // page_size),
             },
+            "engine2_status": engine2_status,
         }
 
     @router.post("/findings/{finding_id}/acknowledge")

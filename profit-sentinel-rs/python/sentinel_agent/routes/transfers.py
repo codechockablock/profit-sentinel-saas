@@ -2,9 +2,9 @@
 
 GET /api/v1/transfers — list transfer recommendations for dead stock
 
-STUB: Returns empty recommendations until Engine 1→2 wiring is
-      complete and TransferMatcher has multi-store data. The endpoint
-      structure is ready for integration.
+Wired to TransferMatcher from the world model. Requires multi-store
+data to generate recommendations. Returns empty list gracefully when
+Engine 2 is not initialized or has insufficient data.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ def create_transfers_router(state: AppState, require_auth) -> APIRouter:
     async def list_transfers(
         source_store: str = Query(None, description="Filter by source store ID"),
         min_benefit: float = Query(0.0, description="Minimum net benefit ($)"),
+        max_results: int = Query(20, ge=1, le=100, description="Max recommendations"),
         _user=Depends(require_auth),
     ) -> dict:
         """List transfer recommendations for dead stock items.
@@ -39,27 +40,75 @@ def create_transfers_router(state: AppState, require_auth) -> APIRouter:
         Query params:
             source_store: Filter to a specific source store
             min_benefit: Only show transfers with benefit above this threshold
+            max_results: Maximum number of recommendations to return
         """
-        # TODO: Wire to TransferMatcher once Engine 1→2 integration is complete
-        #
-        # Integration plan:
-        # 1. AppState gains a `world_model: SentinelPipeline` field
-        # 2. After each /analysis/analyze call, Engine 1 results are fed
-        #    to Engine 2 via record_observation()
-        # 3. TransferMatcher.find_recommendations() runs against the
-        #    world model's learned store patterns
-        # 4. Results cached and returned here
-        #
-        # For now, return empty recommendations with the expected shape.
+        # Engine 2 not initialized — return empty gracefully
+        if state.transfer_matcher is None:
+            return {
+                "recommendations": [],
+                "total": 0,
+                "engine2_status": "not_initialized",
+                "message": (
+                    "Transfer matching requires Engine 2 (world model). "
+                    "Contact support if this persists."
+                ),
+            }
 
-        return {
-            "recommendations": [],
-            "total": 0,
-            "message": (
-                "Transfer recommendations require multi-store data. "
-                "Upload inventory from at least 2 stores to enable "
-                "cross-location transfer matching."
-            ),
-        }
+        try:
+            matcher = state.transfer_matcher
+            n_stores = len(matcher.agents)
+
+            # Need at least 2 stores for cross-store matching
+            if n_stores < 2:
+                return {
+                    "recommendations": [],
+                    "total": 0,
+                    "stores_registered": n_stores,
+                    "engine2_status": "warming_up",
+                    "message": (
+                        "Transfer recommendations require multi-store data. "
+                        f"Currently tracking {n_stores} store(s). "
+                        "Upload inventory from at least 2 stores to enable "
+                        "cross-location transfer matching."
+                    ),
+                }
+
+            # Run transfer matching
+            if source_store:
+                recs = matcher.find_transfers(
+                    source_store, max_recommendations=max_results
+                )
+            else:
+                # Search all stores
+                all_recs_by_store = matcher.find_all_transfers(
+                    max_per_store=max_results
+                )
+                recs = []
+                for store_recs in all_recs_by_store.values():
+                    recs.extend(store_recs)
+                # Re-sort combined results by net benefit
+                recs.sort(key=lambda r: -r.net_benefit)
+                recs = recs[:max_results]
+
+            # Apply min_benefit filter
+            if min_benefit > 0:
+                recs = [r for r in recs if r.net_benefit >= min_benefit]
+
+            return {
+                "recommendations": [r.to_dict() for r in recs],
+                "total": len(recs),
+                "stores_registered": n_stores,
+                "engine2_status": "active",
+            }
+
+        except Exception as e:
+            # Sovereign collapse: transfer failure is non-fatal
+            logger.warning("Transfer matching failed (non-fatal): %s", e)
+            return {
+                "recommendations": [],
+                "total": 0,
+                "engine2_status": "error",
+                "message": "Transfer matching encountered an error. Engine 1 findings are unaffected.",
+            }
 
     return router
