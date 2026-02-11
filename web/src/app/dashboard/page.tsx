@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   AlertCircle,
+  AlertTriangle,
   TrendingDown,
   DollarSign,
   Store,
@@ -19,16 +20,19 @@ import {
   Trash2,
   Bell,
   BellOff,
+  Truck,
 } from "lucide-react";
 import Link from "next/link";
 import {
   fetchDigest,
+  fetchDashboardSummary,
   subscribeDigest,
   listSubscriptions,
   unsubscribeDigest,
   sendDigestNow,
   fetchSchedulerStatus,
   type DigestResponse,
+  type DashboardSummaryResponse,
   type Issue,
   type TaskPriority,
   type Subscription,
@@ -64,6 +68,7 @@ function trendIcon(dir: string) {
 
 export default function DigestPage() {
   const [data, setData] = useState<DigestResponse | null>(null);
+  const [dashData, setDashData] = useState<DashboardSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [topK, setTopK] = useState(10);
@@ -72,8 +77,12 @@ export default function DigestPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchDigest(undefined, topK);
+      const [res, dash] = await Promise.all([
+        fetchDigest(undefined, topK),
+        fetchDashboardSummary().catch(() => null),
+      ]);
       setData(res);
+      setDashData(dash);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -174,6 +183,81 @@ export default function DigestPage() {
               }
             />
           </div>
+
+          {/* Engine 2 Insights (additive — only shows when data is available) */}
+          {dashData && (dashData.prediction_count > 0 || dashData.transfer_stats.stores_registered >= 2) && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              {/* Engine 2 status */}
+              <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      dashData.engine2_status === "active"
+                        ? "bg-emerald-400"
+                        : dashData.engine2_status === "warming_up"
+                        ? "bg-yellow-400"
+                        : "bg-slate-600"
+                    }`}
+                  />
+                  <span className="text-xs text-slate-400">Smart Analysis</span>
+                </div>
+                <p className="text-lg font-bold text-white">
+                  {dashData.prediction_count} Prediction{dashData.prediction_count !== 1 ? "s" : ""}
+                </p>
+                {dashData.top_predictions.length > 0 && (
+                  <Link
+                    href="/dashboard/predictions"
+                    className="flex items-center gap-1 text-xs text-emerald-400 mt-1.5 hover:underline"
+                  >
+                    <AlertTriangle size={10} />
+                    View predictions
+                    <ChevronRight size={10} />
+                  </Link>
+                )}
+              </div>
+
+              {/* Top predictions preview */}
+              {dashData.top_predictions.length > 0 && (
+                <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+                  <p className="text-xs text-slate-400 mb-2">Top Predictions</p>
+                  <div className="space-y-1.5">
+                    {dashData.top_predictions.slice(0, 3).map((pred, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-300 truncate mr-2">
+                          {(pred as Record<string, unknown>).entity_id as string || `Prediction ${i + 1}`}
+                        </span>
+                        <span className="text-amber-400 font-medium shrink-0">
+                          {(pred as Record<string, unknown>).confidence
+                            ? `${((pred as Record<string, unknown>).confidence as number * 100).toFixed(0)}%`
+                            : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Transfer opportunity */}
+              {dashData.transfer_stats.stores_registered >= 2 && (
+                <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Truck size={14} className="text-emerald-400" />
+                    <span className="text-xs text-slate-400">Transfer Opportunities</span>
+                  </div>
+                  <p className="text-lg font-bold text-white">
+                    {dashData.transfer_stats.stores_registered} Stores
+                  </p>
+                  <Link
+                    href="/dashboard/transfers"
+                    className="flex items-center gap-1 text-xs text-emerald-400 mt-1.5 hover:underline"
+                  >
+                    View recommendations
+                    <ChevronRight size={10} />
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Email Digest Section */}
           <EmailDigestSection />

@@ -881,3 +881,139 @@ export async function deletePosConnection(connectionId: string): Promise<{ messa
     method: 'DELETE',
   });
 }
+
+// ---------------------------------------------------------------------------
+// Findings (Engine 2 enriched)
+// ---------------------------------------------------------------------------
+
+export type Engine2Status = 'active' | 'warming_up' | 'not_initialized' | 'error';
+
+export interface Finding {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  severity: string;
+  dollar_impact: number;
+  department: string | null;
+  recommended_action: string | null;
+  acknowledged: boolean;
+  sku: string | null;
+  engine2_observations?: number;
+  prediction?: Record<string, unknown>;
+}
+
+export interface FindingsResponse {
+  findings: Finding[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
+  engine2_status: Engine2Status;
+}
+
+export async function fetchFindings(params?: {
+  page?: number;
+  page_size?: number;
+  status?: 'active' | 'acknowledged' | 'all';
+  sort_by?: 'dollar_impact' | 'priority' | 'date';
+  department?: string;
+}): Promise<FindingsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.page_size) qs.set('page_size', String(params.page_size));
+  if (params?.status) qs.set('status', params.status);
+  if (params?.sort_by) qs.set('sort_by', params.sort_by);
+  if (params?.department) qs.set('department', params.department);
+  const q = qs.toString();
+  return apiFetch(`/findings${q ? `?${q}` : ''}`);
+}
+
+export async function acknowledgeFinding(findingId: string): Promise<{ id: string; acknowledged: boolean }> {
+  return apiFetch(`/findings/${findingId}/acknowledge`, { method: 'POST' });
+}
+
+export async function restoreFinding(findingId: string): Promise<{ id: string; acknowledged: boolean }> {
+  return apiFetch(`/findings/${findingId}/restore`, { method: 'POST' });
+}
+
+// ---------------------------------------------------------------------------
+// Transfer Recommendations
+// ---------------------------------------------------------------------------
+
+export interface TransferRecommendation {
+  source_store: string;
+  source_sku: string;
+  source_description: string;
+  units_to_transfer: number;
+  dest_store: string;
+  dest_sku: string;
+  dest_description: string;
+  match_level: 'exact_sku' | 'subcategory' | 'category';
+  match_confidence: number;
+  clearance_recovery: number;
+  transfer_recovery: number;
+  net_benefit: number;
+  demand_pattern: string;
+  estimated_weeks_to_sell: number;
+}
+
+export interface TransfersResponse {
+  recommendations: TransferRecommendation[];
+  total: number;
+  stores_registered?: number;
+  engine2_status: Engine2Status;
+  message?: string;
+}
+
+export async function fetchTransfers(params?: {
+  source_store?: string;
+  min_benefit?: number;
+  max_results?: number;
+}): Promise<TransfersResponse> {
+  const qs = new URLSearchParams();
+  if (params?.source_store) qs.set('source_store', params.source_store);
+  if (params?.min_benefit) qs.set('min_benefit', String(params.min_benefit));
+  if (params?.max_results) qs.set('max_results', String(params.max_results));
+  const q = qs.toString();
+  return apiFetch(`/transfers${q ? `?${q}` : ''}`);
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard Summary (Engine 2 enhanced)
+// ---------------------------------------------------------------------------
+
+export interface DashboardTopFinding {
+  id: string;
+  type: string;
+  title: string;
+  severity: string;
+  dollar_impact: number;
+  department: string | null;
+}
+
+export interface DashboardSummaryResponse {
+  recovery_total: number;
+  finding_count: number;
+  department_count: number;
+  department_status: Record<string, {
+    status: 'green' | 'yellow' | 'red';
+    finding_count: number;
+    total_impact: number;
+  }>;
+  top_findings: DashboardTopFinding[];
+  prediction_count: number;
+  top_predictions: Record<string, unknown>[];
+  engine2_status: Engine2Status;
+  engine2_summary: Record<string, unknown>;
+  transfer_stats: {
+    stores_registered: number;
+    total_recommendations: number;
+  };
+}
+
+export async function fetchDashboardSummary(): Promise<DashboardSummaryResponse> {
+  return apiFetch('/dashboard');
+}

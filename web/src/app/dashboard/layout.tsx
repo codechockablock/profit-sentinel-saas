@@ -18,6 +18,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Lock,
+  Search,
+  Truck,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -31,7 +33,9 @@ const NAV_ITEMS = [
   { href: "/dashboard/diagnostic", label: "Diagnostic", icon: Stethoscope, description: "Shrinkage wizard" },
   { href: "/dashboard/history", label: "History", icon: History, description: "Track & compare" },
   { href: "/dashboard/vendor-scores", label: "Vendor Scores", icon: BarChart3, description: "Performance scoring" },
+  { href: "/dashboard/findings", label: "Findings", icon: Search, description: "Ranked by impact" },
   { href: "/dashboard/predictions", label: "Predictions", icon: AlertTriangle, description: "Inventory forecasts" },
+  { href: "/dashboard/transfers", label: "Transfers", icon: Truck, description: "Cross-store moves" },
   { href: "/dashboard/api-keys", label: "API Keys", icon: Key, description: "Enterprise access" },
   { href: "/dashboard/pos", label: "POS Connect", icon: Plug, description: "System integrations" },
 ];
