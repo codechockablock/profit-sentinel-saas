@@ -59,6 +59,12 @@ module "s3" {
   name_prefix = "profitsentinel-prod"
 }
 
+module "waf" {
+  source      = "../../modules/waf"
+  name_prefix = "profitsentinel-prod"
+  alb_arn     = module.alb.alb_arn
+}
+
 # Production does not need its own RDS — uses Supabase for auth/DB
 
 output "alb_dns_name" {
