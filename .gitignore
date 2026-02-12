@@ -207,3 +207,4 @@ test_resonator.py
 inventory_report.html
 *.html
 !web/**/*.html
+.env*.local
