@@ -224,12 +224,12 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     async def file_not_found_handler(
         request: Request, exc: FileNotFoundError
     ) -> JSONResponse:
+        logger.warning("File not found: %s", exc)
         return JSONResponse(
             status_code=404,
             content=ErrorResponse(
-                code="FILE_NOT_FOUND",
-                message="Data file not found",
-                detail=str(exc),
+                code="NO_DATA",
+                message="No analysis data available. Upload inventory data to get started.",
             ).model_dump(),
         )
 

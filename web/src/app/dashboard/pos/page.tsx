@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   Plug,
   Plus,
@@ -12,6 +13,8 @@ import {
   Loader2,
   Store,
   ArrowRight,
+  AlertTriangle,
+  Upload,
 } from "lucide-react";
 import {
   fetchSupportedPosSystems,
@@ -173,6 +176,29 @@ export default function PosPage() {
 
   return (
     <div className="p-6 md:p-8 max-w-5xl">
+      {/* Coming Soon Banner */}
+      <div className="mb-8 rounded-xl border border-amber-500/40 bg-amber-500/10 p-5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <h2 className="text-lg font-bold text-amber-300">
+              POS Integrations &mdash; Coming Soon
+            </h2>
+            <p className="text-sm text-amber-200/80 mt-1 leading-relaxed">
+              Direct connections to Square, Lightspeed, Clover, and Shopify are in
+              development. For now, upload your inventory data as a CSV file.
+            </p>
+            <Link
+              href="/analyze"
+              className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold rounded-lg transition-colors"
+            >
+              <Upload size={16} />
+              Upload CSV
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
@@ -184,99 +210,106 @@ export default function PosPage() {
         </p>
       </div>
 
-      {/* Supported systems */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {systems.map((sys) => (
-          <div key={sys.system} className="bg-white/5 rounded-xl border border-slate-700 p-4 text-center">
-            <Store size={24} className="text-slate-400 mx-auto mb-2" />
-            <div className="text-sm font-semibold text-white">{sys.display_name}</div>
-            <div className="text-[10px] text-slate-500 mt-1">{sys.auth_type}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 text-red-400 text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* Create connection */}
-      <div className="mb-8">
-        {!showCreate ? (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition"
-          >
-            <Plus size={16} />
-            Add Connection
-          </button>
-        ) : (
-          <div className="bg-white/5 rounded-xl border border-slate-700 p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">New Connection</h3>
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">POS System</label>
-                <select
-                  value={selectedSystem}
-                  onChange={(e) => setSelectedSystem(e.target.value as PosSystemType)}
-                  className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {systems.map((sys) => (
-                    <option key={sys.system} value={sys.system}>
-                      {sys.display_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Store Name</label>
-                <input
-                  type="text"
-                  value={storeName}
-                  onChange={(e) => setStoreName(e.target.value)}
-                  className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
-                  placeholder="My Hardware Store"
-                />
-              </div>
-              <button
-                onClick={handleCreate}
-                disabled={creating || !storeName.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition disabled:opacity-50"
-              >
-                {creating ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                Connect
-              </button>
-              <button
-                onClick={() => setShowCreate(false)}
-                className="px-4 py-2 text-slate-400 hover:text-white transition"
-              >
-                Cancel
-              </button>
+      {/* Disabled preview — pointer-events-none + reduced opacity */}
+      <div className="pointer-events-none opacity-50 select-none">
+        {/* Supported systems */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {systems.map((sys) => (
+            <div key={sys.system} className="bg-white/5 rounded-xl border border-slate-700 p-4 text-center">
+              <Store size={24} className="text-slate-400 mx-auto mb-2" />
+              <div className="text-sm font-semibold text-white">{sys.display_name}</div>
+              <div className="text-[10px] text-slate-500 mt-1">{sys.auth_type}</div>
             </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
 
-      {/* Connection list */}
-      <div className="space-y-3">
-        {connections.length === 0 ? (
-          <div className="text-center py-12">
-            <Plug className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-400">No POS connections yet. Add one to start syncing inventory data.</p>
+        {/* Error */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 text-red-400 text-sm">
+            {error}
           </div>
-        ) : (
-          connections.map((conn) => (
-            <ConnectionCard
-              key={conn.connection_id}
-              conn={conn}
-              onSync={handleSync}
-              onDisconnect={handleDisconnect}
-              onDelete={handleDelete}
-            />
-          ))
         )}
+
+        {/* Create connection */}
+        <div className="mb-8">
+          {!showCreate ? (
+            <button
+              onClick={() => setShowCreate(true)}
+              disabled
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg cursor-not-allowed opacity-50"
+            >
+              <Plus size={16} />
+              Add Connection
+            </button>
+          ) : (
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-5">
+              <h3 className="text-sm font-semibold text-white mb-4">New Connection</h3>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">POS System</label>
+                  <select
+                    value={selectedSystem}
+                    onChange={(e) => setSelectedSystem(e.target.value as PosSystemType)}
+                    disabled
+                    className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {systems.map((sys) => (
+                      <option key={sys.system} value={sys.system}>
+                        {sys.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Store Name</label>
+                  <input
+                    type="text"
+                    value={storeName}
+                    onChange={(e) => setStoreName(e.target.value)}
+                    disabled
+                    className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                    placeholder="My Hardware Store"
+                  />
+                </div>
+                <button
+                  onClick={handleCreate}
+                  disabled
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg cursor-not-allowed opacity-50"
+                >
+                  <ArrowRight size={16} />
+                  Connect
+                </button>
+                <button
+                  onClick={() => setShowCreate(false)}
+                  disabled
+                  className="px-4 py-2 text-slate-400 cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Connection list */}
+        <div className="space-y-3">
+          {connections.length === 0 ? (
+            <div className="text-center py-12">
+              <Plug className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+              <p className="text-slate-400">No POS connections yet. Add one to start syncing inventory data.</p>
+            </div>
+          ) : (
+            connections.map((conn) => (
+              <ConnectionCard
+                key={conn.connection_id}
+                conn={conn}
+                onSync={handleSync}
+                onDisconnect={handleDisconnect}
+                onDelete={handleDelete}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

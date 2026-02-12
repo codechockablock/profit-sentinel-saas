@@ -108,12 +108,12 @@ class AppState:
                 top_k=top_k,
             )
         except FileNotFoundError:
+            logger.warning("Data file not found: %s", self.settings.csv_path)
             raise HTTPException(
                 status_code=404,
                 detail={
-                    "code": "FILE_NOT_FOUND",
-                    "message": "Data file not found",
-                    "detail": f"CSV file not found: {self.settings.csv_path}",
+                    "code": "NO_DATA",
+                    "message": "No analysis data available. Upload inventory data to get started.",
                 },
             )
 

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+logger = logging.getLogger("sentinel.routes.digest")
 
 from ..api_models import (
     DigestResponse,
@@ -110,7 +114,11 @@ def create_digest_router(state: AppState, require_auth) -> APIRouter:
                 message=f"Digest sent to {body.email}",
             )
         except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")
+            logger.warning("Digest email send failed: %s", exc)
+            raise HTTPException(
+                status_code=502,
+                detail="Unable to send digest email. Please try again later.",
+            )
 
     @router.get(
         "/digest/scheduler-status",

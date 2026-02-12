@@ -98,8 +98,8 @@ class SidecarSettings(BaseSettings):
 
     # ----- Cache -----
     digest_cache_ttl_seconds: int = Field(
-        default=300,
-        description="TTL for cached digests (seconds). Default 5 minutes.",
+        default=86400,
+        description="TTL for cached digests (seconds). Default 24 hours.",
     )
 
     model_config = {
