@@ -909,6 +909,135 @@ class DiagnosticEngine:
 # =============================================================================
 
 
+async def enhance_question_with_llm(
+    question: dict,
+    anthropic_api_key: str,
+) -> dict:
+    """Optionally enhance a diagnostic question with Claude narration.
+
+    Takes the structured question dict from get_current_question()
+    and adds a 'narrative_question' field with Claude's conversational
+    version. Falls back silently — the original 'question' field
+    is always preserved.
+
+    Args:
+        question: The question dict from get_current_question()
+        anthropic_api_key: Anthropic API key. If empty, returns question unchanged.
+
+    Returns:
+        The question dict, possibly with an added 'narrative_question' field.
+    """
+    if not anthropic_api_key or not question:
+        return question
+
+    try:
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=anthropic_api_key)
+
+        # Build context from the question data
+        pattern_name = question.get("pattern_name", "Unknown pattern")
+        item_count = question.get("item_count", 0)
+        total_value = question.get("total_value", 0)
+        sample_items = question.get("sample_items", [])
+        suggested_answers = question.get("suggested_answers", [])
+        original_question = question.get("question", "")
+
+        sample_descriptions = [
+            item.get("description", item.get("sku", "")) for item in sample_items[:3]
+        ]
+
+        prompt = (
+            "You are Profit Sentinel's diagnostic assistant helping a hardware "
+            "store owner understand inventory anomalies. Rewrite this diagnostic "
+            "question in a natural, conversational tone. Reference specific items "
+            "from the data to make it concrete.\n\n"
+            f"Pattern detected: {pattern_name}\n"
+            f"Items affected: {item_count}\n"
+            f"Total value: ${total_value:,.0f}\n"
+            f"Sample items: {', '.join(sample_descriptions)}\n"
+            f"Template question: {original_question}\n"
+            f"Possible explanations: {', '.join(str(a) for a in suggested_answers)}\n\n"
+            "RULES:\n"
+            "- Keep it under 3 sentences\n"
+            "- Reference 1-2 specific items by name to make it concrete\n"
+            "- Suggest the most likely explanation first based on the pattern\n"
+            "- End with an open question so the owner can correct you\n"
+            "- Use plain language, not technical jargon\n"
+            "- Do NOT use bullet points or lists\n\n"
+            "Return ONLY the rewritten question text, nothing else."
+        )
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=256,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        narrative = response.content[0].text.strip()
+
+        # Preserve the original, add the narrative version
+        question["narrative_question"] = narrative
+
+    except Exception as e:
+        logger.warning(f"Diagnostic LLM enhancement failed (non-fatal): {e}")
+        # Silently fall back — original question is untouched
+
+    return question
+
+
+async def narrate_diagnostic_report(
+    report: dict,
+    anthropic_api_key: str,
+) -> dict:
+    """Add a narrative summary to the diagnostic report.
+
+    Falls back silently — original report is always preserved.
+    """
+    if not anthropic_api_key or not report:
+        return report
+
+    try:
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=anthropic_api_key)
+
+        summary = report.get("summary", {})
+        classifications = report.get("by_classification", {})
+
+        prompt = (
+            "You are Profit Sentinel's diagnostic assistant. Write a brief "
+            "closing summary of this inventory diagnostic session for a "
+            "hardware store owner.\n\n"
+            "Session results:\n"
+            f"- Items analyzed: {summary.get('items_analyzed', 0)}\n"
+            f"- Negative inventory items: {summary.get('negative_items', 0)}\n"
+            f"- Total shrinkage value: ${summary.get('total_shrinkage', 0):,.0f}\n"
+            f"- Classifications: {classifications}\n\n"
+            "RULES:\n"
+            "- 2-3 sentences maximum\n"
+            "- Lead with the most important finding\n"
+            "- If theft/shrinkage was identified, mention it directly but "
+            "constructively\n"
+            "- End with a concrete next step\n"
+            "- Plain language, no jargon\n\n"
+            "Return ONLY the summary text."
+        )
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=256,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        report["narrative_summary"] = response.content[0].text.strip()
+
+    except Exception as e:
+        logger.warning(f"Diagnostic report narration failed (non-fatal): {e}")
+
+    return report
+
+
 def render_diagnostic_summary(session: DiagnosticSession) -> str:
     """Render a text summary of the diagnostic session."""
     summary = session.get_summary()
@@ -934,7 +1063,7 @@ def render_diagnostic_summary(session: DiagnosticSession) -> str:
             except ValueError:
                 label = cls_value
             lines.append(
-                f"  {label:<25} {data['items']:>4} items  " f"${data['value']:>10,.0f}"
+                f"  {label:<25} {data['items']:>4} items  ${data['value']:>10,.0f}"
             )
 
     return "\n".join(lines)

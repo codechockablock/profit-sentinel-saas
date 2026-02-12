@@ -24,7 +24,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from .email_service import send_digest_email
-from .llm_layer import render_digest
+from .llm_layer import narrate_digest, render_digest
 from .subscription_store import InMemoryStore, SubscriptionStore, create_store
 
 logger = logging.getLogger("sentinel.scheduler")
@@ -104,8 +104,10 @@ class DigestScheduler:
         generator: Any,  # MorningDigestGenerator
         csv_path: str,
         check_interval: int = 60,
+        anthropic_api_key: str = "",
     ):
         self.resend_api_key = resend_api_key
+        self.anthropic_api_key = anthropic_api_key
         self.generator = generator
         self.csv_path = csv_path
         self.check_interval = check_interval
@@ -189,8 +191,19 @@ class DigestScheduler:
                 top_k=10,
             )
 
-            # Render plain text
+            # Render plain text (template — always works)
             plain_text = render_digest(digest)
+
+            # Optional: Claude narration (falls back to template on failure)
+            if self.anthropic_api_key:
+                try:
+                    plain_text = await narrate_digest(
+                        digest,
+                        plain_text,
+                        self.anthropic_api_key,
+                    )
+                except Exception as e:
+                    logger.warning(f"Digest narration failed, using template: {e}")
 
             # Build issue dicts for HTML template
             issues = []
@@ -257,7 +270,19 @@ class DigestScheduler:
             top_k=10,
         )
 
+        # Render plain text (template — always works)
         plain_text = render_digest(digest)
+
+        # Optional: Claude narration (falls back to template on failure)
+        if self.anthropic_api_key:
+            try:
+                plain_text = await narrate_digest(
+                    digest,
+                    plain_text,
+                    self.anthropic_api_key,
+                )
+            except Exception as e:
+                logger.warning(f"Digest narration failed, using template: {e}")
 
         issues = []
         for issue in digest.issues[:10]:

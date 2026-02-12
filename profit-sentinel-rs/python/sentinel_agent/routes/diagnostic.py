@@ -13,7 +13,12 @@ from ..api_models import (
     DiagnosticStartResponse,
     DiagnosticSummaryResponse,
 )
-from ..diagnostics import DiagnosticSession, render_diagnostic_report
+from ..diagnostics import (
+    DiagnosticSession,
+    enhance_question_with_llm,
+    narrate_diagnostic_report,
+    render_diagnostic_report,
+)
 from .state import AppState
 
 
@@ -71,6 +76,13 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
 
         if not question:
             return None
+
+        # Optional: Claude-enhanced conversational question
+        if state.settings.anthropic_api_key:
+            question = await enhance_question_with_llm(
+                question, state.settings.anthropic_api_key
+            )
+
         return DiagnosticQuestionResponse(**question)
 
     @router.post(
@@ -148,6 +160,12 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
 
         report = state.diagnostic_engine.get_final_report(session)
         rendered = render_diagnostic_report(report)
+
+        # Optional: Claude-narrated closing summary
+        if state.settings.anthropic_api_key:
+            report = await narrate_diagnostic_report(
+                report, state.settings.anthropic_api_key
+            )
 
         return DiagnosticReportResponse(
             session_id=session_id,

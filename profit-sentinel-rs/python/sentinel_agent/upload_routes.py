@@ -242,7 +242,9 @@ def create_upload_router(
             )
 
             mapping_svc = MappingService()
-            result = mapping_svc.suggest_mapping(df, filename)
+            result = mapping_svc.suggest_mapping(
+                df, filename, anthropic_api_key=settings.anthropic_api_key
+            )
             return result
 
         except ValueError as e:

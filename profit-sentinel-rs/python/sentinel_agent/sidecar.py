@@ -112,6 +112,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         resend_api_key=settings.resend_api_key,
         generator=generator,
         csv_path=settings.csv_path,
+        anthropic_api_key=settings.anthropic_api_key,
     )
 
     # -----------------------------------------------------------------

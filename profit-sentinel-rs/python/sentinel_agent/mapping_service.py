@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 
 import pandas as pd
@@ -273,14 +272,15 @@ class MappingService:
         norm = re.sub(r"[\s._\-#$%()]+", "", norm)
         return norm
 
-    def suggest_mapping(self, df: pd.DataFrame, filename: str) -> dict:
+    def suggest_mapping(
+        self, df: pd.DataFrame, filename: str, anthropic_api_key: str = ""
+    ) -> dict:
         """Suggest column mappings for uploaded data."""
         columns = list(df.columns)
         sample = df.head(10).to_dict(orient="records")
 
-        anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if anthropic_key:
-            suggestions = self._ai_mapping(anthropic_key, columns, sample, filename)
+        if anthropic_api_key:
+            suggestions = self._ai_mapping(anthropic_api_key, columns, sample, filename)
         else:
             suggestions = self._aggressive_heuristic_mapping(columns, sample)
             suggestions["notes"] = (

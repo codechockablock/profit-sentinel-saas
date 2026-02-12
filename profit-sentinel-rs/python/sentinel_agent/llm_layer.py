@@ -8,6 +8,8 @@ into text a real operations executive would find useful at 6 AM.
 
 from __future__ import annotations
 
+import logging
+
 from .coop_models import (
     CategoryMixAnalysis,
     CoopAlert,
@@ -554,4 +556,138 @@ def render_category_mix_summary(analysis: CategoryMixAnalysis) -> str:
                 )
         lines.append("")
 
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Morning Digest — Claude Narration (optional)
+# ---------------------------------------------------------------------------
+
+logger = logging.getLogger("sentinel.llm_layer")
+
+
+async def narrate_digest(
+    digest: Digest,
+    template_text: str,
+    anthropic_api_key: str,
+    engine3_summary: dict | None = None,
+) -> str:
+    """Generate a Claude-narrated morning digest.
+
+    Takes the structured Digest and the template-rendered text,
+    and produces a conversational briefing that synthesizes
+    findings into a natural narrative.
+
+    Falls back to template_text if Claude is unavailable.
+
+    Args:
+        digest: The Digest object from Engine 1.
+        template_text: The template-rendered digest (from render_digest).
+        anthropic_api_key: API key. If empty, returns template_text.
+        engine3_summary: Optional Engine 3 cost-of-inaction summary.
+
+    Returns:
+        Narrated text, or template_text on fallback.
+    """
+    if not anthropic_api_key:
+        return template_text
+
+    try:
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=anthropic_api_key)
+
+        # Build structured context for Claude
+        issue_summaries = []
+        for issue in digest.issues[:10]:
+            sku_examples = [s.sku_id for s in issue.skus[:3]]
+            issue_summaries.append(
+                {
+                    "type": issue.issue_type.display_name,
+                    "dollar_impact": issue.dollar_impact,
+                    "sku_count": issue.sku_count,
+                    "trend": (
+                        issue.trend_direction.value
+                        if hasattr(issue.trend_direction, "value")
+                        else str(issue.trend_direction)
+                    ),
+                    "root_cause": issue.root_cause_display,
+                    "sample_skus": sku_examples,
+                }
+            )
+
+        engine3_context = ""
+        if engine3_summary:
+            monthly = engine3_summary.get("monthly_bleed_rate", 0)
+            daily = engine3_summary.get("daily_bleed_rate", 0)
+            count = engine3_summary.get("findings_with_counterfactuals", 0)
+            engine3_context = (
+                "\n\nENGINE 3 — COST OF INACTION:\n"
+                f"Unresolved findings are costing ~${monthly:,.0f}/month "
+                f"(${daily:,.0f}/day).\n"
+                f"{count} items have actionable counterfactuals."
+            )
+
+        prompt = (
+            "You are Profit Sentinel's morning briefing voice for a hardware "
+            "store owner. Write a concise morning digest that synthesizes "
+            "these findings into a natural briefing they'll read at 6 AM "
+            "with coffee.\n\n"
+            "STRUCTURED DATA:\n"
+            f"Total issues: {digest.summary.total_issues}\n"
+            f"Total exposure: ${digest.summary.total_dollar_impact:,.0f}\n"
+            f"Records analyzed: {digest.summary.records_processed}\n"
+            f"Pipeline time: {digest.pipeline_ms}ms\n\n"
+            "Issues (ranked by priority):\n"
+            f"{_format_issues_for_prompt(issue_summaries)}"
+            f"{engine3_context}\n\n"
+            "TEMPLATE VERSION (for reference — all facts here are verified):\n"
+            f"{template_text}\n\n"
+            "RULES:\n"
+            '- Start with "Good morning." then get to the point\n'
+            '- Group related findings into themes (e.g., "paint margins" '
+            'not "issue 1, issue 2")\n'
+            "- Lead with the most urgent/expensive item\n"
+            "- Include specific dollar amounts — these come from the verified "
+            "pipeline, use them\n"
+            "- If Engine 3 data is present, end with the cost-of-inaction line\n"
+            "- Keep it under 200 words\n"
+            '- Use plain language. "Paint is bleeding money" not '
+            '"MarginErosion detected in PNT category"\n'
+            "- No bullet points. Write in short paragraphs\n"
+            "- Every dollar figure you mention MUST come from the structured "
+            "data above\n"
+            "- Do NOT invent or estimate any numbers\n\n"
+            "Return ONLY the digest text."
+        )
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=512,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        narrated = response.content[0].text.strip()
+
+        # Sanity check: if Claude's response is empty or very short, fall back
+        if len(narrated) < 50:
+            logger.warning("Claude narration too short, falling back to template")
+            return template_text
+
+        return narrated
+
+    except Exception as e:
+        logger.warning(f"Digest narration failed (non-fatal): {e}")
+        return template_text
+
+
+def _format_issues_for_prompt(issues: list[dict]) -> str:
+    """Format issue summaries for the Claude prompt."""
+    lines = []
+    for i, iss in enumerate(issues, 1):
+        lines.append(
+            f"  {i}. {iss['type']}: ${iss['dollar_impact']:,.0f} "
+            f"({iss['sku_count']} SKUs, trend: {iss['trend']}, "
+            f"cause: {iss['root_cause']})"
+        )
     return "\n".join(lines)
