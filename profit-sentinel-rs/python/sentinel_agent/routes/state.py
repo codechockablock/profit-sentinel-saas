@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from fastapi import HTTPException
 
 from ..api_models import TaskResponse
+from ..counterfactual import CounterfactualEngine
 from ..delegation import DelegationManager
 from ..diagnostics import DiagnosticEngine
 from ..digest import MorningDigestGenerator
@@ -70,6 +71,11 @@ class AppState:
 
     # Transfer matching engine (shares algebra with world_model)
     transfer_matcher: object | None = field(default=None)
+
+    # Engine 3: Counterfactual World Model
+    # Computes alternate timelines for Engine 1 findings.
+    # If None, counterfactual features are silently disabled.
+    counterfactual_engine: CounterfactualEngine | None = field(default=None)
 
     # In-memory stores
     digest_cache: dict[str, DigestCacheEntry] = field(default_factory=dict)

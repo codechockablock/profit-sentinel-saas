@@ -77,7 +77,7 @@ def render_issue_detail(issue: Issue) -> str:
     if issue.root_cause is not None:
         conf = issue.root_cause_confidence or 0.0
         lines.append(
-            f"Root cause: {issue.root_cause.display_name} " f"({conf:.0%} confidence)"
+            f"Root cause: {issue.root_cause.display_name} ({conf:.0%} confidence)"
         )
 
     # Context / trend line
@@ -168,9 +168,7 @@ def _render_multi_sku(issue: Issue) -> str:
     match issue.issue_type:
         case IssueType.DEAD_STOCK:
             avg_days = sum(s.days_since_receipt for s in issue.skus) / len(issue.skus)
-            return (
-                f"{issue.sku_count} SKUs with zero sales for " f"{int(avg_days)}+ days"
-            )
+            return f"{issue.sku_count} SKUs with zero sales for {int(avg_days)}+ days"
         case IssueType.MARGIN_EROSION:
             avg_margin = sum(s.margin_pct for s in issue.skus) / len(issue.skus)
             return (
@@ -181,7 +179,7 @@ def _render_multi_sku(issue: Issue) -> str:
             total_short = sum(
                 abs(s.qty_on_hand) for s in issue.skus if s.qty_on_hand < 0
             )
-            return f"{issue.sku_count} SKUs, " f"{int(total_short)} total units short"
+            return f"{issue.sku_count} SKUs, {int(total_short)} total units short"
         case IssueType.SHRINKAGE_PATTERN:
             total_value = sum(abs(s.qty_on_hand) * s.unit_cost for s in issue.skus)
             return (
@@ -191,8 +189,7 @@ def _render_multi_sku(issue: Issue) -> str:
         case IssueType.ZERO_COST_ANOMALY:
             selling = sum(1 for s in issue.skus if s.sales_last_30d > 0)
             return (
-                f"{issue.sku_count} SKUs with $0 cost data"
-                f" ({selling} actively selling)"
+                f"{issue.sku_count} SKUs with $0 cost data ({selling} actively selling)"
             )
         case IssueType.PRICE_DISCREPANCY:
             return f"{issue.sku_count} SKUs priced below cost"
@@ -284,6 +281,10 @@ def render_digest(digest: Digest) -> str:
         lines.append(render_issue_headline(issue, i))
         lines.append(render_issue_detail(issue))
         lines.append("")
+
+    # Engine 3: cost of inaction summary
+    # (only if counterfactual data was enriched into the digest)
+    # This will be wired when the digest pipeline passes through Engine 3
 
     # Footer
     lines.append(
@@ -489,7 +490,7 @@ def render_rebate_status(status: VendorRebateStatus) -> str:
     current_rate = status.current_tier.rebate_pct * 100 if status.current_tier else 0
 
     lines.append(
-        f"{status.program.vendor_name} — " f"{current_name} tier ({current_rate:.1f}%)"
+        f"{status.program.vendor_name} — {current_name} tier ({current_rate:.1f}%)"
     )
 
     if status.next_tier:

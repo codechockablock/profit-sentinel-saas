@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from .analysis_store import create_analysis_store, init_analysis_store
 from .api_keys import init_api_key_store
 from .api_models import ErrorResponse
+from .counterfactual import CounterfactualEngine
 from .delegation import DelegationManager
 from .digest import MorningDigestGenerator
 from .digest_scheduler import DigestScheduler, init_subscription_store
@@ -30,6 +31,7 @@ from .pos_integrations import init_pos_store
 from .routes.analyses import create_analyses_router
 from .routes.api_keys import create_api_keys_router
 from .routes.config import create_config_router
+from .routes.counterfactual import create_counterfactual_router
 from .routes.dashboard import create_dashboard_router
 from .routes.diagnostic import create_diagnostic_router
 from .routes.digest import create_digest_router
@@ -145,6 +147,13 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     else:
         logger.warning("Engine 2 not available — world_model imports failed")
 
+    # -----------------------------------------------------------------
+    # Engine 3: Counterfactual World Model
+    # -----------------------------------------------------------------
+    # Stateless — no initialization can fail. Always available.
+    counterfactual_engine = CounterfactualEngine()
+    logger.info("Engine 3 (counterfactual world model) initialized")
+
     # Shared state for all route modules
     state = AppState(
         settings=settings,
@@ -155,6 +164,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         digest_scheduler=digest_scheduler,
         world_model=world_model,
         transfer_matcher=transfer_matcher,
+        counterfactual_engine=counterfactual_engine,
     )
 
     # -----------------------------------------------------------------
@@ -265,6 +275,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     app.include_router(create_dashboard_router(state, require_auth))
     app.include_router(create_config_router(state, require_auth))
     app.include_router(create_transfers_router(state, require_auth))
+    app.include_router(create_counterfactual_router(state))
 
     # Legacy-compatible upload & analysis routes (production frontend)
     # Pass app_state for Engine 1→2 bridging (feeds Rust results to world model)

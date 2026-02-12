@@ -201,8 +201,7 @@ def create_upload_router(
                 max_file_size_mb=ctx.max_file_size_mb,
             )
             logger.info(
-                f"Generated {len(result['presigned_urls'])} presigned URLs "
-                f"for {ctx!r}"
+                f"Generated {len(result['presigned_urls'])} presigned URLs for {ctx!r}"
             )
             return result
         except ValueError as e:
@@ -393,14 +392,28 @@ def create_upload_router(
                     # Bridge failure must NOT block the analysis response
                     logger.warning(f"Engine 1→2 bridge failed (non-fatal): {e}")
 
+            # Engine 1→3: enrich findings with counterfactuals
+            if app_state is not None and app_state.counterfactual_engine is not None:
+                try:
+                    app_state.counterfactual_engine.enrich(result)
+                    logger.info(
+                        "Engine 3: %s",
+                        result.get("engine3_summary", {}).get("message", "no summary"),
+                    )
+                except Exception as e:
+                    # Engine 3 failure must NOT block the analysis response
+                    logger.warning(f"Engine 3 enrichment failed (non-fatal): {e}")
+
+            if app_state is not None:
                 # Populate digest_cache so dashboard endpoints can display data
                 # without needing a local CSV file. Use a long TTL (1 hour).
                 try:
                     from .routes.state import DigestCacheEntry
 
-                    cache_key = f":{ settings.sentinel_top_k}"
+                    cache_key = f":{settings.sentinel_top_k}"
                     app_state.digest_cache[cache_key] = DigestCacheEntry(
-                        digest, ttl_seconds=3600,
+                        digest,
+                        ttl_seconds=3600,
                     )
                     logger.info(
                         "Cached analysis digest (key=%s, %d issues) for dashboard",
