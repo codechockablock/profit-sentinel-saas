@@ -174,6 +174,7 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
             items_to_investigate=report["items_to_investigate"],
             journey=report["journey"],
             rendered_text=rendered,
+            narrative_summary=report.get("narrative_summary"),
         )
 
     return router

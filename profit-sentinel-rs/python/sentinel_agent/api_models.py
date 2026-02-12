@@ -164,6 +164,8 @@ class DiagnosticQuestionResponse(BaseModel):
     sample_items: list[dict]
     progress: dict
     running_totals: dict
+    # Optional Claude-enhanced conversational version of the question
+    narrative_question: str | None = None
 
 
 class DiagnosticAnswerRequest(BaseModel):
@@ -208,6 +210,8 @@ class DiagnosticReportResponse(BaseModel):
     items_to_investigate: list[dict]
     journey: list[dict]
     rendered_text: str
+    # Optional Claude-narrated closing summary
+    narrative_summary: str | None = None
 
 
 # ---------------------------------------------------------------------------
