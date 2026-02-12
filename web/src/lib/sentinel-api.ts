@@ -702,9 +702,9 @@ export interface InventoryPrediction {
   confidence: number;
   estimated_lost_revenue: number;
   estimated_carrying_cost: number;
-  recommended_action: string;
-  current_velocity: number;
-  current_stock: number;
+  recommendation: string;
+  daily_velocity: number;
+  current_qty: number;
 }
 
 export interface PredictiveReportResponse {

@@ -59,28 +59,28 @@ function PredictionCard({ prediction }: { prediction: InventoryPrediction }) {
               <div className="text-[10px] text-slate-500">Days Until</div>
               <div className="text-sm font-bold text-white flex items-center gap-1">
                 <Clock size={12} className="text-slate-400" />
-                {prediction.days_until_event.toFixed(1)}
+                {(prediction.days_until_event ?? 0).toFixed(1)}
               </div>
             </div>
             <div className="bg-slate-800/50 rounded-lg p-2">
               <div className="text-[10px] text-slate-500">Current Stock</div>
-              <div className="text-sm font-bold text-white">{prediction.current_stock}</div>
+              <div className="text-sm font-bold text-white">{prediction.current_qty}</div>
             </div>
             <div className="bg-slate-800/50 rounded-lg p-2">
               <div className="text-[10px] text-slate-500">Velocity</div>
-              <div className="text-sm font-bold text-white">{prediction.current_velocity.toFixed(1)}/day</div>
+              <div className="text-sm font-bold text-white">{(prediction.daily_velocity ?? 0).toFixed(1)}/day</div>
             </div>
             <div className="bg-slate-800/50 rounded-lg p-2">
               <div className="text-[10px] text-slate-500">Revenue at Risk</div>
               <div className="text-sm font-bold text-red-400">
-                ${prediction.estimated_lost_revenue.toLocaleString()}
+                ${(prediction.estimated_lost_revenue ?? 0).toLocaleString()}
               </div>
             </div>
           </div>
 
           <div className="mt-3 text-xs text-slate-400 flex items-center gap-1">
             <Zap size={10} className="text-emerald-400" />
-            {prediction.recommended_action}
+            {prediction.recommendation}
           </div>
         </div>
       </div>
@@ -146,11 +146,11 @@ export default function PredictionsPage() {
         </div>
         <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
           <div className="text-xs text-slate-400 mb-1">Revenue at Risk</div>
-          <div className="text-2xl font-bold text-amber-400">${data.total_revenue_at_risk.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-amber-400">${(data.total_revenue_at_risk ?? 0).toLocaleString()}</div>
         </div>
         <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
           <div className="text-xs text-slate-400 mb-1">Carrying Cost</div>
-          <div className="text-2xl font-bold text-orange-400">${data.total_carrying_cost_at_risk.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-orange-400">${(data.total_carrying_cost_at_risk ?? 0).toLocaleString()}</div>
         </div>
       </div>
 

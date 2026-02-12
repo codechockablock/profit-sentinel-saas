@@ -98,17 +98,27 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
             if entry.is_expired:
                 continue
             for issue in entry.digest.issues:
+                # Derive severity from priority_score
+                if issue.priority_score >= 8.0:
+                    severity = "critical"
+                elif issue.priority_score >= 5.0:
+                    severity = "high"
+                elif issue.priority_score >= 3.0:
+                    severity = "medium"
+                else:
+                    severity = "low"
+
                 finding = {
                     "id": issue.id,
                     "type": issue.issue_type,
-                    "title": issue.title,
-                    "description": issue.description,
-                    "severity": issue.severity,
-                    "dollar_impact": getattr(issue, "dollar_impact", 0.0),
+                    "title": issue.issue_type.display_name,
+                    "description": issue.context,
+                    "severity": severity,
+                    "dollar_impact": issue.dollar_impact,
                     "department": getattr(issue, "department", None),
-                    "recommended_action": getattr(issue, "recommendation", None),
+                    "recommended_action": issue.root_cause_display,
                     "acknowledged": issue.id in acknowledged_ids,
-                    "sku": getattr(issue, "sku", None),
+                    "sku": issue.skus[0].sku_id if issue.skus else None,
                 }
                 # Engine 2 enrichment (additive, never blocks)
                 finding = _enrich_finding(finding)

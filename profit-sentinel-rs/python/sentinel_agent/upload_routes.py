@@ -393,6 +393,23 @@ def create_upload_router(
                     # Bridge failure must NOT block the analysis response
                     logger.warning(f"Engine 1→2 bridge failed (non-fatal): {e}")
 
+                # Populate digest_cache so dashboard endpoints can display data
+                # without needing a local CSV file. Use a long TTL (1 hour).
+                try:
+                    from .routes.state import DigestCacheEntry
+
+                    cache_key = f":{ settings.sentinel_top_k}"
+                    app_state.digest_cache[cache_key] = DigestCacheEntry(
+                        digest, ttl_seconds=3600,
+                    )
+                    logger.info(
+                        "Cached analysis digest (key=%s, %d issues) for dashboard",
+                        cache_key,
+                        len(digest.issues),
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to cache digest (non-fatal): {e}")
+
             # Persist analysis for authenticated users
             if ctx.is_authenticated:
                 try:

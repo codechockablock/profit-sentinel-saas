@@ -84,13 +84,23 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
         )
         top_findings = []
         for issue in sorted_issues[:5]:
+            # Derive severity from priority_score (Issue model has no severity field)
+            if issue.priority_score >= 8.0:
+                severity = "critical"
+            elif issue.priority_score >= 5.0:
+                severity = "high"
+            elif issue.priority_score >= 3.0:
+                severity = "medium"
+            else:
+                severity = "low"
+
             top_findings.append(
                 {
                     "id": issue.id,
                     "type": issue.issue_type,
-                    "title": issue.title,
-                    "severity": issue.severity,
-                    "dollar_impact": getattr(issue, "dollar_impact", 0.0),
+                    "title": issue.issue_type.display_name,
+                    "severity": severity,
+                    "dollar_impact": issue.dollar_impact,
                     "department": getattr(issue, "department", None),
                 }
             )

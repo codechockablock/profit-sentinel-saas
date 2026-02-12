@@ -82,23 +82,40 @@ class AppState:
         top_k: int = 5,
     ) -> Digest:
         """Get cached digest or run pipeline."""
-        if self.engine is None:
-            raise PipelineError(
-                "sentinel-server binary not found. "
-                "Run 'cargo build --release -p sentinel-server' first."
-            )
-
         cache_key = f"{','.join(sorted(stores or []))}:{top_k}"
         entry = self.digest_cache.get(cache_key)
 
         if entry and not entry.is_expired:
             return entry.digest
 
-        digest = self.generator.generate(
-            self.settings.csv_path,
-            stores=stores,
-            top_k=top_k,
-        )
+        # Fallback: check any non-expired cache entry (e.g. from /analysis/analyze
+        # which may have used a different top_k). Better to show data with a
+        # different top_k than to crash on a missing CSV file.
+        for key, entry in self.digest_cache.items():
+            if not entry.is_expired:
+                return entry.digest
+
+        if self.engine is None:
+            raise PipelineError(
+                "sentinel-server binary not found. "
+                "Run 'cargo build --release -p sentinel-server' first."
+            )
+
+        try:
+            digest = self.generator.generate(
+                self.settings.csv_path,
+                stores=stores,
+                top_k=top_k,
+            )
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "FILE_NOT_FOUND",
+                    "message": "Data file not found",
+                    "detail": f"CSV file not found: {self.settings.csv_path}",
+                },
+            )
 
         self.digest_cache[cache_key] = DigestCacheEntry(
             digest,
