@@ -101,7 +101,6 @@ profit-sentinel-saas/
 │   └── POS_COLUMN_MAPPING_REFERENCE.md
 │
 ├── docker-compose.yml             # Local development
-├── MIGRATION_PLAN.md              # M1-M8 migration roadmap
 └── README.md
 ```
 
@@ -250,8 +249,6 @@ terraform apply
 Auto-deploys via Vercel on push to `main`.
 
 ## Migration Status
-
-See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the full M1-M8 roadmap.
 
 | Milestone | Status | Description |
 |-----------|--------|-------------|
