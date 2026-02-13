@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
+import Papa from "papaparse";
 import {
   Stethoscope,
   Upload,
@@ -38,35 +39,36 @@ export default function DiagnosticPage() {
 
   // Session state
   const [sessionId, setSessionId] = useState<string>("");
-  const [sessionInfo, setSessionInfo] = useState<DiagnosticStartResponse | null>(null);
+  const [_sessionInfo, setSessionInfo] = useState<DiagnosticStartResponse | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<DiagnosticQuestion | null>(null);
   const [report, setReport] = useState<DiagnosticReport | null>(null);
 
-  // Parse CSV file
+  // Parse CSV file using Papa Parse for robust handling of quotes, delimiters, etc.
   const parseCSV = (text: string): { sku: string; description: string; stock: number; cost: number }[] => {
-    const lines = text.trim().split("\n");
-    if (lines.length < 2) return [];
+    const result = Papa.parse<Record<string, string>>(text, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (h) => h.trim().toLowerCase(),
+    });
 
-    const header = lines[0].toLowerCase();
-    const cols = header.split(",").map((c) => c.trim());
+    if (result.errors.length > 0 && result.data.length === 0) return [];
 
-    // Find relevant columns
-    const skuIdx = cols.findIndex((c) => c.includes("sku") || c.includes("upc") || c.includes("item"));
-    const descIdx = cols.findIndex((c) => c.includes("desc") || c.includes("name") || c.includes("product"));
-    const stockIdx = cols.findIndex((c) => c.includes("qty") || c.includes("stock") || c.includes("on_hand") || c.includes("quantity"));
-    const costIdx = cols.findIndex((c) => c.includes("cost") || c.includes("price"));
+    const cols = result.meta.fields || [];
+    const skuCol = cols.find((c) => c.includes("sku") || c.includes("upc") || c.includes("item"));
+    const descCol = cols.find((c) => c.includes("desc") || c.includes("name") || c.includes("product"));
+    const stockCol = cols.find((c) => c.includes("qty") || c.includes("stock") || c.includes("on_hand") || c.includes("quantity"));
+    const costCol = cols.find((c) => c.includes("cost") || c.includes("price"));
 
-    if (skuIdx === -1 || stockIdx === -1) return [];
+    if (!skuCol || !stockCol) return [];
 
-    return lines.slice(1).map((line) => {
-      const vals = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
-      return {
-        sku: vals[skuIdx] || "",
-        description: descIdx >= 0 ? vals[descIdx] || "" : "",
-        stock: parseFloat(vals[stockIdx]) || 0,
-        cost: costIdx >= 0 ? parseFloat(vals[costIdx]) || 0 : 0,
-      };
-    }).filter((item) => item.sku);
+    return result.data
+      .map((row) => ({
+        sku: (row[skuCol] || "").trim(),
+        description: descCol ? (row[descCol] || "").trim() : "",
+        stock: parseFloat(row[stockCol]) || 0,
+        cost: costCol ? parseFloat(row[costCol]) || 0 : 0,
+      }))
+      .filter((item) => item.sku);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

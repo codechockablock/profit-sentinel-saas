@@ -7,15 +7,12 @@ import {
   FileSpreadsheet,
   TrendingUp,
   TrendingDown,
-  ArrowRight,
   AlertTriangle,
   CheckCircle,
   Minus,
   Trash2,
   Pencil,
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
   GitCompare,
   ArrowUpRight,
   ArrowDownRight,
@@ -27,9 +24,7 @@ import {
   deleteAnalysis,
   renameAnalysis,
   type AnalysisListItem,
-  type AnalysisListResponse,
   type CompareResponse,
-  type LeakTrend,
 } from "@/lib/sentinel-api";
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -222,7 +217,7 @@ export default function HistoryPage() {
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 flex items-center gap-3">
           <AlertTriangle className="text-red-400" size={18} />
           <span className="text-red-300 text-sm">{error}</span>
-          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-300">
+          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-300" aria-label="Dismiss error">
             <X size={16} />
           </button>
         </div>
@@ -328,6 +323,7 @@ export default function HistoryPage() {
                           <button
                             onClick={() => setRenamingId(null)}
                             className="text-slate-400 hover:text-slate-300"
+                            aria-label="Cancel rename"
                           >
                             <X size={16} />
                           </button>
@@ -388,12 +384,14 @@ export default function HistoryPage() {
                           }}
                           className="p-1.5 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors"
                           title="Rename"
+                          aria-label="Rename analysis"
                         >
                           <Pencil size={14} />
                         </button>
                         <button
                           onClick={() => handleDelete(analysis.id)}
                           className="p-1.5 rounded hover:bg-red-500/10 text-slate-500 hover:text-red-400 transition-colors"
+                          aria-label="Delete analysis"
                           title="Delete"
                         >
                           <Trash2 size={14} />
@@ -471,7 +469,7 @@ function ComparisonPanel({
             </p>
           </div>
         </div>
-        <button onClick={onClose} className="text-slate-500 hover:text-slate-300">
+        <button onClick={onClose} className="text-slate-500 hover:text-slate-300" aria-label="Close comparison">
           <X size={18} />
         </button>
       </div>

@@ -23,7 +23,7 @@ interface AppShellProps {
  */
 export function AppShell({
   children,
-  showSidebar = false,
+  _showSidebar = false,
   showPrivacyBanner = false,
   showFooter = true,
 }: AppShellProps) {

@@ -22,7 +22,7 @@ export default function TermsPage() {
           <section className="mb-10">
             <h2 className="text-2xl font-bold text-emerald-400 mb-4">1. Agreement to Terms</h2>
             <p className="text-slate-300 leading-relaxed">
-              By accessing or using Profit Sentinel ("the Service"), you agree to be bound by these
+              By accessing or using Profit Sentinel (&quot;the Service&quot;), you agree to be bound by these
               Terms of Service. If you disagree with any part of the terms, you may not access
               the Service.
             </p>
@@ -36,7 +36,7 @@ export default function TermsPage() {
               generates reports highlighting potential issues.
             </p>
             <p className="text-slate-300 leading-relaxed mt-4">
-              The Service is provided "as is" and is intended for informational purposes only.
+              The Service is provided &quot;as is&quot; and is intended for informational purposes only.
               Analysis results are algorithmic suggestions and should be verified by qualified
               personnel before taking business action.
             </p>
@@ -99,7 +99,7 @@ export default function TermsPage() {
           <section className="mb-10">
             <h2 className="text-2xl font-bold text-emerald-400 mb-4">7. Disclaimer of Warranties</h2>
             <p className="text-slate-300 leading-relaxed">
-              THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED.
+              THE SERVICE IS PROVIDED &quot;AS IS&quot; WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED.
               WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, SECURE, OR ERROR-FREE.
             </p>
             <p className="text-slate-300 leading-relaxed mt-4">
@@ -122,7 +122,7 @@ export default function TermsPage() {
             <h2 className="text-2xl font-bold text-emerald-400 mb-4">9. Changes to Terms</h2>
             <p className="text-slate-300 leading-relaxed">
               We reserve the right to modify or replace these Terms at any time. If a revision
-              is material, we will provide at least 30 days' notice prior to any new terms
+              is material, we will provide at least 30 days&apos; notice prior to any new terms
               taking effect.
             </p>
           </section>

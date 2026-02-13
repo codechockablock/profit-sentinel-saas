@@ -167,7 +167,7 @@ export default function RoadmapPage() {
             Product <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600">Roadmap</span>
           </h1>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-            See what we're building next. Have a feature request?{' '}
+            See what we&apos;re building next. Have a feature request?{' '}
             <a
               href="/contact?type=feature_request"
               className="text-emerald-400 hover:text-emerald-300 underline"

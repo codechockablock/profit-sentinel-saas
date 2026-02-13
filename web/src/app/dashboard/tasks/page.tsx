@@ -229,6 +229,7 @@ export default function TasksPage() {
               <button
                 onClick={() => setShowDelegateModal(false)}
                 className="text-slate-400 hover:text-white"
+                aria-label="Close delegate modal"
               >
                 <X size={18} />
               </button>

@@ -101,7 +101,7 @@ export default function ExplainPage() {
           <option value="">Choose an issue...</option>
           {issues.map((issue) => (
             <option key={issue.id} value={issue.id}>
-              {issue.issue_type.replace(/([A-Z])/g, " $1").trim()} — {issue.store_id} — {formatDollar(issue.dollar_impact)}
+              {issue.issue_type.replace(/([A-Z])/g, " $1").trim()} — {issue.store_id?.trim()} — {formatDollar(issue.dollar_impact)}
             </option>
           ))}
         </select>

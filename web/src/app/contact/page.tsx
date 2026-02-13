@@ -15,7 +15,7 @@ export default function ContactPage() {
             Get in <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600">Touch</span>
           </h1>
           <p className="text-xl text-slate-400 max-w-lg mx-auto">
-            Have a question, feature idea, or need help? We'd love to hear from you.
+            Have a question, feature idea, or need help? We&apos;d love to hear from you.
           </p>
         </div>
 

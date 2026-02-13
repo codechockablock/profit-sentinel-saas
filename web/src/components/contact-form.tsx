@@ -131,7 +131,7 @@ export function ContactForm({
         <label className="block text-sm font-medium text-slate-300 mb-2">
           What can we help with?
         </label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {CONTACT_TYPES.map((t) => (
             <button
               key={t.key}
@@ -153,7 +153,7 @@ export function ContactForm({
       </div>
 
       {/* Name & Email */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-2">
             Name <span className="text-red-400">*</span>

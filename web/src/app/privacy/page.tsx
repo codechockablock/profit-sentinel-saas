@@ -109,7 +109,7 @@ export default function PrivacyPage() {
               <li>Customer names, addresses, or contact information from your files</li>
               <li>Payment or credit card information</li>
               <li>Social security numbers or government IDs</li>
-              <li>Any data you don't explicitly upload</li>
+              <li>Any data you don&apos;t explicitly upload</li>
             </ul>
           </section>
 
@@ -287,7 +287,7 @@ export default function PrivacyPage() {
             <h2 className="text-2xl font-bold text-emerald-400 mb-4">Changes to This Policy</h2>
             <p className="text-slate-300">
               We may update this privacy policy from time to time. We will notify you of any material
-              changes by posting the new policy on this page and updating the "Last updated" date.
+              changes by posting the new policy on this page and updating the &quot;Last updated&quot; date.
               We encourage you to review this policy periodically.
             </p>
           </section>

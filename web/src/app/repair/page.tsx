@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { API_URL } from '@/lib/api-config'
 import { PhotoUpload } from '@/components/repair/photo-upload'
 import { VoiceInput } from '@/components/repair/voice-input'
@@ -131,7 +131,7 @@ export default function RepairAssistantPage() {
           <h1 className="text-2xl font-bold">Repair Assistant</h1>
         </div>
         <p className="text-slate-400">
-          Describe your problem or take a photo - we'll help you fix it
+          Describe your problem or take a photo - we&apos;ll help you fix it
         </p>
       </header>
 

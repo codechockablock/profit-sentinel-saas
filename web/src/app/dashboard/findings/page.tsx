@@ -3,14 +3,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Search,
-  DollarSign,
   Loader2,
   ChevronDown,
   ChevronRight,
   Zap,
   Eye,
   EyeOff,
-  AlertCircle,
   RefreshCw,
   CheckCircle2,
   BarChart3,
@@ -131,6 +129,7 @@ function FindingCard({
               : "text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10"
           }`}
           title={finding.acknowledged ? "Restore to active" : "Mark as seen"}
+          aria-label={finding.acknowledged ? "Restore to active" : "Mark as seen"}
         >
           {finding.acknowledged ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>

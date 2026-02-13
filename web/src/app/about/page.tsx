@@ -24,7 +24,7 @@ export default function AboutPage() {
           <h2 className="text-2xl font-bold text-emerald-400 mb-4">Our Mission</h2>
           <div className="bg-white/5 rounded-2xl border border-emerald-500/20 p-6">
             <p className="text-lg text-slate-300 leading-relaxed">
-              Every retail business has profit leaking out through inefficiencies they can't see.
+              Every retail business has profit leaking out through inefficiencies they can&apos;t see.
               Dead inventory, margin erosion, stock imbalances - these problems hide in spreadsheets
               and cost businesses thousands of dollars every year.
             </p>

@@ -166,7 +166,7 @@ export default function EmployeeRepairPage() {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-blue-400">
                   <path fillRule="evenodd" d="M1 5.25A2.25 2.25 0 013.25 3h13.5A2.25 2.25 0 0119 5.25v9.5A2.25 2.25 0 0116.75 17H3.25A2.25 2.25 0 011 14.75v-9.5zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 00.75-.75v-2.69l-2.22-2.219a.75.75 0 00-1.06 0l-1.91 1.909.47.47a.75.75 0 11-1.06 1.06L6.53 8.091a.75.75 0 00-1.06 0l-2.97 2.97zM12 7a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" />
                 </svg>
-                Customer's Photo
+                Customer&apos;s Photo
               </h2>
               <PhotoUpload
                 onCapture={(base64) => setImageBase64(base64)}
@@ -214,7 +214,7 @@ export default function EmployeeRepairPage() {
               disabled={!textDescription && !voiceTranscript && !imageBase64}
               className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-xl py-5 rounded-2xl hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-[1.02] shadow-lg shadow-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              What's the Problem?
+              What&apos;s the Problem?
             </button>
           </div>
         )}
@@ -319,7 +319,7 @@ export default function EmployeeRepairPage() {
                   >
                     <span className="font-medium">{h.category_name}</span>
                     {h.category_slug === diagnosis.top_hypothesis.category_slug && (
-                      <span className="ml-2 text-xs text-slate-500">(AI's guess)</span>
+                      <span className="ml-2 text-xs text-slate-500">(AI&apos;s guess)</span>
                     )}
                   </button>
                 ))}

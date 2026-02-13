@@ -72,6 +72,7 @@ function ConnectionCard({
                 onClick={() => onSync(conn.connection_id)}
                 className="p-2 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-emerald-500/10 transition"
                 title="Trigger sync"
+                aria-label="Trigger sync"
               >
                 <RefreshCw size={16} />
               </button>
@@ -79,6 +80,7 @@ function ConnectionCard({
                 onClick={() => onDisconnect(conn.connection_id)}
                 className="p-2 text-slate-400 hover:text-amber-400 rounded-lg hover:bg-amber-500/10 transition"
                 title="Disconnect"
+                aria-label="Disconnect"
               >
                 <Unplug size={16} />
               </button>
@@ -88,6 +90,7 @@ function ConnectionCard({
             onClick={() => onDelete(conn.connection_id)}
             className="p-2 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition"
             title="Delete"
+            aria-label="Delete connection"
           >
             <Trash2 size={16} />
           </button>
@@ -105,7 +108,7 @@ export default function PosPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedSystem, setSelectedSystem] = useState<PosSystemType>("square");
   const [storeName, setStoreName] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [_creating, setCreating] = useState(false);
 
   const loadData = useCallback(async () => {
     try {

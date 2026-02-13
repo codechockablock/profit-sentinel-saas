@@ -239,7 +239,7 @@ export default function ApiKeysPage() {
           <div className="mt-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Shield size={16} className="text-amber-400" />
-              <span className="text-sm font-medium text-amber-400">Save this key — it won't be shown again</span>
+              <span className="text-sm font-medium text-amber-400">Save this key — it won&apos;t be shown again</span>
             </div>
             <div className="flex items-center gap-2">
               <code className="flex-1 text-sm text-white bg-slate-800 px-3 py-2 rounded font-mono overflow-x-auto">
