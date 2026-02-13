@@ -78,6 +78,11 @@ class AnalysisStore(ABC):
         ...
 
     @abstractmethod
+    def count_for_user(self, user_id: str) -> int:
+        """Count total analyses for a user (for pagination)."""
+        ...
+
+    @abstractmethod
     def get_recent_pair(self, user_id: str) -> tuple[dict | None, dict | None]:
         """Get the two most recent analyses for comparison."""
         ...
@@ -198,6 +203,9 @@ class InMemoryAnalysisStore(AnalysisStore):
             record["analysis_label"] = label
             return True
         return False
+
+    def count_for_user(self, user_id: str) -> int:
+        return sum(1 for r in self._data.values() if r["user_id"] == user_id)
 
     def get_recent_pair(self, user_id: str) -> tuple[dict | None, dict | None]:
         analyses = self.list_for_user(user_id, limit=2)
@@ -414,6 +422,27 @@ class SupabaseAnalysisStore(AnalysisStore):
             return len(rows) > 0
         return False
 
+    def count_for_user(self, user_id: str) -> int:
+        resp = self._request(
+            "GET",
+            path="",
+            params={
+                "user_id": f"eq.{user_id}",
+                "select": "id",
+            },
+            extra_headers={"Prefer": "count=exact"},
+        )
+        if resp.status_code == 200:
+            # PostgREST returns count in Content-Range header
+            content_range = resp.headers.get("Content-Range", "")
+            if "/" in content_range:
+                total_str = content_range.split("/")[-1]
+                if total_str != "*":
+                    return int(total_str)
+            # Fallback: count returned rows
+            return len(resp.json())
+        return 0
+
     def get_recent_pair(self, user_id: str) -> tuple[dict | None, dict | None]:
         resp = self._request(
             "GET",
@@ -481,6 +510,11 @@ def save_analysis(**kwargs) -> dict:
 def list_user_analyses(user_id: str, *, limit: int = 20, offset: int = 0) -> list[dict]:
     """List analyses for a user."""
     return _store.list_for_user(user_id, limit=limit, offset=offset)
+
+
+def count_user_analyses(user_id: str) -> int:
+    """Count total analyses for a user."""
+    return _store.count_for_user(user_id)
 
 
 def get_analysis(analysis_id: str, user_id: str) -> dict | None:

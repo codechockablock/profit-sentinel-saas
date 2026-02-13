@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..analysis_store import (
+    count_user_analyses,
     delete_analysis,
     get_analysis,
     get_comparison_pair,
@@ -31,14 +32,14 @@ def create_analyses_router(require_auth) -> APIRouter:
         dependencies=[Depends(require_auth)],
     )
     async def get_analyses(
-        request: Request,
         limit: int = Query(default=20, ge=1, le=100),
         offset: int = Query(default=0, ge=0),
         ctx: UserContext = Depends(require_auth),
     ) -> AnalysisListResponse:
         """List saved analyses for the current user."""
         analyses = list_user_analyses(ctx.user_id, limit=limit, offset=offset)
-        return AnalysisListResponse(analyses=analyses, total=len(analyses))
+        total = count_user_analyses(ctx.user_id)
+        return AnalysisListResponse(analyses=analyses, total=total)
 
     # IMPORTANT: compare must be registered BEFORE /analyses/{analysis_id}
     @router.post(
