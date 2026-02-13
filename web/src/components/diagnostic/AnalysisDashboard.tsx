@@ -207,7 +207,7 @@ export default function AnalysisDashboard() {
 
       // Step 2: Upload to S3
       setProcessingMessage("Uploading file...");
-      await uploadToS3(presignResult.url, selectedFile);
+      await uploadToS3(presignResult, selectedFile);
       setS3Key(presignResult.key);
 
       // Step 3: Get mapping suggestions

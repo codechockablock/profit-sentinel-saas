@@ -58,10 +58,14 @@ class TestPresign:
         assert response.status_code == 200
         data = response.json()
         assert "presigned_urls" in data
+        assert data["upload_method"] == "POST"
         assert len(data["presigned_urls"]) == 1
         assert data["presigned_urls"][0]["filename"] == "inventory.csv"
         assert "key" in data["presigned_urls"][0]
         assert "url" in data["presigned_urls"][0]
+        assert (
+            data["presigned_urls"][0]["fields"]["key"] == "dev-user/uuid-inventory.csv"
+        )
         assert data["limits"]["max_file_size_mb"] == 50
 
     @patch("sentinel_agent.upload_routes.get_s3_client")

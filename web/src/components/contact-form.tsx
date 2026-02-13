@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { getApiUrl } from '@/lib/api-config'
 
 interface ContactFormProps {
   /** Pre-selected contact type */
@@ -20,7 +21,7 @@ const CONTACT_TYPES = [
   { key: 'privacy', label: 'Privacy Request', description: 'Data deletion, access, or privacy concerns' },
 ]
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_URL = getApiUrl()
 
 /**
  * ContactForm - Reusable contact form component

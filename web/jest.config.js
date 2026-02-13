@@ -4,6 +4,12 @@
 
 const nextJest = require('next/jest')
 
+// next/jest loads next.config before setup files, so ensure the required
+// API URL env var exists in test runs.
+if (!process.env.NEXT_PUBLIC_API_URL) {
+  process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000'
+}
+
 const createJestConfig = nextJest({
   // Provide the path to your Next.js app to load next.config.js and .env files
   dir: './',

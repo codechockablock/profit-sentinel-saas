@@ -12,12 +12,15 @@
  *   - Authenticated users: Bearer token, 50MB limit, 100 analyses/hour
  */
 
+import { getApiUrl } from './api-config'
 import { getAuthHeaders } from './supabase'
 
 export interface PresignResult {
   key: string;
   url: string;
   filename: string;
+  fields: Record<string, string>;
+  upload_method: string;
 }
 
 export interface MappingResult {
@@ -113,8 +116,10 @@ export interface PresignResponse {
     safe_filename: string;
     key: string;
     url: string;
+    fields: Record<string, string>;
     max_size_mb: number;
   }>;
+  upload_method: string;
   limits: {
     max_file_size_mb: number;
     allowed_extensions: string[];
@@ -123,17 +128,7 @@ export interface PresignResponse {
 
 /** Get API base URL - use direct API for long-running requests */
 function getApiBaseUrl(): string {
-  // In browser, check if we're in production
-  if (typeof window !== "undefined") {
-    // Production: use direct API to avoid Vercel proxy timeouts
-    if (window.location.hostname === "profitsentinel.com" ||
-        window.location.hostname === "www.profitsentinel.com" ||
-        window.location.hostname.includes("vercel.app")) {
-      return "https://api.profitsentinel.com";
-    }
-  }
-  // Development: use local proxy
-  return "";
+  return getApiUrl();
 }
 
 /** Get headers for API requests (includes auth if logged in) */
@@ -154,7 +149,7 @@ export async function presignUpload(
 
   const authHeaders = await getHeaders();
   const apiBase = getApiBaseUrl();
-  const endpoint = apiBase ? `${apiBase}/uploads/presign` : "/api/uploads/presign";
+  const endpoint = `${apiBase}/uploads/presign`;
 
   const res = await fetch(endpoint, {
     method: "POST",
@@ -168,7 +163,19 @@ export async function presignUpload(
   }
 
   const data: PresignResponse = await res.json();
-  return data.presigned_urls[0];
+  const first = data.presigned_urls[0];
+  if (!first) {
+    throw new Error("Upload service returned no presigned upload target");
+  }
+
+  if (!first.fields || Object.keys(first.fields).length === 0) {
+    throw new Error("Upload service returned an invalid presigned POST payload");
+  }
+
+  return {
+    ...first,
+    upload_method: data.upload_method || "POST",
+  };
 }
 
 /** Step 1b: Get file size limit for current user */
@@ -179,7 +186,7 @@ export async function getFileSizeLimit(): Promise<number> {
 
     const authHeaders = await getHeaders();
     const apiBase = getApiBaseUrl();
-    const endpoint = apiBase ? `${apiBase}/uploads/presign` : "/api/uploads/presign";
+    const endpoint = `${apiBase}/uploads/presign`;
 
     const res = await fetch(endpoint, {
       method: "POST",
@@ -198,11 +205,25 @@ export async function getFileSizeLimit(): Promise<number> {
 }
 
 /** Step 2: Upload file to S3 via presigned URL */
-export async function uploadToS3(url: string, file: File): Promise<void> {
-  const res = await fetch(url, {
-    method: "PUT",
-    body: file,
-    headers: { "Content-Type": "application/octet-stream" },
+export async function uploadToS3(presign: PresignResult, file: File): Promise<void> {
+  const method = (presign.upload_method || "POST").toUpperCase();
+  if (method !== "POST") {
+    throw new Error(`Unsupported upload method '${method}'. Expected POST.`);
+  }
+
+  const formData = new FormData();
+
+  // S3 presigned POST requires all policy fields first.
+  for (const [key, value] of Object.entries(presign.fields || {})) {
+    formData.append(key, value);
+  }
+
+  // File must be appended last for S3 POST form processing.
+  formData.append("file", file);
+
+  const res = await fetch(presign.url, {
+    method: "POST",
+    body: formData,
   });
 
   if (!res.ok) {
@@ -221,7 +242,7 @@ export async function suggestMapping(
 
   const authHeaders = await getHeaders();
   const apiBase = getApiBaseUrl();
-  const endpoint = apiBase ? `${apiBase}/uploads/suggest-mapping` : "/api/uploads/suggest-mapping";
+  const endpoint = `${apiBase}/uploads/suggest-mapping`;
 
   const res = await fetch(endpoint, {
     method: "POST",
@@ -247,10 +268,8 @@ export async function runAnalysis(
   formData.append("mapping", JSON.stringify(mapping));
 
   const authHeaders = await getHeaders();
-  // Use direct API URL for analysis (can take 2+ minutes for large files)
   const apiBase = getApiBaseUrl();
-  // Direct API uses /analysis/analyze, proxy uses /api/analysis/analyze
-  const endpoint = apiBase ? `${apiBase}/analysis/analyze` : "/api/analysis/analyze";
+  const endpoint = `${apiBase}/analysis/analyze`;
   const res = await fetch(endpoint, {
     method: "POST",
     headers: authHeaders,
@@ -288,9 +307,7 @@ export async function sendReport(
 ): Promise<{ success: boolean; message: string }> {
   const authHeaders = await getHeaders();
   const apiBase = getApiBaseUrl();
-  const endpoint = apiBase
-    ? `${apiBase}/analysis/send-report`
-    : "/api/analysis/send-report";
+  const endpoint = `${apiBase}/analysis/send-report`;
 
   const res = await fetch(endpoint, {
     method: "POST",

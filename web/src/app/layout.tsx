@@ -1,14 +1,7 @@
 // src/app/layout.tsx
 import './globals.css'
-import { Inter } from 'next/font/google'
 import Providers from '@/components/theme-provider'
 import { AppShell } from '@/components/app-shell'
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-inter',
-})
 
 export const metadata = {
   title: 'Profit Sentinel | Find Hidden Profit Leaks in Your Inventory',
@@ -22,7 +15,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning className="dark">
-      <body className={`${inter.className} bg-slate-900 text-slate-100 antialiased`}>
+      <body className="bg-slate-900 text-slate-100 antialiased">
         <Providers>
           <AppShell showFooter={true}>
             {children}

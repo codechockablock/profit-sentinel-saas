@@ -88,10 +88,6 @@ class ConfigUpdateRequest(BaseModel):
     overrides: ConfigOverrides | None = None
 
 
-# In-memory config store per user (production: Supabase user_preferences)
-_user_configs: dict[str, dict] = {}
-
-
 def create_config_router(state: AppState, require_auth) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["config"])
 
@@ -104,7 +100,7 @@ def create_config_router(state: AppState, require_auth) -> APIRouter:
         Returns the user's saved config or defaults.
         Includes available presets for the frontend preset selector.
         """
-        saved = _user_configs.get(ctx.user_id)
+        saved = state.user_configs.get(ctx.user_id)
 
         if saved:
             config = DeadStockConfig.from_dict(saved)
@@ -188,7 +184,7 @@ def create_config_router(state: AppState, require_auth) -> APIRouter:
         # Save — keyed by authenticated user_id
         config_dict = config.to_dict()
         config_dict["_preset"] = preset_name
-        _user_configs[ctx.user_id] = config_dict
+        state.update_user_world_model_config(ctx.user_id, config_dict)
 
         logger.info(
             "Config saved for user %s: preset=%s, thresholds=%d/%d/%d/%d",

@@ -84,12 +84,76 @@ class AppState:
     digest_cache: dict[str, dict[str, DigestCacheEntry]] = field(default_factory=dict)
     task_store: dict[str, dict[str, TaskResponse]] = field(default_factory=dict)
     diagnostic_sessions: dict[str, dict[str, dict]] = field(default_factory=dict)
+    user_configs: dict[str, dict] = field(default_factory=dict)
 
     # Per-user world model pipelines + transfer matchers
     # (world_model / transfer_matcher above are templates; actual per-user
     # instances are stored here, keyed by user_id)
     world_models: dict[str, object] = field(default_factory=dict)
     transfer_matchers: dict[str, object] = field(default_factory=dict)
+
+    def _dead_stock_config_for_user(self, user_id: str) -> object | None:
+        """Build a dead stock config for a user from saved preferences."""
+        template_config = getattr(self.world_model, "dead_stock_config", None)
+        saved = self.user_configs.get(user_id)
+        if not saved:
+            return template_config
+
+        if template_config is None:
+            return None
+
+        config_cls = template_config.__class__
+        from_dict = getattr(config_cls, "from_dict", None)
+        if callable(from_dict):
+            try:
+                return from_dict(saved)
+            except Exception as e:
+                logger.warning(
+                    "Failed to parse saved dead stock config for user=%s: %s",
+                    user_id,
+                    e,
+                )
+        return template_config
+
+    def update_user_world_model_config(self, user_id: str, config_dict: dict) -> None:
+        """Persist user config and apply it to active in-memory model(s)."""
+        self.user_configs[user_id] = config_dict
+
+        pipeline = self.world_models.get(user_id)
+        if pipeline is None:
+            return
+
+        try:
+            current_config = getattr(pipeline, "dead_stock_config", None)
+            if current_config is None:
+                return
+
+            from_dict = getattr(current_config.__class__, "from_dict", None)
+            if not callable(from_dict):
+                return
+
+            new_config = from_dict(config_dict)
+            pipeline.dead_stock_config = new_config
+
+            predictive = getattr(pipeline, "predictive", None)
+            if predictive is not None:
+                predictive.dead_stock_config = new_config
+                if hasattr(predictive, "dead_stock_velocity_threshold"):
+                    predictive.dead_stock_velocity_threshold = (
+                        new_config.min_healthy_velocity
+                    )
+
+            matcher = self.transfer_matchers.get(user_id)
+            if matcher is not None:
+                for agent in getattr(matcher, "agents", {}).values():
+                    if hasattr(agent, "dead_stock_config"):
+                        agent.dead_stock_config = new_config
+
+            logger.info("Updated active world model config for user=%s", user_id)
+        except Exception as e:
+            logger.warning(
+                "Failed to apply updated world model config for user=%s: %s", user_id, e
+            )
 
     def get_or_run_digest(
         self,
@@ -152,14 +216,12 @@ class AppState:
         if user_id not in self.world_models:
             try:
                 if _HAS_WORLD_MODEL:
-                    # Create a new pipeline with same config as the template
+                    # Create a new pipeline with user-scoped dead stock config.
                     pipeline = SentinelPipeline(
                         dim=4096,
                         seed=42,
                         use_rust=False,
-                        dead_stock_config=getattr(
-                            self.world_model, "dead_stock_config", None
-                        ),
+                        dead_stock_config=self._dead_stock_config_for_user(user_id),
                     )
                     self.world_models[user_id] = pipeline
                     logger.info("Created per-user world model for user=%s", user_id)

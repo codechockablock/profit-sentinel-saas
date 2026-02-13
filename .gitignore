@@ -186,9 +186,14 @@ checkpoints/
 *.csv
 *.xlsx
 *.xls
+*.zip
 !examples/*.csv
 !profit-sentinel-rs/fixtures/*.csv
 !profit-sentinel-rs/python/tests/fixtures/*.csv
+
+# Next.js build artifacts
+web/tsconfig.tsbuildinfo
+web/next-env.d.ts
 
 # ===========================================
 # Project Specific

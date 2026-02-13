@@ -1,19 +1,14 @@
 import type { NextConfig } from "next";
 
-// Determine API URL based on environment
-// Production: https://api.profitsentinel.com
-// Development: http://localhost:8000 (or from env var)
-const getApiUrl = () => {
-  // If explicitly set, use that
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+// Require explicit API URL per deployment to prevent preview/prod cross-talk.
+const getRequiredApiUrl = () => {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (!apiUrl) {
+    throw new Error(
+      "NEXT_PUBLIC_API_URL must be set explicitly for this deployment."
+    );
   }
-  // In production (Vercel), default to production API
-  if (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") {
-    return "https://api.profitsentinel.com";
-  }
-  // Development fallback
-  return "http://localhost:8000";
+  return apiUrl;
 };
 
 const nextConfig: NextConfig = {
@@ -22,7 +17,7 @@ const nextConfig: NextConfig = {
 
   // Environment variables that will be exposed to the browser
   env: {
-    NEXT_PUBLIC_API_URL: getApiUrl(),
+    NEXT_PUBLIC_API_URL: getRequiredApiUrl(),
   },
 
   // Experimental features
@@ -65,7 +60,7 @@ const nextConfig: NextConfig = {
 
   // API rewrites to proxy backend requests
   async rewrites() {
-    const apiUrl = getApiUrl();
+    const apiUrl = getRequiredApiUrl();
     return [
       {
         source: "/api/diagnostic/:path*",

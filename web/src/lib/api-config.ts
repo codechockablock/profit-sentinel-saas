@@ -3,27 +3,20 @@
  * API configuration for the frontend.
  *
  * Uses NEXT_PUBLIC_API_URL from environment variables.
- * Falls back to production API URL if not set.
+ * Throws if not set to prevent accidental production fallback.
  */
-
-const DEFAULT_API_URL = 'https://api.profitsentinel.com'
 
 /**
  * Get the backend API URL.
  * Reads from NEXT_PUBLIC_API_URL environment variable.
  */
 export function getApiUrl(): string {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim()
 
   if (!apiUrl) {
-    // Only warn in development
-    if (process.env.NODE_ENV === 'development') {
-      console.warn(
-        '[API Config] NEXT_PUBLIC_API_URL not set, using default:',
-        DEFAULT_API_URL
-      )
-    }
-    return DEFAULT_API_URL
+    throw new Error(
+      '[API Config] NEXT_PUBLIC_API_URL is required. Set it explicitly for each deployment.'
+    )
   }
 
   return apiUrl

@@ -30,7 +30,7 @@ def _check_supabase(state: AppState) -> dict:
         return {"ok": True, "detail": "connected"}
     except Exception as e:
         logger.warning("Supabase health probe failed: %s", e)
-        return {"ok": False, "detail": str(e)}
+        return {"ok": False, "detail": "unavailable"}
 
 
 def create_health_router(state: AppState) -> APIRouter:
@@ -136,7 +136,7 @@ def create_health_router(state: AppState) -> APIRouter:
             logger.warning("Engine 2 health check failed: %s", e)
             return {
                 "status": "error",
-                "error": str(e),
+                "error": "internal_error",
             }
 
     return router
