@@ -22,6 +22,11 @@ import httpx
 
 logger = logging.getLogger("sentinel.analysis_store")
 
+
+class StorageError(Exception):
+    """Raised when a persistence operation fails."""
+
+
 # ---------------------------------------------------------------------------
 # Abstract base
 # ---------------------------------------------------------------------------
@@ -132,11 +137,15 @@ class InMemoryAnalysisStore(AnalysisStore):
             "original_filename": original_filename,
             "analysis_label": analysis_label,
             "detection_counts": detection_counts,
-            "total_impact_estimate_low": summary.get("estimated_impact", {}).get(
-                "low", 0
+            "total_impact_estimate_low": (
+                summary.get("estimated_impact", {}).get("low")
+                or summary.get("estimated_impact", {}).get("low_estimate")
+                or 0
             ),
-            "total_impact_estimate_high": summary.get("estimated_impact", {}).get(
-                "high", 0
+            "total_impact_estimate_high": (
+                summary.get("estimated_impact", {}).get("high")
+                or summary.get("estimated_impact", {}).get("high_estimate")
+                or 0
             ),
             "dataset_stats": summary.get("dataset_stats", {}),
             "processing_time_seconds": processing_time_seconds,
@@ -285,8 +294,14 @@ class SupabaseAnalysisStore(AnalysisStore):
             "original_filename": original_filename,
             "analysis_label": analysis_label,
             "detection_counts": detection_counts,
-            "total_impact_estimate_low": estimated_impact.get("low", 0),
-            "total_impact_estimate_high": estimated_impact.get("high", 0),
+            "total_impact_estimate_low": (
+                estimated_impact.get("low") or estimated_impact.get("low_estimate") or 0
+            ),
+            "total_impact_estimate_high": (
+                estimated_impact.get("high")
+                or estimated_impact.get("high_estimate")
+                or 0
+            ),
             "dataset_stats": summary.get("dataset_stats", {}),
             "processing_time_seconds": processing_time_seconds,
             "full_result": result,
@@ -310,11 +325,9 @@ class SupabaseAnalysisStore(AnalysisStore):
             resp.status_code,
             resp.text,
         )
-        # Return payload with a generated ID for graceful degradation
-        payload["id"] = hashlib.sha256(
-            f"{user_id}:{file_hash}:{datetime.now(UTC).isoformat()}".encode()
-        ).hexdigest()[:36]
-        return payload
+        raise StorageError(
+            f"SupabaseAnalysisStore: save failed ({resp.status_code}): {resp.text}"
+        )
 
     def list_for_user(
         self,

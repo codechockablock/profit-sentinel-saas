@@ -37,6 +37,10 @@ import httpx
 logger = logging.getLogger("sentinel.subscription_store")
 
 
+class StorageError(Exception):
+    """Raised when a persistence operation fails."""
+
+
 # ---------------------------------------------------------------------------
 # Abstract base
 # ---------------------------------------------------------------------------
@@ -227,7 +231,9 @@ class SupabaseStore(SubscriptionStore):
             return result
 
         logger.error("SupabaseStore: add failed (%s): %s", resp.status_code, resp.text)
-        return payload  # Return payload even on failure for graceful degradation
+        raise StorageError(
+            f"SupabaseStore: add failed ({resp.status_code}): {resp.text}"
+        )
 
     def remove(self, email: str) -> bool:
         resp = self._request("DELETE", params={"email": f"eq.{email}"})

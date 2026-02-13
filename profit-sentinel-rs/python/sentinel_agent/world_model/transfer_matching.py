@@ -29,6 +29,7 @@ Author: Joseph + Claude
 Date: 2026-02-10
 """
 
+import hashlib
 import json
 import time
 from collections import defaultdict
@@ -178,12 +179,12 @@ class EntityHierarchy:
         self.algebra = algebra
 
         # Role vectors for hierarchy levels
-        self.role_sku = algebra.random_vector("role_sku")
-        self.role_subcategory = algebra.random_vector("role_subcategory")
-        self.role_category = algebra.random_vector("role_category")
-        self.role_velocity = algebra.random_vector("role_velocity")
-        self.role_margin = algebra.random_vector("role_margin")
-        self.role_stock = algebra.random_vector("role_stock")
+        self.role_sku = algebra.get_or_create("role_sku")
+        self.role_subcategory = algebra.get_or_create("role_subcategory")
+        self.role_category = algebra.get_or_create("role_category")
+        self.role_velocity = algebra.get_or_create("role_velocity")
+        self.role_margin = algebra.get_or_create("role_margin")
+        self.role_stock = algebra.get_or_create("role_stock")
 
         # Codebooks at each level
         self.sku_vectors: dict[str, np.ndarray] = {}
@@ -193,7 +194,7 @@ class EntityHierarchy:
         # Velocity encoding
         self.velocity_levels = {}
         for level in ["dead", "slow", "moderate", "fast", "hot"]:
-            self.velocity_levels[level] = algebra.random_vector(f"vel_{level}")
+            self.velocity_levels[level] = algebra.get_or_create(f"vel_{level}")
 
         # Membership tracking
         self.sku_to_subcategory: dict[str, str] = {}
@@ -205,15 +206,15 @@ class EntityHierarchy:
         """Register a SKU in the hierarchy."""
         # Create or retrieve vectors at each level
         if sku_id not in self.sku_vectors:
-            self.sku_vectors[sku_id] = self.algebra.random_vector(sku_id)
+            self.sku_vectors[sku_id] = self.algebra.get_or_create(sku_id)
 
         if subcategory not in self.subcategory_vectors:
-            self.subcategory_vectors[subcategory] = self.algebra.random_vector(
+            self.subcategory_vectors[subcategory] = self.algebra.get_or_create(
                 f"subcat_{subcategory}"
             )
 
         if category not in self.category_vectors:
-            self.category_vectors[category] = self.algebra.random_vector(
+            self.category_vectors[category] = self.algebra.get_or_create(
                 f"cat_{category}"
             )
 
@@ -224,6 +225,13 @@ class EntityHierarchy:
             self.subcategory_members[subcategory].append(sku_id)
         if subcategory not in self.category_members[category]:
             self.category_members[category].append(subcategory)
+
+    def _deterministic_vector(self, key: str) -> np.ndarray:
+        """Generate a deterministic fallback vector from a key string."""
+        seed = int(hashlib.sha256(key.encode()).hexdigest()[:8], 16)
+        rng = np.random.RandomState(seed)
+        phases = rng.uniform(0, 2 * np.pi, self.algebra.dim)
+        return np.exp(1j * phases)
 
     def encode_sku_profile(self, profile: SKUProfile) -> dict[str, np.ndarray]:
         """
@@ -246,11 +254,17 @@ class EntityHierarchy:
         else:
             vel_vec = self.velocity_levels["hot"]
 
-        sku_vec = self.sku_vectors.get(profile.sku_id, a.random_vector())
-        subcat_vec = self.subcategory_vectors.get(
-            profile.subcategory, a.random_vector()
+        sku_vec = self.sku_vectors.get(
+            profile.sku_id, self._deterministic_vector(f"sku:{profile.sku_id}")
         )
-        cat_vec = self.category_vectors.get(profile.category, a.random_vector())
+        subcat_vec = self.subcategory_vectors.get(
+            profile.subcategory,
+            self._deterministic_vector(f"subcat:{profile.subcategory}"),
+        )
+        cat_vec = self.category_vectors.get(
+            profile.category,
+            self._deterministic_vector(f"cat:{profile.category}"),
+        )
 
         # Exact SKU encoding: entity ⊗ velocity
         exact = a.bind(
@@ -488,7 +502,11 @@ class TransferMatcher:
 
             for match in matches:
                 rec = self._build_recommendation(dead_item, match)
-                if rec and rec.net_benefit > 0:
+                if (
+                    rec
+                    and rec.confidence >= self.min_confidence
+                    and rec.net_benefit > 0
+                ):
                     all_recommendations.append(rec)
 
         # Sort by net benefit (most money saved first)

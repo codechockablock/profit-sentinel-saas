@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from ..api_models import HealthResponse
 from .state import AppState
@@ -16,17 +17,29 @@ def create_health_router(state: AppState) -> APIRouter:
     router = APIRouter(tags=["health"])
 
     @router.get("/health", response_model=HealthResponse)
-    async def health_check() -> HealthResponse:
-        """Health check — no auth required."""
+    async def health_check():
+        """Health check — no auth required.
+
+        Returns 200 when the engine binary is available, 503 when degraded.
+        """
         binary_found = state.engine is not None
         binary_path = str(state.engine.binary) if state.engine else None
 
-        return HealthResponse(
-            status="ok" if binary_found else "degraded",
+        status = "ok" if binary_found else "degraded"
+        payload = HealthResponse(
+            status=status,
             binary_found=binary_found,
             binary_path=binary_path,
             dev_mode=state.settings.sidecar_dev_mode,
         )
+
+        if not binary_found:
+            return JSONResponse(
+                content=payload.model_dump(),
+                status_code=503,
+            )
+
+        return payload
 
     @router.get("/health/engine2")
     async def engine2_status() -> dict:

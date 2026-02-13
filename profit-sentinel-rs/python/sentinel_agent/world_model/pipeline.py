@@ -119,17 +119,17 @@ class FeedbackEngine:
 
         # Outcome encoding vectors
         self.outcome_roles = {
-            "type": algebra.random_vector("outcome_type"),
-            "entity": algebra.random_vector("outcome_entity"),
-            "store": algebra.random_vector("outcome_store"),
-            "success": algebra.random_vector("outcome_success"),
-            "magnitude": algebra.random_vector("outcome_magnitude"),
+            "type": algebra.get_or_create("outcome_type"),
+            "entity": algebra.get_or_create("outcome_entity"),
+            "store": algebra.get_or_create("outcome_store"),
+            "success": algebra.get_or_create("outcome_success"),
+            "magnitude": algebra.get_or_create("outcome_magnitude"),
         }
 
         # Success/failure basis vectors
-        self.success_vec = algebra.random_vector("success_positive")
-        self.failure_vec = algebra.random_vector("success_negative")
-        self.neutral_vec = algebra.random_vector("success_neutral")
+        self.success_vec = algebra.get_or_create("success_positive")
+        self.failure_vec = algebra.get_or_create("success_negative")
+        self.neutral_vec = algebra.get_or_create("success_neutral")
 
         # Aggregate metrics
         self.transfer_success_rate = 0.0
@@ -378,14 +378,14 @@ class TemporalHierarchy:
 
         # Scale role vectors
         self.scale_roles = {
-            scale: algebra.random_vector(f"scale_{scale.value}") for scale in TimeScale
+            scale: algebra.get_or_create(f"scale_{scale.value}") for scale in TimeScale
         }
 
         # Period role vectors (day-of-week, month-of-year, etc.)
-        self.dow_vectors = {i: algebra.random_vector(f"dow_{i}") for i in range(7)}
-        self.month_vectors = {i: algebra.random_vector(f"month_{i}") for i in range(12)}
+        self.dow_vectors = {i: algebra.get_or_create(f"dow_{i}") for i in range(7)}
+        self.month_vectors = {i: algebra.get_or_create(f"month_{i}") for i in range(12)}
         self.quarter_vectors = {
-            i: algebra.random_vector(f"quarter_{i}") for i in range(4)
+            i: algebra.get_or_create(f"quarter_{i}") for i in range(4)
         }
 
         # Learned primitives per scale
@@ -722,26 +722,26 @@ class VendorIntelligence:
 
         # Vendor behavior encoding roles
         self.vendor_roles = {
-            "pricing": algebra.random_vector("vendor_pricing"),
-            "delivery": algebra.random_vector("vendor_delivery"),
-            "reliability": algebra.random_vector("vendor_reliability"),
-            "risk": algebra.random_vector("vendor_risk"),
+            "pricing": algebra.get_or_create("vendor_pricing"),
+            "delivery": algebra.get_or_create("vendor_delivery"),
+            "reliability": algebra.get_or_create("vendor_reliability"),
+            "risk": algebra.get_or_create("vendor_risk"),
         }
 
         # Behavior basis vectors
         self.pricing_behaviors = {
-            "stable": algebra.random_vector("pricing_stable"),
-            "gradual_increase": algebra.random_vector("pricing_gradual_up"),
-            "sudden_increase": algebra.random_vector("pricing_sudden_up"),
-            "decrease": algebra.random_vector("pricing_decrease"),
-            "volatile": algebra.random_vector("pricing_volatile"),
+            "stable": algebra.get_or_create("pricing_stable"),
+            "gradual_increase": algebra.get_or_create("pricing_gradual_up"),
+            "sudden_increase": algebra.get_or_create("pricing_sudden_up"),
+            "decrease": algebra.get_or_create("pricing_decrease"),
+            "volatile": algebra.get_or_create("pricing_volatile"),
         }
 
         self.delivery_behaviors = {
-            "reliable": algebra.random_vector("delivery_reliable"),
-            "declining": algebra.random_vector("delivery_declining"),
-            "erratic": algebra.random_vector("delivery_erratic"),
-            "seasonal": algebra.random_vector("delivery_seasonal"),
+            "reliable": algebra.get_or_create("delivery_reliable"),
+            "declining": algebra.get_or_create("delivery_declining"),
+            "erratic": algebra.get_or_create("delivery_erratic"),
+            "seasonal": algebra.get_or_create("delivery_seasonal"),
         }
 
         # Network-wide alerts
@@ -1670,16 +1670,18 @@ class SentinelPipeline:
             if isinstance(value, (int, float)) and key not in ("timestamp",):
                 # Encode numeric values as phase shifts
                 phase = np.exp(1j * np.pi * value / 1000.0)
-                role = self.algebra.random_vector(f"obs_{key}")
+                role = self.algebra.get_or_create(f"obs_{key}")
                 components.append(role * phase)
 
         if components:
             bundled = components[0]
             for c in components[1:]:
                 bundled = bundled + c
-            return bundled / np.abs(bundled)
+            norm = np.abs(bundled)
+            norm = np.where(norm < 1e-10, 1.0, norm)
+            return bundled / norm
 
-        return self.algebra.random_vector()
+        return self.algebra.get_or_create("_obs_default")
 
     def batch_encode_observations(self, observations: list[dict]) -> np.ndarray:
         """Encode multiple observations as (N, D) matrix using Rust batch ops.
@@ -1702,7 +1704,7 @@ class SentinelPipeline:
 
         # Get role vectors (R roles)
         role_vecs = np.array(
-            [self.algebra.random_vector(f"obs_{key}") for key in numeric_keys]
+            [self.algebra.get_or_create(f"obs_{key}") for key in numeric_keys]
         )
         n_roles = len(numeric_keys)
 

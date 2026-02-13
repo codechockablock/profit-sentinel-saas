@@ -25,7 +25,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Re
 
 from .analysis_store import save_analysis
 from .column_adapter import ColumnAdapter
-from .dual_auth import UserContext, build_upgrade_prompt, check_rate_limit, _rate_lock
+from .dual_auth import UserContext, _rate_lock, build_upgrade_prompt, check_rate_limit
 from .engine import PipelineError, SentinelEngine
 from .result_adapter import RustResultAdapter
 from .s3_service import (
@@ -449,6 +449,67 @@ def create_upload_router(
                 except Exception as e:
                     # Bridge failure must NOT block the analysis response
                     logger.warning(f"Engine 1→2 bridge failed (non-fatal): {e}")
+
+                # Engine 1→TransferMatcher: populate store agent with SKU data
+                try:
+                    matcher = app_state.get_user_transfer_matcher(ctx.user_id)
+                    if matcher is not None:
+                        from .world_model.transfer_matching import StoreAgent
+
+                        store_id = result.get("store_id", "default-store")
+                        if store_id not in matcher.agents:
+                            agent = StoreAgent(
+                                store_id=store_id,
+                                hierarchy=matcher.hierarchy,
+                                algebra=matcher.algebra,
+                            )
+                            matcher.register_agent(agent)
+                        else:
+                            agent = matcher.agents[store_id]
+
+                        sku_count = 0
+                        for leak_data in result.get("leaks", {}).values():
+                            for item in leak_data.get("items", []):
+                                sku = item.get("sku") or item.get("item_id")
+                                if not sku:
+                                    continue
+                                agent.ingest_sku(
+                                    sku_id=sku,
+                                    description=item.get("description", ""),
+                                    subcategory=item.get("subcategory", ""),
+                                    category=item.get(
+                                        "category", item.get("department", "")
+                                    ),
+                                    stock=int(
+                                        item.get("quantity", item.get("stock", 0))
+                                    ),
+                                    weekly_velocity=float(
+                                        item.get("velocity", item.get("qty_sold", 0))
+                                    ),
+                                    cost=float(
+                                        item.get("cost", item.get("unit_cost", 0))
+                                    ),
+                                    price=float(
+                                        item.get("price", item.get("retail", 0))
+                                    ),
+                                    days_since_last_sale=int(
+                                        item.get("days_since_last_sale", 0)
+                                    ),
+                                )
+                                sku_count += 1
+
+                        if sku_count > 0:
+                            logger.info(
+                                "Engine 1→TransferMatcher: populated %d SKUs for store=%s user=%s",
+                                sku_count,
+                                store_id,
+                                ctx.user_id,
+                            )
+                except Exception as e:
+                    # Transfer matcher failure must NOT block the analysis response
+                    logger.warning(
+                        f"Transfer matcher population failed (non-fatal): {e}"
+                    )
 
             # Engine 1→3: enrich findings with counterfactuals
             if app_state is not None and app_state.counterfactual_engine is not None:

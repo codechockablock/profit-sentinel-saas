@@ -39,6 +39,25 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
+logger = __import__("logging").getLogger(__name__)
+
+
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+
+def safe_normalize(v: np.ndarray, eps: float = 1e-10) -> np.ndarray:
+    """Epsilon-safe phasor normalization. Returns zero vector on degenerate input."""
+    norm = np.abs(v)
+    norm = np.where(norm < eps, 1.0, norm)
+    result = v / norm
+    if np.any(np.isnan(result)):
+        logger.warning("NaN detected in safe_normalize, returning zero vector")
+        return np.zeros_like(v)
+    return result
+
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -79,15 +98,24 @@ class PhasorAlgebra:
         self._cache: dict[str, np.ndarray] = {}
 
     def random_vector(self, label: str | None = None) -> np.ndarray:
-        """Generate random unit phasor vector."""
+        """Generate random unit phasor vector.
+
+        WARNING: Each call advances the RNG, so calling with the same label
+        twice produces different vectors (even though both are cached).
+        For stable role vectors, use get_or_create() or get_vector() instead.
+        """
         phases = self.rng.uniform(0, 2 * np.pi, self.dim)
         vec = np.exp(1j * phases)
         if label:
             self._cache[label] = vec
         return vec
 
+    def get_vector(self, label: str) -> np.ndarray:
+        """Get a stable vector for a label (alias for get_or_create)."""
+        return self.get_or_create(label)
+
     def get_or_create(self, label: str) -> np.ndarray:
-        """Get cached vector or create new one."""
+        """Get cached vector or create new one. Stable: same label → same vector."""
         if label not in self._cache:
             self._cache[label] = self.random_vector()
         return self._cache[label]
@@ -108,12 +136,14 @@ class PhasorAlgebra:
         self, vectors: list[np.ndarray], weights: list[float] | None = None
     ) -> np.ndarray:
         """Superposition with optional weights. Normalize to unit magnitude."""
+        if not vectors:
+            return np.zeros(self.dim, dtype=np.complex128)
         if weights:
             result = sum(w * v for w, v in zip(weights, vectors))
         else:
             result = sum(vectors)
-        # Normalize to unit phasor
-        return result / np.abs(result)
+        # Normalize to unit phasor (epsilon-safe)
+        return safe_normalize(result)
 
     def permute(self, v: np.ndarray, k: int = 1) -> np.ndarray:
         """Circular shift by k positions."""
@@ -161,7 +191,7 @@ class StateVector:
 
         # Create role vectors
         for name in role_names:
-            self.roles[name] = algebra.random_vector(f"role_{name}")
+            self.roles[name] = algebra.get_or_create(f"role_{name}")
 
         # Initialize fillers to identity (empty slots)
         for name in role_names:
@@ -307,7 +337,7 @@ class TransitionModel:
             "SHIFT",
         ]
         for name in primitives:
-            self.transition_primitives[name] = self.algebra.random_vector(
+            self.transition_primitives[name] = self.algebra.get_or_create(
                 f"transition_{name}"
             )
 
@@ -399,7 +429,7 @@ class TransitionModel:
             alpha = 0.7
             estimate = alpha * estimate + (1 - alpha) * codebook[best_idx]
             # Renormalize
-            estimate = estimate / np.abs(estimate)
+            estimate = safe_normalize(estimate)
 
         # Didn't converge — return best guess
         best_idx = np.argmax([self.algebra.similarity(context, cb) for cb in codebook])
@@ -467,7 +497,7 @@ class TransitionModel:
             t_vec = self.transition_primitives[best_name]
             # Positive: blend toward actual
             updated = (1 - lr) * t_vec + lr * actual_transition
-            self.transition_primitives[best_name] = updated / np.abs(updated)
+            self.transition_primitives[best_name] = safe_normalize(updated)
             self.transition_counts[best_name] += 1
 
         if second_best_name and second_best_sim > 0.05:
@@ -475,15 +505,13 @@ class TransitionModel:
             # Negative: push away from actual transition
             repulsion = lr * 0.5  # Weaker than attraction
             updated = t_vec - repulsion * actual_transition
-            self.transition_primitives[second_best_name] = updated / np.abs(updated)
+            self.transition_primitives[second_best_name] = safe_normalize(updated)
 
         # If no primitive matches well AND error is high, add a new one
         # (high error = this transition isn't captured by existing primitives)
         if best_sim < 0.15 and error > 0.5:
             new_name = f"LEARNED_{len(self.transition_primitives)}"
-            self.transition_primitives[new_name] = actual_transition / np.abs(
-                actual_transition
-            )
+            self.transition_primitives[new_name] = safe_normalize(actual_transition)
             self.transition_codebook.append((context, new_name))
             self.transition_counts[new_name] = 1
 

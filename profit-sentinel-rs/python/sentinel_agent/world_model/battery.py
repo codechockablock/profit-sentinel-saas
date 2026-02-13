@@ -35,6 +35,8 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from .core import safe_normalize
+
 
 @dataclass
 class BatteryResult:
@@ -568,6 +570,6 @@ class WarmupPhase:
                 == i
             )
             name = f"T_{i:02d}_n{cluster_size}"
-            primitives[name] = centroid / np.abs(centroid)
+            primitives[name] = safe_normalize(centroid)
 
         return primitives

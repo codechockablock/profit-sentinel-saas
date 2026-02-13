@@ -188,8 +188,11 @@ def _extract_impact_breakdown(result: dict) -> dict[str, float]:
         return {k: float(v) for k, v in estimated_impact["breakdown"].items() if v}
 
     # Estimate from leak counts * average
-    total_impact = estimated_impact.get("high", 0) or estimated_impact.get(
-        "annual_estimate", 0
+    total_impact = (
+        estimated_impact.get("high")
+        or estimated_impact.get("high_estimate")
+        or estimated_impact.get("annual_estimate")
+        or 0
     )
     counts = _extract_detection_counts(result)
     total_count = sum(counts.values()) or 1

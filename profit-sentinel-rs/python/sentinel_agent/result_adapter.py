@@ -722,6 +722,9 @@ class RustResultAdapter:
 
         impact["low_estimate"] = round(impact["low_estimate"], 2)
         impact["high_estimate"] = round(impact["high_estimate"], 2)
+        # Provide both field names for backward compatibility
+        impact["low"] = impact["low_estimate"]
+        impact["high"] = impact["high_estimate"]
 
         return impact
 
