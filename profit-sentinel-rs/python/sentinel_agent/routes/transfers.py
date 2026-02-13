@@ -104,13 +104,24 @@ def create_transfers_router(state: AppState, require_auth) -> APIRouter:
                 "engine2_status": "active",
             }
 
+        except (KeyError, ValueError, TypeError) as e:
+            logger.warning(
+                "Transfer matching data error (non-fatal): %s", e, exc_info=True
+            )
+            return {
+                "recommendations": [],
+                "total": 0,
+                "engine2_status": "data_error",
+                "error_code": "PROCESSING_FAILED",
+                "message": "Transfer matching encountered a data error. Engine 1 findings are unaffected.",
+            }
         except Exception as e:
-            # Sovereign collapse: transfer failure is non-fatal
-            logger.warning("Transfer matching failed (non-fatal): %s", e)
+            logger.error("Transfer matching failed (non-fatal): %s", e, exc_info=True)
             return {
                 "recommendations": [],
                 "total": 0,
                 "engine2_status": "error",
+                "error_code": "INTERNAL_ERROR",
                 "message": "Transfer matching encountered an error. Engine 1 findings are unaffected.",
             }
 

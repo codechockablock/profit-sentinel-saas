@@ -68,9 +68,19 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
             else:
                 finding["engine2_observations"] = 0
 
+        except (KeyError, ValueError, TypeError) as e:
+            # Data processing error — Engine 1 data is preserved
+            logger.debug(
+                "Finding enrichment data error for %s: %s", finding.get("id"), e
+            )
         except Exception as e:
-            # Enrichment failure is silent — Engine 1 data is preserved
-            logger.debug("Finding enrichment failed for %s: %s", finding.get("id"), e)
+            # Unexpected error — Engine 1 data is preserved
+            logger.warning(
+                "Finding enrichment failed for %s: %s",
+                finding.get("id"),
+                e,
+                exc_info=True,
+            )
 
         return finding
 
@@ -166,7 +176,11 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
             try:
                 n_obs = sum(len(h) for h in user_pipeline.entity_history.values())
                 engine2_status = "active" if n_obs > 0 else "warming_up"
-            except Exception:
+            except (KeyError, TypeError, AttributeError) as e:
+                logger.debug("Engine 2 status check data error: %s", e)
+                engine2_status = "error"
+            except Exception as e:
+                logger.warning("Engine 2 status check failed: %s", e, exc_info=True)
                 engine2_status = "error"
 
         return {

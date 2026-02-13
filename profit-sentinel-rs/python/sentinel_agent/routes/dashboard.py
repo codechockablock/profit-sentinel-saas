@@ -146,8 +146,13 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
                 else:
                     engine2_status = "active"
 
+            except (KeyError, ValueError, TypeError) as e:
+                logger.warning("Engine 2 dashboard data error (non-fatal): %s", e)
+                engine2_status = "error"
             except Exception as e:
-                logger.warning("Engine 2 dashboard data failed (non-fatal): %s", e)
+                logger.error(
+                    "Engine 2 dashboard data failed (non-fatal): %s", e, exc_info=True
+                )
                 engine2_status = "error"
 
         # ---------------------------------------------------------------
@@ -158,8 +163,8 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
         if matcher is not None:
             try:
                 transfer_stats["stores_registered"] = len(matcher.agents)
-            except Exception:
-                pass
+            except (AttributeError, TypeError) as e:
+                logger.debug("Transfer stats check failed: %s", e)
 
         return {
             # Engine 1 (always available)
