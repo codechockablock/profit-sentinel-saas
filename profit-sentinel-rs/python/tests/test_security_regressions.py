@@ -108,7 +108,14 @@ def test_cors_policy_restricts_methods_and_headers(app_client):
     _client, app, _state = app_client
 
     cors = next(m for m in app.user_middleware if m.cls.__name__ == "CORSMiddleware")
-    assert cors.kwargs["allow_methods"] == ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    assert cors.kwargs["allow_methods"] == [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS",
+    ]
     assert cors.kwargs["allow_headers"] == [
         "Authorization",
         "Content-Type",
