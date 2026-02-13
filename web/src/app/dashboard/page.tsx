@@ -25,7 +25,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useRef } from "react";
 import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
+import { presignUpload, uploadToS3 } from "@/lib/upload";
 import {
   fetchDigest,
   fetchDashboardSummary,
@@ -77,6 +79,16 @@ export default function DigestPage() {
   const [error, setError] = useState<string | null>(null);
   const [topK, setTopK] = useState(10);
   const [dragActive, setDragActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const ALLOWED_TYPES = [
+    "text/csv",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ];
+  const ALLOWED_EXT = [".csv", ".xls", ".xlsx"];
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -88,14 +100,47 @@ export default function DigestPage() {
     }
   }, []);
 
+  const processFile = useCallback(
+    async (file: File) => {
+      const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+      if (!ALLOWED_TYPES.includes(file.type) && !ALLOWED_EXT.includes(ext)) {
+        setUploadError("Please upload a CSV, XLS, or XLSX file");
+        return;
+      }
+
+      setUploading(true);
+      setUploadError(null);
+      try {
+        const presign = await presignUpload(file.name);
+        await uploadToS3(presign, file);
+        router.push(
+          `/analyze?s3Key=${encodeURIComponent(presign.key)}&filename=${encodeURIComponent(file.name)}&from=dashboard`
+        );
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : "Upload failed");
+        setUploading(false);
+      }
+    },
+    [router]
+  );
+
   const handleOnboardDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
       setDragActive(false);
-      router.push("/analyze");
+      const file = e.dataTransfer.files?.[0];
+      if (file) processFile(file);
     },
-    [router]
+    [processFile]
+  );
+
+  const handleFileInput = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) processFile(file);
+    },
+    [processFile]
   );
 
   const load = useCallback(async () => {
@@ -174,26 +219,52 @@ export default function DigestPage() {
             </p>
 
             {/* Upload drop zone */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.xls,.xlsx"
+              onChange={handleFileInput}
+              className="hidden"
+            />
             <div
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleOnboardDrop}
-              onClick={() => router.push("/analyze")}
+              onClick={() => !uploading && fileInputRef.current?.click()}
               className={`max-w-md mx-auto border-2 border-dashed rounded-2xl p-8 cursor-pointer transition-all ${
-                dragActive
-                  ? "border-emerald-500 bg-emerald-500/5"
-                  : "border-slate-700 hover:border-emerald-500/50 bg-slate-800/30"
+                uploading
+                  ? "border-emerald-500/50 bg-emerald-500/5"
+                  : dragActive
+                    ? "border-emerald-500 bg-emerald-500/5"
+                    : "border-slate-700 hover:border-emerald-500/50 bg-slate-800/30"
               }`}
             >
-              <Upload className="w-10 h-10 mx-auto mb-3 text-slate-500" />
-              <p className="text-sm font-medium text-white mb-1">
-                Drop your CSV, XLS, or XLSX file here
-              </p>
-              <p className="text-xs text-slate-500">
-                or click to open the analyzer
-              </p>
+              {uploading ? (
+                <>
+                  <div className="w-10 h-10 mx-auto mb-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm font-medium text-white mb-1">
+                    Uploading &amp; preparing...
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    This will take a few seconds
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-10 h-10 mx-auto mb-3 text-slate-500" />
+                  <p className="text-sm font-medium text-white mb-1">
+                    Drop your CSV, XLS, or XLSX file here
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    or click to browse files
+                  </p>
+                </>
+              )}
             </div>
+            {uploadError && (
+              <p className="text-red-400 text-sm mt-3">{uploadError}</p>
+            )}
           </div>
 
           {/* How it works */}

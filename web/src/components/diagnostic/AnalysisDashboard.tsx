@@ -142,6 +142,42 @@ export default function AnalysisDashboard() {
     getFileSizeLimit().then(setMaxFileSizeMb);
   }, [isAuthenticated]);
 
+  // Pre-loaded file from dashboard: skip upload and go straight to mapping
+  const [fromDashboard, setFromDashboard] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paramKey = params.get("s3Key");
+    const paramFilename = params.get("filename");
+    const paramFrom = params.get("from");
+
+    if (!paramKey || !paramFilename || stage !== "upload") return;
+
+    if (paramFrom === "dashboard") setFromDashboard(true);
+
+    // Clean up URL params so refresh doesn't re-trigger
+    window.history.replaceState({}, "", window.location.pathname);
+
+    // Auto-load: call suggestMapping and jump to mapping stage
+    (async () => {
+      setIsLoading(true);
+      setProcessingMessage("Analyzing file structure...");
+      try {
+        const mapping = await suggestMapping(paramKey, paramFilename);
+        setS3Key(paramKey);
+        setFile(new File([], paramFilename));
+        setMappingData(mapping);
+        setConfirmedMapping(mapping.suggestions);
+        setStage("mapping");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to analyze file");
+      } finally {
+        setIsLoading(false);
+        setProcessingMessage("");
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSignOut = async () => {
     await robustSignOut();
     setIsAuthenticated(false);
@@ -740,13 +776,23 @@ export default function AnalysisDashboard() {
               </div>
               <span className="font-semibold">Profit Sentinel</span>
             </div>
-            <button
-              onClick={resetDashboard}
-              className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm hover:bg-slate-700 transition flex items-center gap-2"
-            >
-              <RefreshCw size={16} />
-              Analyze Another File
-            </button>
+            <div className="flex items-center gap-3">
+              {fromDashboard && (
+                <Link
+                  href="/dashboard"
+                  className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm hover:bg-slate-700 transition"
+                >
+                  Back to Dashboard
+                </Link>
+              )}
+              <button
+                onClick={resetDashboard}
+                className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm hover:bg-slate-700 transition flex items-center gap-2"
+              >
+                <RefreshCw size={16} />
+                Analyze Another File
+              </button>
+            </div>
           </div>
         </header>
 
@@ -846,12 +892,22 @@ export default function AnalysisDashboard() {
                     <CheckCircle className="text-emerald-400" size={20} />
                     <span className="text-emerald-300 font-medium">Analysis saved to your dashboard</span>
                   </div>
-                  <Link
-                    href="/dashboard/history"
-                    className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
-                  >
-                    View in Dashboard
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    {fromDashboard && (
+                      <Link
+                        href="/dashboard"
+                        className="px-4 py-2 text-sm border border-slate-600 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+                      >
+                        Back to Dashboard
+                      </Link>
+                    )}
+                    <Link
+                      href="/dashboard/history"
+                      className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
+                    >
+                      View History
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center justify-between">
