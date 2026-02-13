@@ -68,8 +68,16 @@ def dev_client(dev_settings):
 @pytest.fixture
 def prod_client(prod_settings):
     """Test client with production mode (no auth = anonymous)."""
-    app = create_app(settings=prod_settings)
-    return TestClient(app)
+    with (
+        patch("sentinel_agent.sidecar.SentinelEngine") as MockEngine,
+        patch("supabase.create_client") as mock_sb,
+    ):
+        mock_engine = MagicMock()
+        mock_engine.binary = "/mock/sentinel-server"
+        MockEngine.return_value = mock_engine
+        mock_sb.return_value = MagicMock()
+        app = create_app(settings=prod_settings)
+        yield TestClient(app)
 
 
 @pytest.fixture(autouse=True)

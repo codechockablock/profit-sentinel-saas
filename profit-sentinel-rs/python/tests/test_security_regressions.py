@@ -97,7 +97,8 @@ def test_health_supabase_redacts_exception_details(app_client):
     state.supabase_client = ExplodingSupabase()
 
     response = client.get("/health")
-    assert response.status_code == 200
+    # 503 is expected: Supabase failure degrades the health check
+    assert response.status_code == 503
     data = response.json()
     assert data["dependencies"]["supabase"]["ok"] is False
     assert data["dependencies"]["supabase"]["detail"] == "unavailable"

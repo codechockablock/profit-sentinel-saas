@@ -148,11 +148,17 @@ def auth_client():
         supabase_service_key="fake-key",
     )
 
-    with patch("sentinel_agent.sidecar.SentinelEngine") as MockEngine:
+    with (
+        patch("sentinel_agent.sidecar.SentinelEngine") as MockEngine,
+        patch("supabase.create_client") as MockSupabase,
+    ):
         mock_engine = MagicMock()
         mock_engine.run.return_value = SAMPLE_DIGEST
         mock_engine.binary = "/mock/sentinel-server"
         MockEngine.return_value = mock_engine
+
+        # Mock Supabase client so health check probes succeed
+        MockSupabase.return_value = MagicMock()
 
         app = create_app(settings)
         yield TestClient(app)
