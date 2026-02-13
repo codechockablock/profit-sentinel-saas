@@ -213,12 +213,13 @@ jobs:
             --output text
 
       - name: Wait for ECS deployment stability
+        env:
+          AWS_MAX_ATTEMPTS: 20
         run: |
           echo "Waiting for production service to stabilize..."
           aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --timeout 300
+            --services $ECS_SERVICE
 
   # ===========================================================================
   # PRODUCTION HEALTH CHECK
