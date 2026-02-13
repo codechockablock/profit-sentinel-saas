@@ -507,6 +507,10 @@ async fn main() {
                         eprintln!("Error: --top requires a positive integer");
                         process::exit(1);
                     });
+                    if top_k > 100 {
+                        eprintln!("Warning: --top capped at 100 (was {})", top_k);
+                        top_k = 100;
+                    }
                     i += 2;
                 } else {
                     eprintln!("Error: --top requires a number");
@@ -562,9 +566,18 @@ async fn main() {
         process::exit(1);
     }
 
-    // Build and run pipeline
+    // Build and run pipeline.
+    // Only clone records when JSON output is needed (build_json uses
+    // the records for SKU lookups). For human-readable output the
+    // pipeline takes ownership without copying.
+    let records_for_json = if json_output {
+        Some(records.clone())
+    } else {
+        None
+    };
+
     let pipeline_start = Instant::now();
-    let pipeline = ExecutiveDigestPipeline::with_inventory_and_size(records.clone(), top_k);
+    let pipeline = ExecutiveDigestPipeline::with_inventory_and_size(records, top_k);
 
     let request_id = format!("digest-{}", Utc::now().format("%Y%m%d-%H%M%S-%3f"));
     let query = AgentQuery {
@@ -582,8 +595,8 @@ async fn main() {
     let result = pipeline.execute(query).await;
     let pipeline_ms = pipeline_start.elapsed().as_millis();
 
-    if json_output {
-        let digest = build_json(&result, &records, &query_store_ids, total_records, pipeline_ms);
+    if let Some(ref records) = records_for_json {
+        let digest = build_json(&result, records, &query_store_ids, total_records, pipeline_ms);
         match serde_json::to_string_pretty(&digest) {
             Ok(json) => println!("{}", json),
             Err(e) => {

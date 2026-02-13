@@ -299,7 +299,18 @@ impl Bridge {
         }
     }
 
-    /// Placeholder dispatch — to be replaced with actual VSA calls.
+    /// **Experimental** — placeholder dispatch for the VSA bridge protocol.
+    ///
+    /// This method demonstrates the dispatch interface that will route
+    /// operations to either the Python VSA world model (via FFI) or a
+    /// future Rust-native implementation. Currently returns structured
+    /// placeholders showing the expected response format.
+    ///
+    /// # Stability
+    ///
+    /// This interface is experimental and may change as the Rust world
+    /// model matures. The operation enum variants and result types are
+    /// considered stable; the dispatch routing is not.
     fn dispatch_placeholder(
         &self,
         op: &VSAOperation,
