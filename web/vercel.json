@@ -1,6 +1,6 @@
 {
   "env": {
-    "NEXT_PUBLIC_API_URL": "@api-url"
+    "NEXT_PUBLIC_API_URL": "https://api.profitsentinel.com"
   },
   "rewrites": [
     {
