@@ -30,6 +30,7 @@ Author: Joseph + Claude
 Date: 2026-02-08
 """
 
+from collections import deque
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -106,8 +107,9 @@ class WorldModelBattery:
         self.rng = np.random.default_rng(seed)
 
         # Baseline measurements (established during first run)
+        MAX_BATTERY_HISTORY = 200
         self.baseline: np.ndarray | None = None
-        self.history: list[np.ndarray] = []
+        self.history: deque[np.ndarray] = deque(maxlen=MAX_BATTERY_HISTORY)
 
     def run_structural_battery(self) -> np.ndarray:
         """
@@ -284,7 +286,7 @@ class WorldModelBattery:
 
         # 4. Resonator convergence rate
         total = 0
-        for exp in transition_model.experience_buffer[-100:]:
+        for exp in list(transition_model.experience_buffer)[-100:]:
             total += 1
         # Use the monitor's tracking instead
         if (
@@ -292,7 +294,7 @@ class WorldModelBattery:
             and transition_model.prediction_errors
         ):
             # Proxy: low error = good convergence
-            recent_errors = transition_model.prediction_errors[-100:]
+            recent_errors = list(transition_model.prediction_errors)[-100:]
             measurements.append(
                 float(np.mean([1.0 if e < 0.5 else 0.0 for e in recent_errors]))
             )
@@ -468,7 +470,7 @@ class WorldModelBattery:
 
         # Trend detection over history
         if len(self.history) >= 5:
-            recent = np.array(self.history[-5:])
+            recent = np.array(list(self.history)[-5:])
             for i, name in enumerate(names):
                 if i < recent.shape[1]:
                     trend = np.polyfit(range(5), recent[:, i], 1)[0]

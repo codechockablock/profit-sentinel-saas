@@ -29,10 +29,12 @@ Date: 2026-02-10
 
 import json
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
+
+MAX_LIFECYCLE_ENTRIES = 1000
 
 # =============================================================================
 # TIERS
@@ -610,9 +612,11 @@ class InventoryLifecycleTracker:
     def __init__(self, config: DeadStockConfig):
         self.config = config
 
-        # Track tier transitions per item
-        # entity_key → list of {tier, entered_at, exited_at}
-        self.lifecycle_history: dict[str, list[dict]] = defaultdict(list)
+        # Track tier transitions per item (bounded per entity)
+        # entity_key → deque of {tier, entered_at, exited_at}
+        self.lifecycle_history: dict[str, deque] = defaultdict(
+            lambda: deque(maxlen=MAX_LIFECYCLE_ENTRIES)
+        )
 
         # Current tier per item
         self.current_tiers: dict[str, DeadStockTier] = {}

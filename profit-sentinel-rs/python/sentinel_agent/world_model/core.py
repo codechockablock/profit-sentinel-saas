@@ -33,7 +33,7 @@ Date: 2026-02-08
 
 import json
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -304,11 +304,10 @@ class TransitionModel:
         self.transition_codebook: list[tuple[np.ndarray, str]] = []
 
         # Experience buffer for learning
-        self.experience_buffer: list[dict] = []
-        self.max_buffer_size = 10000
+        self.experience_buffer: deque[dict] = deque(maxlen=10000)
 
         # Performance tracking
-        self.prediction_errors: list[float] = []
+        self.prediction_errors: deque[float] = deque(maxlen=5000)
         self.transition_counts: dict[str, int] = defaultdict(int)
 
     def _init_transition_primitives(self):
@@ -515,7 +514,7 @@ class TransitionModel:
             self.transition_codebook.append((context, new_name))
             self.transition_counts[new_name] = 1
 
-        # Store experience
+        # Store experience (deque auto-evicts oldest when full)
         self.experience_buffer.append(
             {
                 "context": context,
@@ -526,10 +525,6 @@ class TransitionModel:
                 "timestamp": time.time(),
             }
         )
-
-        # Trim buffer
-        if len(self.experience_buffer) > self.max_buffer_size:
-            self.experience_buffer = self.experience_buffer[-self.max_buffer_size :]
 
         return error, meta
 
@@ -558,14 +553,14 @@ class ProprioceptiveMonitor:
     def __init__(self, config: WorldModelConfig):
         self.config = config
 
-        # Trajectory buffers
-        self.error_trajectory: list[float] = []
-        self.entropy_trajectory: list[float] = []
-        self.convergence_trajectory: list[bool] = []
-        self.primitive_history: list[str] = []
+        # Trajectory buffers (bounded to prevent unbounded growth)
+        self.error_trajectory: deque[float] = deque(maxlen=5000)
+        self.entropy_trajectory: deque[float] = deque(maxlen=5000)
+        self.convergence_trajectory: deque[bool] = deque(maxlen=5000)
+        self.primitive_history: deque[str] = deque(maxlen=5000)
 
-        # Alert state
-        self.alerts: list[dict] = []
+        # Alert state (keep recent alerts only)
+        self.alerts: deque[dict] = deque(maxlen=500)
         self.alert_count = 0
 
     def observe_step(
@@ -594,10 +589,10 @@ class ProprioceptiveMonitor:
         if len(self.error_trajectory) < window:
             return
 
-        recent_errors = self.error_trajectory[-window:]
-        recent_entropy = self.entropy_trajectory[-window:]
-        recent_convergence = self.convergence_trajectory[-window:]
-        recent_primitives = self.primitive_history[-window:]
+        recent_errors = list(self.error_trajectory)[-window:]
+        recent_entropy = list(self.entropy_trajectory)[-window:]
+        recent_convergence = list(self.convergence_trajectory)[-window:]
+        recent_primitives = list(self.primitive_history)[-window:]
 
         # Alert 1: Rising prediction error (model is getting worse)
         error_trend = np.polyfit(range(window), recent_errors, 1)[0]
@@ -680,8 +675,8 @@ class ProprioceptiveMonitor:
         if window == 0:
             return {"status": "no_data", "steps": 0}
 
-        recent_errors = self.error_trajectory[-window:]
-        recent_entropy = self.entropy_trajectory[-window:]
+        recent_errors = list(self.error_trajectory)[-window:]
+        recent_entropy = list(self.entropy_trajectory)[-window:]
 
         return {
             "status": "active",
@@ -693,9 +688,11 @@ class ProprioceptiveMonitor:
                 else 0.0
             ),
             "mean_entropy": float(np.mean(recent_entropy)),
-            "convergence_rate": (sum(self.convergence_trajectory[-window:]) / window),
-            "unique_primitives_used": len(set(self.primitive_history[-window:])),
-            "active_alerts": [a for a in self.alerts[-5:]],
+            "convergence_rate": (
+                sum(list(self.convergence_trajectory)[-window:]) / window
+            ),
+            "unique_primitives_used": len(set(list(self.primitive_history)[-window:])),
+            "active_alerts": list(self.alerts)[-5:],
             "total_alerts": self.alert_count,
         }
 
@@ -736,9 +733,10 @@ class VSAWorldModel:
         # Proprioception: self-monitoring
         self.monitor = ProprioceptiveMonitor(self.config)
 
-        # History
-        self.state_history: list[np.ndarray] = []
-        self.observation_history: list[np.ndarray] = []
+        # History (bounded to prevent unbounded growth)
+        MAX_ENTITY_HISTORY = 500
+        self.state_history: deque[np.ndarray] = deque(maxlen=MAX_ENTITY_HISTORY)
+        self.observation_history: deque[np.ndarray] = deque(maxlen=MAX_ENTITY_HISTORY)
         self.step_count = 0
 
         # Attention map: which roles have highest prediction error
@@ -882,7 +880,7 @@ class VSAWorldModel:
         window = min(
             self.config.entropy_window, len(self.transition_model.prediction_errors)
         )
-        return float(np.mean(self.transition_model.prediction_errors[-window:]))
+        return float(np.mean(list(self.transition_model.prediction_errors)[-window:]))
 
     def status(self) -> dict:
         """Full status report."""

@@ -32,7 +32,7 @@ Date: 2026-02-10
 import hashlib
 import json
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
@@ -456,8 +456,8 @@ class TransferMatcher:
         # Shared codebook: all published primitives from all stores
         self.shared_codebook: dict[str, np.ndarray] = {}
 
-        # Transfer history for learning
-        self.transfer_history: list[dict] = []
+        # Transfer history for learning (bounded)
+        self.transfer_history: deque[dict] = deque(maxlen=5000)
 
         # Configuration
         self.clearance_discount = 0.50  # 50% markdown for clearance

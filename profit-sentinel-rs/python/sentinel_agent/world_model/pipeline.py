@@ -115,7 +115,7 @@ class FeedbackEngine:
 
     def __init__(self, algebra: PhasorAlgebra):
         self.algebra = algebra
-        self.outcomes: list[Outcome] = []
+        self.outcomes: deque[Outcome] = deque(maxlen=10000)
 
         # Outcome encoding vectors
         self.outcome_roles = {
@@ -143,7 +143,7 @@ class FeedbackEngine:
         self.pattern_success: dict[str, tuple[int, int]] = defaultdict(lambda: (0, 0))
 
         # Reward signal history for the moat metrics
-        self.reward_history: list[dict] = []
+        self.reward_history: deque[dict] = deque(maxlen=10000)
 
     def record_outcome(self, outcome: Outcome) -> dict:
         """
@@ -677,12 +677,12 @@ class VendorProfile:
     skus: set[str] = field(default_factory=set)
 
     # Pricing behavior
-    cost_changes: list[dict] = field(default_factory=list)
+    cost_changes: deque[dict] = field(default_factory=lambda: deque(maxlen=1000))
     avg_cost_change_pct: float = 0.0
     cost_change_frequency: float = 0.0  # Changes per quarter
 
     # Delivery behavior
-    delivery_scores: list[float] = field(default_factory=list)
+    delivery_scores: deque[float] = field(default_factory=lambda: deque(maxlen=1000))
     avg_fill_rate: float = 1.0
     fill_rate_trend: float = 0.0  # Positive = improving
 
@@ -744,8 +744,8 @@ class VendorIntelligence:
             "seasonal": algebra.get_or_create("delivery_seasonal"),
         }
 
-        # Network-wide alerts
-        self.alerts: list[dict] = []
+        # Network-wide alerts (bounded)
+        self.alerts: deque[dict] = deque(maxlen=1000)
 
     def register_vendor(self, vendor_id: str, vendor_name: str):
         """Register a vendor in the intelligence system."""
@@ -814,13 +814,14 @@ class VendorIntelligence:
         profile.delivery_scores.append(fill_rate)
 
         # Rolling average (last 20 deliveries)
-        recent = profile.delivery_scores[-20:]
+        scores = list(profile.delivery_scores)
+        recent = scores[-20:]
         profile.avg_fill_rate = np.mean(recent)
 
         # Trend (compare last 10 to previous 10)
         if len(profile.delivery_scores) >= 20:
-            recent_10 = np.mean(profile.delivery_scores[-10:])
-            previous_10 = np.mean(profile.delivery_scores[-20:-10])
+            recent_10 = np.mean(scores[-10:])
+            previous_10 = np.mean(scores[-20:-10])
             profile.fill_rate_trend = recent_10 - previous_10
 
         # Alert on declining fill rate
@@ -916,7 +917,7 @@ class VendorIntelligence:
             delivery_vec = self.delivery_behaviors["reliable"]
         elif profile.fill_rate_trend < -0.03:
             delivery_vec = self.delivery_behaviors["declining"]
-        elif np.std(profile.delivery_scores[-10:]) > 0.1:
+        elif np.std(list(profile.delivery_scores)[-10:]) > 0.1:
             delivery_vec = self.delivery_behaviors["erratic"]
         else:
             delivery_vec = self.delivery_behaviors["reliable"]
@@ -1007,7 +1008,7 @@ class VendorIntelligence:
                 for vid, v in high_risk
             ],
             "active_alerts": len(self.alerts),
-            "recent_alerts": self.alerts[-5:] if self.alerts else [],
+            "recent_alerts": list(self.alerts)[-5:] if self.alerts else [],
         }
 
 
@@ -1387,7 +1388,7 @@ class MoatMetrics:
     """
 
     def __init__(self):
-        self.snapshots: list[dict] = []
+        self.snapshots: deque[dict] = deque(maxlen=520)  # ~10 years of weekly
         self.snapshot_interval_days = 7  # Weekly snapshots
 
     def capture_snapshot(
@@ -1587,7 +1588,20 @@ class SentinelPipeline:
 
         # Store tracking
         self.stores: dict[str, dict] = {}
-        self.entity_history: dict[str, list[dict]] = defaultdict(list)
+        MAX_ENTITY_HISTORY = 500
+        self.entity_history: dict[str, deque] = defaultdict(
+            lambda: deque(maxlen=MAX_ENTITY_HISTORY)
+        )
+        self._max_entities_per_tenant = 10000
+        self._entity_last_seen: dict[str, float] = {}
+
+    def prune_stale_entities(self, max_age_seconds: float = 86400 * 30):
+        """Remove entities not seen in 30 days."""
+        cutoff = time.time() - max_age_seconds
+        stale = [k for k, v in self._entity_last_seen.items() if v < cutoff]
+        for k in stale:
+            self.entity_history.pop(k, None)
+            del self._entity_last_seen[k]
 
     def record_observation(
         self, store_id: str, entity_id: str, observation: dict, timestamp: float = None
@@ -1603,6 +1617,11 @@ class SentinelPipeline:
         obs_record = {**observation, "timestamp": timestamp}
         history_key = f"{store_id}:{entity_id}"
         self.entity_history[history_key].append(obs_record)
+        self._entity_last_seen[history_key] = timestamp
+
+        # Prune if entity count exceeds limit
+        if len(self.entity_history) > self._max_entities_per_tenant:
+            self.prune_stale_entities()
 
         # Feed temporal hierarchy
         state_vec = self._encode_observation(observation)
@@ -1629,7 +1648,7 @@ class SentinelPipeline:
     ) -> list[Intervention]:
         """Generate predictive interventions for an entity."""
         history_key = f"{store_id}:{entity_id}"
-        history = self.entity_history.get(history_key, [])
+        history = list(self.entity_history.get(history_key, []))
 
         if not history:
             return []
