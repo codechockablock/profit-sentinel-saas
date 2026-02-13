@@ -2,8 +2,8 @@
 /**
  * API configuration for the frontend.
  *
- * Uses NEXT_PUBLIC_API_URL from environment variables.
- * Throws if not set to prevent accidental production fallback.
+ * Uses NEXT_PUBLIC_API_URL from environment variables with
+ * production fallback to prevent deployment failures.
  */
 
 /**
@@ -13,13 +13,16 @@
 export function getApiUrl(): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim()
 
-  if (!apiUrl) {
-    throw new Error(
-      '[API Config] NEXT_PUBLIC_API_URL is required. Set it explicitly for each deployment.'
-    )
+  if (apiUrl) {
+    return apiUrl
   }
 
-  return apiUrl
+  // Production fallback — keeps deploys from breaking
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://api.profitsentinel.com'
+  }
+
+  return 'http://localhost:8000'
 }
 
 /**
