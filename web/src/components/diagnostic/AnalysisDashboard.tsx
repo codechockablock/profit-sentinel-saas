@@ -465,7 +465,7 @@ export default function AnalysisDashboard() {
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle size={16} className="text-emerald-500" />
-              <span>S3 + GuardDuty secured</span>
+              <span>Encrypted & S3 secured</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle size={16} className="text-emerald-500" />
