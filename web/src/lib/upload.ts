@@ -142,9 +142,15 @@ async function getHeaders(): Promise<HeadersInit> {
 }
 
 /** Step 1: Get presigned S3 URL */
-export async function presignUpload(filename: string): Promise<PresignResult> {
+export async function presignUpload(
+  filename: string,
+  turnstileToken: string = "",
+): Promise<PresignResult> {
   const formData = new FormData();
   formData.append("filenames", filename);
+  if (turnstileToken) {
+    formData.append("cf_turnstile_response", turnstileToken);
+  }
 
   const authHeaders = await getHeaders();
   const apiBase = getApiBaseUrl();

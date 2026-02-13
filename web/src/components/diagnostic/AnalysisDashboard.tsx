@@ -22,6 +22,7 @@ import {
   LogOut,
   UserPlus,
 } from "lucide-react";
+import { Turnstile } from '@marsidev/react-turnstile';
 import {
   presignUpload,
   uploadToS3,
@@ -88,6 +89,10 @@ export default function AnalysisDashboard() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  // Turnstile captcha state
+  const [turnstileToken, setTurnstileToken] = useState<string>("");
+  const turnstileRef = useRef<any>(null);
 
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -188,10 +193,17 @@ export default function AnalysisDashboard() {
     setFile(selectedFile);
     setIsLoading(true);
 
+    // Check if captcha is needed but not ready
+    if (!isAuthenticated && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError("Verifying you're human — please wait a moment and try again.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       // Step 1: Get presigned URL
       setProcessingMessage("Preparing upload...");
-      const presignResult = await presignUpload(selectedFile.name);
+      const presignResult = await presignUpload(selectedFile.name, turnstileToken);
 
       // Step 2: Upload to S3
       setProcessingMessage("Uploading file...");
@@ -212,6 +224,11 @@ export default function AnalysisDashboard() {
     } finally {
       setIsLoading(false);
       setProcessingMessage("");
+      // Reset turnstile for next upload attempt
+      if (turnstileRef.current) {
+        turnstileRef.current.reset();
+        setTurnstileToken("");
+      }
     }
   };
 
@@ -302,6 +319,11 @@ export default function AnalysisDashboard() {
     setReportSending(false);
     setReportSent(false);
     setReportError(null);
+    // Reset turnstile
+    if (turnstileRef.current) {
+      turnstileRef.current.reset();
+      setTurnstileToken("");
+    }
   };
 
   const handleSendReport = async () => {
@@ -415,6 +437,26 @@ export default function AnalysisDashboard() {
               </>
             )}
           </div>
+
+          {/* Turnstile captcha — only for guest users */}
+          {!isAuthenticated && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+            <div className="mt-4 flex justify-center">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                onSuccess={(token: string) => setTurnstileToken(token)}
+                onError={() => setTurnstileToken("")}
+                onExpire={() => {
+                  setTurnstileToken("");
+                  turnstileRef.current?.reset();
+                }}
+                options={{
+                  theme: "dark",
+                  size: "invisible",
+                }}
+              />
+            </div>
+          )}
 
           <div className="mt-8 grid grid-cols-2 gap-4 text-sm text-slate-500">
             <div className="flex items-center gap-2">

@@ -36,6 +36,7 @@ from .s3_service import (
     sanitize_filename,
 )
 from .sidecar_config import SidecarSettings
+from .turnstile import verify_turnstile_token
 
 logger = logging.getLogger("sentinel.upload_routes")
 
@@ -184,6 +185,7 @@ def create_upload_router(
     async def presign_upload(
         request: Request,
         filenames: list[str] = Form(...),
+        cf_turnstile_response: str = Form(default=""),
         ctx: UserContext = Depends(get_user_context),
     ):
         """Generate presigned URLs for direct S3 upload.
@@ -191,6 +193,20 @@ def create_upload_router(
         Anonymous users: uploads/anonymous/{ip_hash}/{uuid}/{filename}
         Authenticated:   uploads/{user_id}/{uuid}/{filename}
         """
+        # Captcha verification for anonymous users only
+        if not ctx.is_authenticated and settings.turnstile_secret_key:
+            client_ip = request.client.host if request.client else None
+            is_valid = await verify_turnstile_token(
+                cf_turnstile_response,
+                settings.turnstile_secret_key,
+                remote_ip=client_ip,
+            )
+            if not is_valid:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Captcha verification failed. Please try again.",
+                )
+
         try:
             s3_client = get_s3_client()
             result = generate_upload_urls(

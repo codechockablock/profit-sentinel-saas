@@ -96,6 +96,12 @@ class SidecarSettings(BaseSettings):
         description="Hour (0-23) to send morning digest (in subscriber timezone).",
     )
 
+    # ----- Cloudflare Turnstile (captcha) -----
+    turnstile_secret_key: str = Field(
+        default="",
+        description="Cloudflare Turnstile secret key for captcha verification.",
+    )
+
     # ----- Cache -----
     digest_cache_ttl_seconds: int = Field(
         default=86400,
