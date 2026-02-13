@@ -31,16 +31,15 @@ where
     fn sort(&self, candidates: Vec<C>) -> Vec<C> {
         let mut sorted = candidates;
         sorted.sort_by(|a, b| {
-            let sa = self.score(b);
-            let sb = self.score(a);
-            sa.partial_cmp(&sb).unwrap_or_else(|| {
-                // Push NaN-scored candidates to the end
-                if sa.is_nan() {
-                    std::cmp::Ordering::Greater
-                } else {
-                    std::cmp::Ordering::Less
-                }
-            })
+            let sa = self.score(a);
+            let sb = self.score(b);
+            // Explicit total ordering: NaN goes to end (Greater)
+            match (sa.is_nan(), sb.is_nan()) {
+                (true, true) => std::cmp::Ordering::Equal,
+                (true, false) => std::cmp::Ordering::Greater,
+                (false, true) => std::cmp::Ordering::Less,
+                (false, false) => sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal),
+            }
         });
         sorted
     }

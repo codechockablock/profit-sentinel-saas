@@ -12,6 +12,7 @@
 //!   identity(dim)    = all-ones vector
 //!   permute(v, k)    = circular shift by k positions
 
+use log;
 use ndarray::Array1;
 use num_complex::Complex64;
 use rayon::prelude::*;
@@ -43,7 +44,10 @@ impl PhasorEngine {
     pub fn random_vector(&self, label: &str) -> Array1<Complex64> {
         // Fast path: read lock
         {
-            let cache = self.cache.read().unwrap();
+            let cache = self.cache.read().unwrap_or_else(|poisoned| {
+                log::warn!("PhasorEngine read lock was poisoned, recovering");
+                poisoned.into_inner()
+            });
             if let Some(v) = cache.get(label) {
                 return v.clone();
             }
@@ -51,7 +55,10 @@ impl PhasorEngine {
         // Slow path: generate and cache
         let seed = fnv1a_hash(label.as_bytes()) ^ self.base_seed;
         let v = random_phasor_vector_from_seed(self.dimensions, seed);
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().unwrap_or_else(|poisoned| {
+            log::warn!("PhasorEngine write lock was poisoned, recovering");
+            poisoned.into_inner()
+        });
         cache.insert(label.to_string(), v.clone());
         v
     }
@@ -124,6 +131,9 @@ impl PhasorEngine {
 
     /// Circular permutation (shift by k positions).
     pub fn permute(v: &Array1<Complex64>, k: i32) -> Array1<Complex64> {
+        if v.is_empty() {
+            return Array1::zeros(0);
+        }
         let n = v.len() as i32;
         let k = ((k % n) + n) % n;
         let k = k as usize;
@@ -192,12 +202,12 @@ impl PhasorEngine {
 
     /// Number of cached vectors.
     pub fn cache_size(&self) -> usize {
-        self.cache.read().unwrap().len()
+        self.cache.read().unwrap_or_else(|p| p.into_inner()).len()
     }
 
     /// Clear the vector cache.
     pub fn clear_cache(&self) {
-        self.cache.write().unwrap().clear();
+        self.cache.write().unwrap_or_else(|p| p.into_inner()).clear();
     }
 }
 
