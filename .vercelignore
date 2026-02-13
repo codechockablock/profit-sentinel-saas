@@ -1,8 +1,2 @@
-profit-sentinel-rs/target
-profit-sentinel-rs.zip
 node_modules
 .git
-*.zip
-infrastructure
-packages
-apps
