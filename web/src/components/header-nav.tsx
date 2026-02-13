@@ -20,7 +20,7 @@ export function HeaderNav({ currentPath }: HeaderNavProps) {
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/about', label: 'About' },
-    { href: '/diagnostic', label: 'Shrinkage Diagnostic' },
+    { href: '/analyze', label: 'Analyze' },
     { href: '/roadmap', label: 'Roadmap' },
     { href: '/privacy', label: 'Privacy' },
   ]

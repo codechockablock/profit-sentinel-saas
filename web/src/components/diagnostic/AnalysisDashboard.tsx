@@ -438,9 +438,9 @@ export default function AnalysisDashboard() {
             )}
           </div>
 
-          {/* Turnstile captcha — only for guest users */}
+          {/* Turnstile captcha — only for guest users, below upload area */}
           {!isAuthenticated && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
-            <div className="mt-4 flex justify-center">
+            <div className="mt-3 flex justify-center" onClick={(e) => e.stopPropagation()}>
               <Turnstile
                 ref={turnstileRef}
                 siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
@@ -452,7 +452,7 @@ export default function AnalysisDashboard() {
                 }}
                 options={{
                   theme: "dark",
-                  size: "normal",
+                  size: "compact",
                 }}
               />
             </div>

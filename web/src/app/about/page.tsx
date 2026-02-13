@@ -115,10 +115,10 @@ export default function AboutPage() {
               Ready to find your hidden profit leaks?
             </h2>
             <p className="text-slate-400 mb-6">
-              Free analysis. No credit card required. Results in under 2 minutes.
+              Free analysis. No credit card required. Results in 60 seconds.
             </p>
             <Link
-              href="/diagnostic"
+              href="/analyze"
               className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-lg rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-105 shadow-lg shadow-emerald-500/25"
             >
               Analyze My Inventory Free

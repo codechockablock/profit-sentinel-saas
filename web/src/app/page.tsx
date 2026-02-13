@@ -58,7 +58,7 @@ export default function Home() {
             How It Works
           </h2>
           <p className="text-xl text-slate-400 text-center mb-12 max-w-2xl mx-auto">
-            Three steps to find thousands in hidden profits
+            Four steps to find thousands in hidden profits
           </p>
 
           <div className="grid md:grid-cols-4 gap-6">
@@ -212,7 +212,7 @@ export default function Home() {
             Ready to Find Your Hidden Profits?
           </h2>
           <p className="text-xl text-slate-400 mb-8">
-            Free analysis. Results in under 2 minutes. No credit card required.
+            Free analysis. Results in 60 seconds. No credit card required.
           </p>
           <Link
             href="/analyze"

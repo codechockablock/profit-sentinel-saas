@@ -125,8 +125,26 @@ export default function DigestPage() {
         </div>
       </div>
 
-      {/* Error */}
-      {error && (
+      {/* Error / Onboarding */}
+      {error && !data && (
+        <div className="mb-6 p-8 bg-slate-800/50 border border-slate-700/50 rounded-xl text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+            <Zap size={28} className="text-emerald-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">No Data Yet</h2>
+          <p className="text-slate-400 mb-6 max-w-md mx-auto">
+            The Morning Digest shows priority issues across your stores. Upload an inventory file to get started.
+          </p>
+          <Link
+            href="/analyze"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-105 shadow-lg shadow-emerald-500/25"
+          >
+            <AlertCircle size={18} />
+            Analyze My Inventory
+          </Link>
+        </div>
+      )}
+      {error && data && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
           <AlertCircle size={16} className="inline mr-2" />
           {error}

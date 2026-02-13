@@ -52,8 +52,13 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/upload",
-        destination: "/diagnostic",
+        destination: "/analyze",
         permanent: true,
+      },
+      {
+        source: "/diagnostic",
+        destination: "/analyze",
+        permanent: false,
       },
     ];
   },
