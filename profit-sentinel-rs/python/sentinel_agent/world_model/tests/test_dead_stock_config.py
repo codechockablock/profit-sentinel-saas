@@ -113,23 +113,72 @@ def test_lifecycle_tracker():
 
 
 def test_full_integration():
-    """Run the built-in integration test."""
-    from ..config import run_dead_stock_config_test
+    """Hardware store scenario: classify items, track lifecycle, round-trip."""
+    import time
 
-    config, tracker = run_dead_stock_config_test()
+    from ..config import (
+        ConfigPresets,
+        DeadStockConfig,
+        DeadStockTier,
+        InventoryLifecycleTracker,
+    )
 
-    assert len(config.category_overrides) >= 3
+    config = ConfigPresets.hardware_store()
+    assert len(config.validate()) == 0
+
+    test_items = [
+        ("Active paint brush", 15, 30, 6.50, 2.5, "Paint Supplies"),
+        ("Slow cabinet pulls", 50, 47, 12.50, 0.3, "Hardware"),
+        ("Watchlist deadbolt", 65, 23, 34.00, 0.0, "Hardware"),
+        ("Attention copper pipe", 125, 85, 8.75, 0.0, "Plumbing"),
+        ("Action needed anchors", 185, 30, 18.00, 0.0, "Fasteners"),
+        ("Writeoff smart home", 400, 12, 85.00, 0.0, "Electrical"),
+        ("Dead xmas lights", 45, 50, 3.00, 0.0, "Seasonal"),
+        ("Slow commercial lock", 100, 5, 250.00, 0.1, "Commercial Hardware"),
+        ("Cheap washers", 200, 10, 0.25, 0.0, "Fasteners"),
+    ]
+
+    tracker = InventoryLifecycleTracker(config)
+    base_time = time.time()
+
+    for desc, days, stock, cost, velocity, category in test_items:
+        result = config.classify(
+            days_since_last_sale=days,
+            current_stock=stock,
+            unit_cost=cost,
+            velocity=velocity,
+            category=category,
+        )
+        entity_key = desc.replace(" ", "_").lower()
+        tracker.update_item(entity_key, result, base_time)
+
+    # Seasonal items flag earlier
+    assert (
+        config.classify(45, 50, 3.00, 0.0, "Seasonal").tier == DeadStockTier.WATCHLIST
+    )
+    assert (
+        config.classify(65, 50, 3.00, 0.0, "Seasonal").tier == DeadStockTier.ATTENTION
+    )
+    # Regular items use global thresholds
+    assert config.classify(45, 50, 3.00, 0.0, "Hardware").tier == DeadStockTier.ACTIVE
+    # Commercial hardware is relaxed
+    assert (
+        config.classify(100, 5, 250.00, 0.1, "Commercial Hardware").tier
+        == DeadStockTier.WATCHLIST
+    )
+    # Below capital threshold = no alert
+    assert not config.classify(200, 10, 0.25, 0.0, "Fasteners").should_alert
+
+    # Lifecycle report
     report = tracker.lifecycle_report()
     assert report["total_tracked"] > 0
 
+    # Serialization round-trip
+    serialized = config.to_dict()
+    restored = DeadStockConfig.from_dict(serialized)
+    assert restored.global_thresholds.watchlist_days == 60
+    assert "Seasonal" in restored.category_overrides
+    assert restored.category_overrides["Seasonal"].watchlist_days == 30
 
-if __name__ == "__main__":
-    test_config_presets()
-    test_tier_classification()
-    test_category_overrides()
-    test_capital_threshold()
-    test_serialization_roundtrip()
-    test_validation_catches_bad_config()
-    test_lifecycle_tracker()
-    test_full_integration()
-    print("All dead stock config tests passed!")
+    # All presets exist
+    assert len(ConfigPresets.all_presets()) >= 3
