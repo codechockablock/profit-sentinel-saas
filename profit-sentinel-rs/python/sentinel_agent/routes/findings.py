@@ -12,9 +12,11 @@ available. If Engine 2 is unavailable, findings show without enrichment.
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ..dual_auth import UserContext
 from .state import AppState
 
 logger = logging.getLogger("sentinel.routes.findings")
@@ -23,20 +25,20 @@ logger = logging.getLogger("sentinel.routes.findings")
 def create_findings_router(state: AppState, require_auth) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["findings"])
 
-    # In-memory acknowledge store (production: move to Supabase)
-    acknowledged_ids: set[str] = set()
+    # In-memory acknowledge store keyed by user_id (production: move to Supabase)
+    acknowledged_ids: dict[str, set[str]] = defaultdict(set)
 
-    def _enrich_finding(finding: dict) -> dict:
+    def _enrich_finding(finding: dict, user_id: str) -> dict:
         """Add Engine 2 enrichment to a finding if world model is available.
 
         This is additive — it never removes Engine 1 data, only adds
         Engine 2 insights (tier, predictions, confidence) on top.
         """
-        if state.world_model is None:
+        pipeline = state.get_user_world_model(user_id)
+        if pipeline is None:
             return finding
 
         try:
-            pipeline = state.world_model
             entity_id = finding.get("id", "")
             sku = finding.get("sku", entity_id)
 
@@ -81,7 +83,7 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
             "dollar_impact", pattern="^(dollar_impact|priority|date)$"
         ),
         department: str | None = Query(None),
-        _user=Depends(require_auth),
+        ctx: UserContext = Depends(require_auth),
     ) -> dict:
         """List findings with pagination, filtering, and sort.
 
@@ -92,9 +94,11 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
             sort_by: Sort order — dollar_impact, priority, or date
             department: Filter by department/category
         """
-        # Collect all issues from cached digests (Engine 1 data)
+        # Collect all issues from cached digests for THIS USER (Engine 1 data)
+        user_ack = acknowledged_ids[ctx.user_id]
+        user_cache = state.digest_cache.get(ctx.user_id, {})
         all_findings = []
-        for entry in state.digest_cache.values():
+        for entry in user_cache.values():
             if entry.is_expired:
                 continue
             for issue in entry.digest.issues:
@@ -117,11 +121,11 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
                     "dollar_impact": issue.dollar_impact,
                     "department": getattr(issue, "department", None),
                     "recommended_action": issue.root_cause_display,
-                    "acknowledged": issue.id in acknowledged_ids,
+                    "acknowledged": issue.id in user_ack,
                     "sku": issue.skus[0].sku_id if issue.skus else None,
                 }
                 # Engine 2 enrichment (additive, never blocks)
-                finding = _enrich_finding(finding)
+                finding = _enrich_finding(finding, ctx.user_id)
                 all_findings.append(finding)
 
         # Filter by status
@@ -155,11 +159,12 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
         end = start + page_size
         page_items = all_findings[start:end]
 
-        # Engine 2 status summary
+        # Engine 2 status summary (per-user pipeline)
         engine2_status = "not_initialized"
-        if state.world_model is not None:
+        user_pipeline = state.get_user_world_model(ctx.user_id)
+        if user_pipeline is not None:
             try:
-                n_obs = sum(len(h) for h in state.world_model.entity_history.values())
+                n_obs = sum(len(h) for h in user_pipeline.entity_history.values())
                 engine2_status = "active" if n_obs > 0 else "warming_up"
             except Exception:
                 engine2_status = "error"
@@ -178,21 +183,21 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
     @router.post("/findings/{finding_id}/acknowledge")
     async def acknowledge_finding(
         finding_id: str,
-        _user=Depends(require_auth),
+        ctx: UserContext = Depends(require_auth),
     ) -> dict:
-        """Mark a finding as acknowledged."""
-        acknowledged_ids.add(finding_id)
-        logger.info(f"Finding acknowledged: {finding_id}")
+        """Mark a finding as acknowledged for the current user."""
+        acknowledged_ids[ctx.user_id].add(finding_id)
+        logger.info("Finding acknowledged: %s (user=%s)", finding_id, ctx.user_id)
         return {"id": finding_id, "acknowledged": True}
 
     @router.post("/findings/{finding_id}/restore")
     async def restore_finding(
         finding_id: str,
-        _user=Depends(require_auth),
+        ctx: UserContext = Depends(require_auth),
     ) -> dict:
-        """Restore an acknowledged finding to active."""
-        acknowledged_ids.discard(finding_id)
-        logger.info(f"Finding restored: {finding_id}")
+        """Restore an acknowledged finding to active for the current user."""
+        acknowledged_ids[ctx.user_id].discard(finding_id)
+        logger.info("Finding restored: %s (user=%s)", finding_id, ctx.user_id)
         return {"id": finding_id, "acknowledged": False}
 
     return router

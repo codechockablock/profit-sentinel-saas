@@ -19,15 +19,23 @@ from ..diagnostics import (
     narrate_diagnostic_report,
     render_diagnostic_report,
 )
+from ..dual_auth import UserContext
 from .state import AppState
 
 
 def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["diagnostic"])
 
-    def _get_session(session_id: str) -> dict:
-        """Validate and return diagnostic session data."""
-        data = state.diagnostic_sessions.get(session_id)
+    def _get_user_sessions(user_id: str) -> dict[str, dict]:
+        """Get or create the per-user diagnostic session store."""
+        if user_id not in state.diagnostic_sessions:
+            state.diagnostic_sessions[user_id] = {}
+        return state.diagnostic_sessions[user_id]
+
+    def _get_session(user_id: str, session_id: str) -> dict:
+        """Validate and return diagnostic session data for this user."""
+        user_sessions = _get_user_sessions(user_id)
+        data = user_sessions.get(session_id)
         if not data:
             raise HTTPException(
                 status_code=404,
@@ -38,15 +46,16 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
     @router.post(
         "/diagnostic/start",
         response_model=DiagnosticStartResponse,
-        dependencies=[Depends(require_auth)],
     )
     async def start_diagnostic(
         body: DiagnosticStartRequest,
+        ctx: UserContext = Depends(require_auth),
     ) -> DiagnosticStartResponse:
         """Start a new conversational diagnostic session."""
         session = state.diagnostic_engine.start_session(body.items)
 
-        state.diagnostic_sessions[session.session_id] = {
+        user_sessions = _get_user_sessions(ctx.user_id)
+        user_sessions[session.session_id] = {
             "engine": state.diagnostic_engine,
             "session": session,
             "store_name": body.store_name,
@@ -65,13 +74,13 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/diagnostic/{session_id}/question",
         response_model=DiagnosticQuestionResponse | None,
-        dependencies=[Depends(require_auth)],
     )
     async def get_diagnostic_question(
         session_id: str,
+        ctx: UserContext = Depends(require_auth),
     ) -> DiagnosticQuestionResponse | None:
         """Get the current question for a diagnostic session."""
-        data = _get_session(session_id)
+        data = _get_session(ctx.user_id, session_id)
         question = state.diagnostic_engine.get_current_question(data["session"])
 
         if not question:
@@ -88,14 +97,14 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
     @router.post(
         "/diagnostic/{session_id}/answer",
         response_model=DiagnosticAnswerResponse,
-        dependencies=[Depends(require_auth)],
     )
     async def answer_diagnostic(
         session_id: str,
         body: DiagnosticAnswerRequest,
+        ctx: UserContext = Depends(require_auth),
     ) -> DiagnosticAnswerResponse:
         """Submit an answer to the current diagnostic question."""
-        data = _get_session(session_id)
+        data = _get_session(ctx.user_id, session_id)
         result = state.diagnostic_engine.answer_question(
             data["session"],
             body.classification,
@@ -122,13 +131,13 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/diagnostic/{session_id}/summary",
         response_model=DiagnosticSummaryResponse,
-        dependencies=[Depends(require_auth)],
     )
     async def get_diagnostic_summary(
         session_id: str,
+        ctx: UserContext = Depends(require_auth),
     ) -> DiagnosticSummaryResponse:
         """Get current diagnostic session summary with running totals."""
-        data = _get_session(session_id)
+        data = _get_session(ctx.user_id, session_id)
         session: DiagnosticSession = data["session"]
         summary = session.get_summary()
 
@@ -149,13 +158,13 @@ def create_diagnostic_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/diagnostic/{session_id}/report",
         response_model=DiagnosticReportResponse,
-        dependencies=[Depends(require_auth)],
     )
     async def get_diagnostic_report(
         session_id: str,
+        ctx: UserContext = Depends(require_auth),
     ) -> DiagnosticReportResponse:
         """Generate the final diagnostic report."""
-        data = _get_session(session_id)
+        data = _get_session(ctx.user_id, session_id)
         session: DiagnosticSession = data["session"]
 
         report = state.diagnostic_engine.get_final_report(session)

@@ -18,13 +18,14 @@ import hashlib
 import json
 import logging
 import time
+import uuid as _uuid
 
 import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 
 from .analysis_store import save_analysis
 from .column_adapter import ColumnAdapter
-from .dual_auth import UserContext, build_upgrade_prompt, check_rate_limit
+from .dual_auth import UserContext, build_upgrade_prompt, check_rate_limit, _rate_lock
 from .engine import PipelineError, SentinelEngine
 from .result_adapter import RustResultAdapter
 from .s3_service import (
@@ -39,6 +40,38 @@ from .sidecar_config import SidecarSettings
 from .turnstile import verify_turnstile_token
 
 logger = logging.getLogger("sentinel.upload_routes")
+
+# ---------------------------------------------------------------------------
+# Per-user presign rate limiter: 20 requests per hour
+# ---------------------------------------------------------------------------
+PRESIGN_RATE_LIMIT = 20  # per user per hour
+_presign_rate_limits: dict[str, list[float]] = {}
+
+
+async def _check_presign_rate_limit(user_id: str) -> None:
+    """Raise 429 if the user has exceeded 20 presign requests/hour."""
+    from datetime import UTC, datetime, timedelta
+
+    async with _rate_lock:
+        now = datetime.now(UTC)
+        window_start = now - timedelta(hours=1)
+
+        if user_id not in _presign_rate_limits:
+            _presign_rate_limits[user_id] = []
+
+        # Prune old entries
+        _presign_rate_limits[user_id] = [
+            t for t in _presign_rate_limits[user_id] if t > window_start.timestamp()
+        ]
+
+        if len(_presign_rate_limits[user_id]) >= PRESIGN_RATE_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Presign rate limit exceeded ({PRESIGN_RATE_LIMIT}/hour). Please try again later.",
+            )
+
+        _presign_rate_limits[user_id].append(now.timestamp())
+
 
 # Numeric column aliases for cleaning (subset of legacy)
 NUMERIC_COLUMN_ALIASES = [
@@ -188,11 +221,16 @@ def create_upload_router(
         cf_turnstile_response: str = Form(default=""),
         ctx: UserContext = Depends(get_user_context),
     ):
-        """Generate presigned URLs for direct S3 upload.
+        """Generate presigned POST data for direct S3 upload.
 
         Anonymous users: uploads/anonymous/{ip_hash}/{uuid}/{filename}
         Authenticated:   uploads/{user_id}/{uuid}/{filename}
+
+        Rate limited to 20 requests/hour per user.
         """
+        # Per-user presign rate limit
+        await _check_presign_rate_limit(ctx.user_id)
+
         # Captcha verification for anonymous users only
         if not ctx.is_authenticated and settings.turnstile_secret_key:
             client_ip = request.client.host if request.client else None
@@ -238,8 +276,9 @@ def create_upload_router(
 
         Uses Anthropic Claude for intelligent mapping with heuristic fallback.
         """
-        # Validate S3 key ownership
-        if not key.startswith(ctx.s3_prefix):
+        # Validate S3 key ownership (path-segment boundary check)
+        expected_prefix = ctx.s3_prefix.rstrip("/") + "/"
+        if not key.startswith(expected_prefix):
             raise HTTPException(
                 status_code=403,
                 detail="Access denied: you can only access your own uploaded files",
@@ -306,8 +345,9 @@ def create_upload_router(
                 detail="Mapping must be a JSON object with column name pairs",
             )
 
-        # Validate S3 key ownership
-        if not key.startswith(ctx.s3_prefix):
+        # Validate S3 key ownership (path-segment boundary check)
+        expected_prefix = ctx.s3_prefix.rstrip("/") + "/"
+        if not key.startswith(expected_prefix):
             raise HTTPException(
                 status_code=403,
                 detail="Access denied: you can only analyze your own uploaded files",
@@ -405,7 +445,7 @@ def create_upload_router(
             # Engine 1→2 bridge: feed Rust pipeline results to world model
             if app_state is not None:
                 try:
-                    app_state.feed_engine2(result)
+                    app_state.feed_engine2(ctx.user_id, result)
                 except Exception as e:
                     # Bridge failure must NOT block the analysis response
                     logger.warning(f"Engine 1→2 bridge failed (non-fatal): {e}")
@@ -423,18 +463,21 @@ def create_upload_router(
                     logger.warning(f"Engine 3 enrichment failed (non-fatal): {e}")
 
             if app_state is not None:
-                # Populate digest_cache so dashboard endpoints can display data
-                # without needing a local CSV file. Use a long TTL (1 hour).
+                # Populate per-user digest_cache so dashboard endpoints can
+                # display data without needing a local CSV file. Use a long TTL (1 hour).
                 try:
                     from .routes.state import DigestCacheEntry
 
                     cache_key = f":{settings.sentinel_top_k}"
-                    app_state.digest_cache[cache_key] = DigestCacheEntry(
+                    if ctx.user_id not in app_state.digest_cache:
+                        app_state.digest_cache[ctx.user_id] = {}
+                    app_state.digest_cache[ctx.user_id][cache_key] = DigestCacheEntry(
                         digest,
                         ttl_seconds=3600,
                     )
                     logger.info(
-                        "Cached analysis digest (key=%s, %d issues) for dashboard",
+                        "Cached analysis digest (user=%s, key=%s, %d issues) for dashboard",
+                        ctx.user_id,
                         cache_key,
                         len(digest.issues),
                     )
@@ -513,8 +556,12 @@ def create_upload_router(
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Analysis failed: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+            error_id = str(_uuid.uuid4())[:8]
+            logger.error(f"Analysis failed [{error_id}]: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Analysis failed. Please try again or contact support. (ref: {error_id})",
+            )
 
     # -----------------------------------------------------------------
     # GET /analysis/primitives

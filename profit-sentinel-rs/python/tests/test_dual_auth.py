@@ -211,9 +211,10 @@ class TestAnonymousAccess:
     def test_presign_anonymous(self, mock_s3_factory, prod_client):
         """Anonymous users can get presigned URLs."""
         mock_client = MagicMock()
-        mock_client.generate_presigned_url.return_value = (
-            "https://s3.amazonaws.com/test-bucket/anon/uuid-inventory.csv"
-        )
+        mock_client.generate_presigned_post.return_value = {
+            "url": "https://s3.amazonaws.com/test-bucket",
+            "fields": {"key": "anon/uuid-inventory.csv"},
+        }
         mock_s3_factory.return_value = mock_client
 
         response = prod_client.post(
@@ -233,7 +234,10 @@ class TestAnonymousAccess:
     def test_presign_dev_mode_authenticated(self, mock_s3_factory, dev_client):
         """Dev mode users are treated as authenticated."""
         mock_client = MagicMock()
-        mock_client.generate_presigned_url.return_value = "https://s3.example.com/url"
+        mock_client.generate_presigned_post.return_value = {
+            "url": "https://s3.example.com",
+            "fields": {"key": "url"},
+        }
         mock_s3_factory.return_value = mock_client
 
         response = dev_client.post(
@@ -323,9 +327,10 @@ class TestPublicEndpoints:
 
 class TestGetClientIP:
     def test_x_forwarded_for(self):
+        """Trusts the rightmost IP (ALB-appended), not the spoofable leftmost."""
         request = MagicMock()
         request.headers = {"X-Forwarded-For": "1.2.3.4, 10.0.0.1"}
-        assert get_client_ip(request) == "1.2.3.4"
+        assert get_client_ip(request) == "10.0.0.1"
 
     def test_direct_client(self):
         request = MagicMock()

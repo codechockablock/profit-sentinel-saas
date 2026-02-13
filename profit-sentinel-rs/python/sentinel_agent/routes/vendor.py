@@ -9,6 +9,7 @@ from ..api_models import (
     VendorCallResponse,
     VendorScoresResponse,
 )
+from ..dual_auth import UserContext
 from ..llm_layer import (
     render_call_prep,
     render_coop_report,
@@ -24,11 +25,13 @@ def create_vendor_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/vendor-call/{issue_id}",
         response_model=VendorCallResponse,
-        dependencies=[Depends(require_auth)],
     )
-    async def vendor_call_prep(issue_id: str) -> VendorCallResponse:
+    async def vendor_call_prep(
+        issue_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> VendorCallResponse:
         """Prepare a vendor call brief for an issue."""
-        issue = state.find_issue(issue_id)
+        issue = state.find_issue(ctx.user_id, issue_id)
         prep = state.vendor_assistant.prepare_call(issue)
         rendered = render_call_prep(prep)
 
@@ -40,15 +43,18 @@ def create_vendor_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/coop/{store_id}",
         response_model=CoopReportResponse,
-        dependencies=[Depends(require_auth)],
     )
-    async def coop_report(store_id: str) -> CoopReportResponse:
+    async def coop_report(
+        store_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> CoopReportResponse:
         """Generate co-op intelligence report for a store."""
+        user_cache = state.digest_cache.get(ctx.user_id, {})
         cache_key = f"{store_id}:5"
-        entry = state.digest_cache.get(cache_key)
+        entry = user_cache.get(cache_key)
 
         if not entry or entry.is_expired:
-            digest = state.get_or_run_digest([store_id])
+            digest = state.get_or_run_digest(ctx.user_id, [store_id])
         else:
             digest = entry.digest
 
@@ -77,13 +83,13 @@ def create_vendor_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/vendor-scores",
         response_model=VendorScoresResponse,
-        dependencies=[Depends(require_auth)],
     )
     async def get_vendor_scores(
         store_id: str | None = Query(default=None),
+        ctx: UserContext = Depends(require_auth),
     ) -> VendorScoresResponse:
         """Score all vendors on quality, delivery, pricing, and compliance."""
-        digest = state.get_or_run_digest([store_id] if store_id else None)
+        digest = state.get_or_run_digest(ctx.user_id, [store_id] if store_id else None)
         report = score_vendors(digest, store_id=store_id)
         return VendorScoresResponse(**report.to_dict())
 

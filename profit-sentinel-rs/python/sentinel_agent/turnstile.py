@@ -62,7 +62,6 @@ async def verify_turnstile_token(
         return success
 
     except Exception as e:
-        logger.error("Turnstile verification error: %s", e)
-        # On network error, fail open to avoid blocking legitimate users
-        # TODO: Make this configurable (fail closed in production)
-        return True
+        logger.error("Turnstile verification failed: %s", e)
+        # Fail closed — reject the request if we can't verify the token
+        return False

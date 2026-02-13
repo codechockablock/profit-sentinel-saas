@@ -13,6 +13,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Query
 
+from ..dual_auth import UserContext
 from .state import AppState
 
 logger = logging.getLogger("sentinel.routes.transfers")
@@ -26,11 +27,11 @@ def create_transfers_router(state: AppState, require_auth) -> APIRouter:
         source_store: str = Query(None, description="Filter by source store ID"),
         min_benefit: float = Query(0.0, description="Minimum net benefit ($)"),
         max_results: int = Query(20, ge=1, le=100, description="Max recommendations"),
-        _user=Depends(require_auth),
+        ctx: UserContext = Depends(require_auth),
     ) -> dict:
         """List transfer recommendations for dead stock items.
 
-        Returns recommendations from the TransferMatcher when available.
+        Returns recommendations from the per-user TransferMatcher when available.
         Each recommendation includes:
         - Source and destination store
         - SKU details (item, quantity, capital at risk)
@@ -42,8 +43,11 @@ def create_transfers_router(state: AppState, require_auth) -> APIRouter:
             min_benefit: Only show transfers with benefit above this threshold
             max_results: Maximum number of recommendations to return
         """
+        # Get per-user transfer matcher
+        matcher = state.get_user_transfer_matcher(ctx.user_id)
+
         # Engine 2 not initialized — return empty gracefully
-        if state.transfer_matcher is None:
+        if matcher is None:
             return {
                 "recommendations": [],
                 "total": 0,
@@ -55,7 +59,6 @@ def create_transfers_router(state: AppState, require_auth) -> APIRouter:
             }
 
         try:
-            matcher = state.transfer_matcher
             n_stores = len(matcher.agents)
 
             # Need at least 2 stores for cross-store matching

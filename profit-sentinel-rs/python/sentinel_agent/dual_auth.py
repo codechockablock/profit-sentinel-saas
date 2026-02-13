@@ -98,10 +98,17 @@ class UserContext:
 
 
 def get_client_ip(request: Request) -> str:
-    """Extract client IP, handling ALB/proxy X-Forwarded-For."""
+    """Extract client IP, handling ALB/proxy X-Forwarded-For.
+
+    Trusts the rightmost IP in X-Forwarded-For — this is the one
+    appended by the ALB (the trusted proxy), not the leftmost which
+    is client-supplied and spoofable.
+    """
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
     return request.client.host if request.client else "unknown"
 
 

@@ -849,11 +849,13 @@ class TestSidecarExplainEndpoints:
                 issues_filtered_out=4,
             ),
         )
-        # Inject into cache via app state
+        # Inject into cache via app state (keyed by user_id for tenant isolation)
         state = client.app.extra["sentinel_state"]
         entry = DigestCacheEntry(digest, 3600)
-        state.digest_cache["test-store:5"] = entry
-        state.digest_cache[":5"] = entry  # Default cache key
+        state.digest_cache["dev-user"] = {
+            "test-store:5": entry,
+            ":5": entry,  # Default cache key
+        }
 
         yield client
 

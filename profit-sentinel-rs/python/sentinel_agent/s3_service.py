@@ -78,20 +78,25 @@ def sanitize_filename(filename: str) -> str:
     return filename
 
 
-def generate_presigned_url(
+def generate_presigned_post(
     s3_client,
     bucket_name: str,
     key: str,
+    max_size_bytes: int,
     expires_in: int = 3600,
-) -> str:
-    """Generate a presigned URL for uploading."""
-    return s3_client.generate_presigned_url(
-        "put_object",
-        Params={
-            "Bucket": bucket_name,
-            "Key": key,
-            "ContentType": "application/octet-stream",
-        },
+) -> dict:
+    """Generate a presigned POST for uploading with size enforcement.
+
+    Returns a dict with ``url`` and ``fields`` for multipart form upload.
+    The ``content-length-range`` condition enforces file size server-side
+    at the S3 level, preventing oversized uploads.
+    """
+    return s3_client.generate_presigned_post(
+        Bucket=bucket_name,
+        Key=key,
+        Conditions=[
+            ["content-length-range", 1, max_size_bytes],
+        ],
         ExpiresIn=expires_in,
     )
 
@@ -104,7 +109,7 @@ def generate_upload_urls(
     *,
     max_file_size_mb: int = MAX_FILE_SIZE_MB,
 ) -> dict:
-    """Generate presigned URLs for a list of files.
+    """Generate presigned POST data for a list of files.
 
     Args:
         s3_client: boto3 S3 client.
@@ -114,7 +119,7 @@ def generate_upload_urls(
                    ``uploads/anonymous/abc123``). Falls back to ``anonymous``.
         max_file_size_mb: Per-user file size limit (10 MB anon, 50 MB auth).
 
-    Returns the legacy API response shape.
+    Returns the legacy API response shape with presigned POST url + fields.
     """
     if len(filenames) > MAX_FILES_PER_REQUEST:
         raise ValueError(
@@ -125,27 +130,33 @@ def generate_upload_urls(
         raise ValueError("At least one filename required")
 
     key_prefix = s3_prefix if s3_prefix else "anonymous"
+    max_size_bytes = max_file_size_mb * 1024 * 1024
 
     presigned_urls = []
     for filename in filenames:
         safe_filename = sanitize_filename(filename)
         key = f"{key_prefix}/{uuid.uuid4()}-{safe_filename}"
-        url = generate_presigned_url(s3_client, bucket_name, key)
+        post_data = generate_presigned_post(
+            s3_client, bucket_name, key, max_size_bytes
+        )
 
         presigned_urls.append(
             {
                 "filename": filename,
                 "safe_filename": safe_filename,
                 "key": key,
-                "url": url,
+                "url": post_data["url"],
+                "fields": post_data["fields"],
                 "max_size_mb": max_file_size_mb,
             }
         )
 
     return {
         "presigned_urls": presigned_urls,
+        "upload_method": "POST",
         "limits": {
             "max_file_size_mb": max_file_size_mb,
+            "max_file_size_bytes": max_size_bytes,
             "allowed_extensions": list(ALLOWED_EXTENSIONS),
         },
     }

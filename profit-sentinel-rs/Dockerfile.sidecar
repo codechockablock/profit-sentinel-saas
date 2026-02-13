@@ -27,7 +27,7 @@ RUN mkdir -p sentinel-pipeline/src sentinel-vsa/src sentinel-bridge/src sentinel
     echo "" > sentinel-bridge/src/lib.rs
 
 # Build dependencies only (cached layer)
-RUN cargo build --release -p sentinel-server 2>/dev/null || true
+RUN cargo build --release -p sentinel-server
 
 # Copy actual source code
 COPY sentinel-pipeline/ sentinel-pipeline/

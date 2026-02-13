@@ -4,25 +4,36 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from ..dual_auth import UserContext
 from .state import AppState
 
 logger = logging.getLogger("sentinel.routes.counterfactual")
 
 
-def create_counterfactual_router(state: AppState) -> APIRouter:
-    router = APIRouter(prefix="/counterfactual", tags=["Engine 3"])
+def create_counterfactual_router(state: AppState, require_auth=None) -> APIRouter:
+    if require_auth is None:
+        raise ValueError("require_auth dependency is required for counterfactual router")
+
+    router = APIRouter(
+        prefix="/counterfactual",
+        tags=["Engine 3"],
+        dependencies=[Depends(require_auth)],
+    )
 
     @router.get("/summary")
-    async def get_counterfactual_summary():
+    async def get_counterfactual_summary(
+        ctx: UserContext = Depends(require_auth),
+    ):
         """Get aggregate cost-of-inaction summary across all cached findings."""
         if state.counterfactual_engine is None:
             raise HTTPException(503, "Engine 3 not available")
 
-        # Pull from the most recent analysis result if available
-        # For now, return from any cached digest
-        for entry in state.digest_cache.values():
+        # Pull from the current user's cached digest only
+        user_id = ctx.user_id
+        user_cache = state.digest_cache.get(user_id, {})
+        for entry in user_cache.values():
             if not entry.is_expired:
                 digest = entry.digest
                 # Build items from digest issues for Engine 3

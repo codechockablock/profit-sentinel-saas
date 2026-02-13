@@ -21,7 +21,7 @@ import {
   Search,
   Truck,
 } from "lucide-react";
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { AuthModal } from "@/components/auth/AuthModal";
 
 const NAV_ITEMS = [
@@ -49,8 +49,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) {
-      // No Supabase config — allow access (dev mode)
-      setIsAuthenticated(true);
+      // No Supabase config — fail closed, require configuration
+      setIsAuthenticated(false);
       return;
     }
 
@@ -78,6 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Auth gate
   if (!isAuthenticated) {
+    const supabaseMissing = !isSupabaseConfigured();
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
         <div className="text-center max-w-md">
@@ -85,21 +86,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Lock size={32} className="text-emerald-400" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-3">Executive Dashboard</h1>
-          <p className="text-slate-400 mb-8">
-            Sign in to access your morning digest, task delegation, co-op intelligence, and more.
-          </p>
-          <button
-            onClick={() => setShowAuthModal(true)}
-            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
-          >
-            Sign In
-          </button>
-          <AuthModal
-            isOpen={showAuthModal}
-            onClose={() => setShowAuthModal(false)}
-            onSuccess={() => setIsAuthenticated(true)}
-            defaultMode="login"
-          />
+          {supabaseMissing ? (
+            <p className="text-red-400 mb-8">
+              Authentication service is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.
+            </p>
+          ) : (
+            <>
+              <p className="text-slate-400 mb-8">
+                Sign in to access your morning digest, task delegation, co-op intelligence, and more.
+              </p>
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
+              >
+                Sign In
+              </button>
+              <AuthModal
+                isOpen={showAuthModal}
+                onClose={() => setShowAuthModal(false)}
+                onSuccess={() => setIsAuthenticated(true)}
+                defaultMode="login"
+              />
+            </>
+          )}
         </div>
       </div>
     );

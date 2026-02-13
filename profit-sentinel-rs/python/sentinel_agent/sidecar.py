@@ -10,6 +10,7 @@ app creation, middleware, exception handlers, and lifespan.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -70,6 +71,21 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     """Create and configure the FastAPI application."""
     if settings is None:
         settings = get_settings()
+
+    # -----------------------------------------------------------------
+    # Dev mode safety guard — block dev mode in production (ECS/AWS)
+    # -----------------------------------------------------------------
+    if settings.sidecar_dev_mode:
+        _is_production = bool(
+            os.environ.get("ECS_CONTAINER_METADATA_URI")
+            or os.environ.get("ECS_CONTAINER_METADATA_URI_V4")
+            or os.environ.get("AWS_EXECUTION_ENV")
+        )
+        if _is_production:
+            raise RuntimeError(
+                "SIDECAR_DEV_MODE=true is not allowed in ECS/production. "
+                "Detected production environment via ECS metadata or AWS_EXECUTION_ENV."
+            )
 
     # -----------------------------------------------------------------
     # Auth dependencies (dual mode — public + authenticated)
@@ -192,20 +208,19 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     # -----------------------------------------------------------------
     # Middleware
     # -----------------------------------------------------------------
-    origins = (
-        ["*"]
-        if settings.sidecar_dev_mode
-        else [
-            "https://www.profitsentinel.com",
-            "https://profitsentinel.com",
-            "https://profit-sentinel-saas.vercel.app",
-            "https://profit-sentinel.vercel.app",
+    origins = [
+        "https://www.profitsentinel.com",
+        "https://profitsentinel.com",
+        "https://profit-sentinel-saas.vercel.app",
+        "https://profit-sentinel.vercel.app",
+    ]
+    if settings.sidecar_dev_mode:
+        origins.extend([
             "http://localhost:3000",
             "http://localhost:5173",
             "http://127.0.0.1:3000",
             "http://127.0.0.1:5173",
-        ]
-    )
+        ])
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -276,7 +291,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     app.include_router(create_dashboard_router(state, require_auth))
     app.include_router(create_config_router(state, require_auth))
     app.include_router(create_transfers_router(state, require_auth))
-    app.include_router(create_counterfactual_router(state))
+    app.include_router(create_counterfactual_router(state, require_auth))
 
     # Legacy-compatible upload & analysis routes (production frontend)
     # Pass app_state for Engine 1→2 bridging (feeds Rust results to world model)

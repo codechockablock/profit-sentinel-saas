@@ -16,6 +16,7 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Depends
 
+from ..dual_auth import UserContext
 from .state import AppState
 
 logger = logging.getLogger("sentinel.routes.dashboard")
@@ -26,7 +27,7 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
 
     @router.get("/dashboard")
     async def dashboard_summary(
-        _user=Depends(require_auth),
+        ctx: UserContext = Depends(require_auth),
     ) -> dict:
         """Pre-computed dashboard summary.
 
@@ -39,10 +40,11 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
             engine2_status: World model status (active/warming_up/not_initialized)
         """
         # ---------------------------------------------------------------
-        # Engine 1 data: always available from digest cache
+        # Engine 1 data: from this user's digest cache only
         # ---------------------------------------------------------------
+        user_cache = state.digest_cache.get(ctx.user_id, {})
         all_issues = []
-        for entry in state.digest_cache.values():
+        for entry in user_cache.values():
             if entry.is_expired:
                 continue
             for issue in entry.digest.issues:
@@ -106,17 +108,16 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
             )
 
         # ---------------------------------------------------------------
-        # Engine 2 data: predictions from PredictiveEngine (additive)
+        # Engine 2 data: predictions from per-user PredictiveEngine (additive)
         # ---------------------------------------------------------------
         prediction_count = 0
         top_predictions = []
         engine2_status = "not_initialized"
         engine2_summary = {}
 
-        if state.world_model is not None:
+        pipeline = state.get_user_world_model(ctx.user_id)
+        if pipeline is not None:
             try:
-                pipeline = state.world_model
-
                 # Count active interventions with confidence > 0.7
                 if hasattr(pipeline, "predictive"):
                     # Expire stale interventions first
@@ -150,12 +151,12 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
                 engine2_status = "error"
 
         # ---------------------------------------------------------------
-        # Transfer matching stats (additive)
+        # Transfer matching stats (additive, per-user)
         # ---------------------------------------------------------------
         transfer_stats = {"stores_registered": 0, "total_recommendations": 0}
-        if state.transfer_matcher is not None:
+        matcher = state.get_user_transfer_matcher(ctx.user_id)
+        if matcher is not None:
             try:
-                matcher = state.transfer_matcher
                 transfer_stats["stores_registered"] = len(matcher.agents)
             except Exception:
                 pass

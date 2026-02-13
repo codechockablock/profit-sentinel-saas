@@ -9,6 +9,7 @@ from ..api_models import (
     BackwardChainResponse,
     ExplainResponse,
 )
+from ..dual_auth import UserContext
 from .state import AppState
 
 
@@ -18,11 +19,13 @@ def create_explain_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/explain/{issue_id}",
         response_model=ExplainResponse,
-        dependencies=[Depends(require_auth)],
     )
-    async def explain_issue(issue_id: str) -> ExplainResponse:
+    async def explain_issue(
+        issue_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> ExplainResponse:
         """Generate full proof tree explaining an issue's root cause."""
-        issue = state.find_issue(issue_id)
+        issue = state.find_issue(ctx.user_id, issue_id)
         proof = state.reasoner.explain(issue)
 
         return ExplainResponse(
@@ -34,14 +37,14 @@ def create_explain_router(state: AppState, require_auth) -> APIRouter:
     @router.post(
         "/explain/{issue_id}/why",
         response_model=BackwardChainResponse,
-        dependencies=[Depends(require_auth)],
     )
     async def backward_chain_issue(
         issue_id: str,
         body: BackwardChainRequest,
+        ctx: UserContext = Depends(require_auth),
     ) -> BackwardChainResponse:
         """Backward-chain from a goal to explain how it was derived."""
-        issue = state.find_issue(issue_id)
+        issue = state.find_issue(ctx.user_id, issue_id)
         steps = state.reasoner.backward_chain(issue, body.goal)
 
         return BackwardChainResponse(

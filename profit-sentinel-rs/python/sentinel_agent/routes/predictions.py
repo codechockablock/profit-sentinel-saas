@@ -7,6 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..api_models import PredictiveReportResponse
+from ..dual_auth import UserContext
 from ..engine import PipelineError
 from ..predictive_alerts import predict_inventory
 from .state import AppState
@@ -20,15 +21,15 @@ def create_predictions_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/predictions",
         response_model=PredictiveReportResponse,
-        dependencies=[Depends(require_auth)],
     )
     async def get_predictions(
         store_id: str | None = Query(default=None),
         horizon_days: int = Query(default=30, ge=7, le=90),
+        ctx: UserContext = Depends(require_auth),
     ) -> PredictiveReportResponse:
         """Predict stockouts and overstock situations."""
         try:
-            digest = state.get_or_run_digest([store_id] if store_id else None)
+            digest = state.get_or_run_digest(ctx.user_id, [store_id] if store_id else None)
         except (HTTPException, PipelineError, FileNotFoundError) as exc:
             logger.info("No data for predictions (returning empty): %s", exc)
             return PredictiveReportResponse(

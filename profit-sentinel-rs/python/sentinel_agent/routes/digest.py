@@ -22,6 +22,7 @@ from ..digest_scheduler import (
     list_subscriptions,
     remove_subscription,
 )
+from ..dual_auth import UserContext
 from ..llm_layer import render_digest
 from .state import AppState
 
@@ -32,7 +33,6 @@ def create_digest_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/digest",
         response_model=DigestResponse,
-        dependencies=[Depends(require_auth)],
     )
     async def get_digest(
         stores: str | None = Query(
@@ -40,10 +40,11 @@ def create_digest_router(state: AppState, require_auth) -> APIRouter:
             description="Comma-separated store IDs (e.g. store-7,store-12)",
         ),
         top_k: int = Query(default=5, ge=1, le=20),
+        ctx: UserContext = Depends(require_auth),
     ) -> DigestResponse:
         """Run pipeline and return morning digest."""
         store_list = [s.strip() for s in stores.split(",")] if stores else None
-        digest = state.get_or_run_digest(store_list, top_k)
+        digest = state.get_or_run_digest(ctx.user_id, store_list, top_k)
 
         return DigestResponse(
             digest=digest,
@@ -139,14 +140,14 @@ def create_digest_router(state: AppState, require_auth) -> APIRouter:
     @router.get(
         "/digest/{store_id}",
         response_model=DigestResponse,
-        dependencies=[Depends(require_auth)],
     )
     async def get_store_digest(
         store_id: str,
         top_k: int = Query(default=5, ge=1, le=20),
+        ctx: UserContext = Depends(require_auth),
     ) -> DigestResponse:
         """Single-store digest view."""
-        digest = state.get_or_run_digest([store_id], top_k)
+        digest = state.get_or_run_digest(ctx.user_id, [store_id], top_k)
 
         return DigestResponse(
             digest=digest,

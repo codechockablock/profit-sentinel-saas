@@ -13,6 +13,8 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from ..dual_auth import UserContext
+
 # Import with graceful fallback — world_model/__init__.py imports pipeline/core
 # which need numpy. config.py itself only uses stdlib, but the package __init__
 # triggers the full import chain. If it fails, we still need config types.
@@ -45,16 +47,14 @@ def create_config_router(state: AppState, require_auth) -> APIRouter:
 
     @router.get("/config")
     async def get_config(
-        _user=Depends(require_auth),
+        ctx: UserContext = Depends(require_auth),
     ) -> dict:
         """Fetch current dead stock configuration.
 
         Returns the user's saved config or defaults.
         Includes available presets for the frontend preset selector.
         """
-        # TODO: extract user_id from auth context
-        user_id = "default"
-        saved = _user_configs.get(user_id)
+        saved = _user_configs.get(ctx.user_id)
 
         if saved:
             config = DeadStockConfig.from_dict(saved)
@@ -86,7 +86,7 @@ def create_config_router(state: AppState, require_auth) -> APIRouter:
     @router.put("/config")
     async def update_config(
         request: Request,
-        _user=Depends(require_auth),
+        ctx: UserContext = Depends(require_auth),
     ) -> dict:
         """Save dead stock configuration.
 
@@ -140,19 +140,19 @@ def create_config_router(state: AppState, require_auth) -> APIRouter:
                 detail=f"Invalid configuration: {errors}",
             )
 
-        # Save
-        user_id = "default"  # TODO: extract from auth context
+        # Save — keyed by authenticated user_id
         config_dict = config.to_dict()
         config_dict["_preset"] = preset_name
-        _user_configs[user_id] = config_dict
+        _user_configs[ctx.user_id] = config_dict
 
         logger.info(
-            f"Config saved for user {user_id}: "
-            f"preset={preset_name}, "
-            f"thresholds={config.global_thresholds.watchlist_days}/"
-            f"{config.global_thresholds.attention_days}/"
-            f"{config.global_thresholds.action_days}/"
-            f"{config.global_thresholds.writeoff_days}"
+            "Config saved for user %s: preset=%s, thresholds=%d/%d/%d/%d",
+            ctx.user_id,
+            preset_name,
+            config.global_thresholds.watchlist_days,
+            config.global_thresholds.attention_days,
+            config.global_thresholds.action_days,
+            config.global_thresholds.writeoff_days,
         )
 
         return {

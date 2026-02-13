@@ -77,27 +77,34 @@ class AppState:
     # If None, counterfactual features are silently disabled.
     counterfactual_engine: CounterfactualEngine | None = field(default=None)
 
-    # In-memory stores
-    digest_cache: dict[str, DigestCacheEntry] = field(default_factory=dict)
-    task_store: dict[str, TaskResponse] = field(default_factory=dict)
-    diagnostic_sessions: dict[str, dict] = field(default_factory=dict)
+    # In-memory stores — all keyed by user_id for tenant isolation
+    digest_cache: dict[str, dict[str, DigestCacheEntry]] = field(default_factory=dict)
+    task_store: dict[str, dict[str, TaskResponse]] = field(default_factory=dict)
+    diagnostic_sessions: dict[str, dict[str, dict]] = field(default_factory=dict)
+
+    # Per-user world model pipelines + transfer matchers
+    # (world_model / transfer_matcher above are templates; actual per-user
+    # instances are stored here, keyed by user_id)
+    world_models: dict[str, object] = field(default_factory=dict)
+    transfer_matchers: dict[str, object] = field(default_factory=dict)
 
     def get_or_run_digest(
         self,
+        user_id: str,
         stores: list[str] | None = None,
         top_k: int = 5,
     ) -> Digest:
-        """Get cached digest or run pipeline."""
+        """Get cached digest or run pipeline, scoped to user_id."""
+        user_cache = self.digest_cache.get(user_id, {})
         cache_key = f"{','.join(sorted(stores or []))}:{top_k}"
-        entry = self.digest_cache.get(cache_key)
+        entry = user_cache.get(cache_key)
 
         if entry and not entry.is_expired:
             return entry.digest
 
-        # Fallback: check any non-expired cache entry (e.g. from /analysis/analyze
-        # which may have used a different top_k). Better to show data with a
-        # different top_k than to crash on a missing CSV file.
-        for key, entry in self.digest_cache.items():
+        # Fallback: check any non-expired cache entry for THIS USER only
+        # (e.g. from /analysis/analyze which may have used a different top_k).
+        for key, entry in user_cache.items():
             if not entry.is_expired:
                 return entry.digest
 
@@ -123,13 +130,77 @@ class AppState:
                 },
             )
 
-        self.digest_cache[cache_key] = DigestCacheEntry(
+        if user_id not in self.digest_cache:
+            self.digest_cache[user_id] = {}
+        self.digest_cache[user_id][cache_key] = DigestCacheEntry(
             digest,
             self.settings.digest_cache_ttl_seconds,
         )
         return digest
 
-    def feed_engine2(self, analysis_result: dict) -> None:
+    def get_user_world_model(self, user_id: str) -> object | None:
+        """Get or create a per-user world model pipeline.
+
+        Returns None if Engine 2 is not available (world_model template is None).
+        """
+        if self.world_model is None:
+            return None
+
+        if user_id not in self.world_models:
+            try:
+                if _HAS_WORLD_MODEL:
+                    # Create a new pipeline with same config as the template
+                    pipeline = SentinelPipeline(
+                        dim=4096,
+                        seed=42,
+                        use_rust=False,
+                        dead_stock_config=getattr(self.world_model, "dead_stock_config", None),
+                    )
+                    self.world_models[user_id] = pipeline
+                    logger.info("Created per-user world model for user=%s", user_id)
+                else:
+                    return None
+            except Exception as e:
+                logger.warning("Failed to create per-user world model for %s: %s", user_id, e)
+                return None
+
+        return self.world_models[user_id]
+
+    def get_user_transfer_matcher(self, user_id: str) -> object | None:
+        """Get or create a per-user transfer matcher.
+
+        Returns None if Engine 2 / transfer matching is not available.
+        """
+        if self.transfer_matcher is None:
+            return None
+
+        if user_id not in self.transfer_matchers:
+            try:
+                if _HAS_WORLD_MODEL:
+                    pipeline = self.get_user_world_model(user_id)
+                    if pipeline is None:
+                        return None
+                    from ..world_model.transfer_matching import (
+                        EntityHierarchy,
+                        TransferMatcher,
+                    )
+
+                    hierarchy = EntityHierarchy(pipeline.algebra)
+                    matcher = TransferMatcher(
+                        algebra=pipeline.algebra,
+                        hierarchy=hierarchy,
+                    )
+                    self.transfer_matchers[user_id] = matcher
+                    logger.info("Created per-user transfer matcher for user=%s", user_id)
+                else:
+                    return None
+            except Exception as e:
+                logger.warning("Failed to create per-user transfer matcher for %s: %s", user_id, e)
+                return None
+
+        return self.transfer_matchers[user_id]
+
+    def feed_engine2(self, user_id: str, analysis_result: dict) -> None:
         """Feed Engine 1 (Rust pipeline) results into Engine 2 (world model).
 
         This bridges the instant analysis from the Rust pipeline into the
@@ -144,9 +215,11 @@ class AppState:
         are already returned to the user. This is fire-and-forget.
 
         Args:
+            user_id: The authenticated user's ID (tenant isolation key).
             analysis_result: The full result dict from RustResultAdapter.transform()
         """
-        if self.world_model is None:
+        pipeline = self.get_user_world_model(user_id)
+        if pipeline is None:
             return  # Engine 2 not initialized — skip silently
 
         try:
@@ -178,7 +251,7 @@ class AppState:
                         "subcategory": item.get("subcategory", ""),
                     }
 
-                    self.world_model.record_observation(
+                    pipeline.record_observation(
                         store_id=store_id,
                         entity_id=sku,
                         observation=obs,
@@ -189,19 +262,21 @@ class AppState:
             if obs_count > 0:
                 logger.info(
                     "Engine 1→2 bridge: fed %d observations from %d leak types "
-                    "to world model (store=%s)",
+                    "to world model (store=%s, user=%s)",
                     obs_count,
                     len(leaks),
                     store_id,
+                    user_id,
                 )
         except Exception as e:
             # Sovereign collapse: Engine 2 failure is non-fatal.
             # Engine 1 findings are already returned to the user.
             logger.warning("Engine 1→2 bridge failed (non-fatal): %s", e)
 
-    def find_issue(self, issue_id: str) -> Issue:
-        """Find an issue across all cached digests."""
-        for entry in self.digest_cache.values():
+    def find_issue(self, user_id: str, issue_id: str) -> Issue:
+        """Find an issue across cached digests for a specific user."""
+        user_cache = self.digest_cache.get(user_id, {})
+        for entry in user_cache.values():
             if entry.is_expired:
                 continue
             for issue in entry.digest.issues:

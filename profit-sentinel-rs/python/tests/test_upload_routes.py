@@ -45,9 +45,10 @@ class TestPresign:
     def test_presign_single_file(self, mock_s3_factory, client):
         """Should return a presigned URL for a single file."""
         mock_client = MagicMock()
-        mock_client.generate_presigned_url.return_value = (
-            "https://s3.amazonaws.com/test-bucket/dev-user/uuid-inventory.csv"
-        )
+        mock_client.generate_presigned_post.return_value = {
+            "url": "https://s3.amazonaws.com/test-bucket",
+            "fields": {"key": "dev-user/uuid-inventory.csv"},
+        }
         mock_s3_factory.return_value = mock_client
 
         response = client.post(
@@ -67,9 +68,10 @@ class TestPresign:
     def test_presign_multiple_files(self, mock_s3_factory, client):
         """Should return presigned URLs for multiple files."""
         mock_client = MagicMock()
-        mock_client.generate_presigned_url.return_value = (
-            "https://s3.example.com/signed"
-        )
+        mock_client.generate_presigned_post.return_value = {
+            "url": "https://s3.example.com",
+            "fields": {"key": "signed"},
+        }
         mock_s3_factory.return_value = mock_client
 
         response = client.post(
@@ -120,9 +122,10 @@ class TestPresign:
     def test_presign_key_format(self, mock_s3_factory, client):
         """Key should include user_id prefix and UUID."""
         mock_client = MagicMock()
-        mock_client.generate_presigned_url.return_value = (
-            "https://s3.example.com/signed"
-        )
+        mock_client.generate_presigned_post.return_value = {
+            "url": "https://s3.example.com",
+            "fields": {"key": "signed"},
+        }
         mock_s3_factory.return_value = mock_client
 
         response = client.post(
@@ -138,9 +141,10 @@ class TestPresign:
     def test_presign_allowed_extensions(self, mock_s3_factory, client):
         """Should include allowed extensions in response."""
         mock_client = MagicMock()
-        mock_client.generate_presigned_url.return_value = (
-            "https://s3.example.com/signed"
-        )
+        mock_client.generate_presigned_post.return_value = {
+            "url": "https://s3.example.com",
+            "fields": {"key": "signed"},
+        }
         mock_s3_factory.return_value = mock_client
 
         response = client.post(
