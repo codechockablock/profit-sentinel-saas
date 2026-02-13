@@ -77,6 +77,9 @@ class AppState:
     # If None, counterfactual features are silently disabled.
     counterfactual_engine: CounterfactualEngine | None = field(default=None)
 
+    # Singleton Supabase client (initialized once at startup)
+    supabase_client: object | None = field(default=None)
+
     # In-memory stores — all keyed by user_id for tenant isolation
     digest_cache: dict[str, dict[str, DigestCacheEntry]] = field(default_factory=dict)
     task_store: dict[str, dict[str, TaskResponse]] = field(default_factory=dict)
@@ -154,14 +157,18 @@ class AppState:
                         dim=4096,
                         seed=42,
                         use_rust=False,
-                        dead_stock_config=getattr(self.world_model, "dead_stock_config", None),
+                        dead_stock_config=getattr(
+                            self.world_model, "dead_stock_config", None
+                        ),
                     )
                     self.world_models[user_id] = pipeline
                     logger.info("Created per-user world model for user=%s", user_id)
                 else:
                     return None
             except Exception as e:
-                logger.warning("Failed to create per-user world model for %s: %s", user_id, e)
+                logger.warning(
+                    "Failed to create per-user world model for %s: %s", user_id, e
+                )
                 return None
 
         return self.world_models[user_id]
@@ -191,11 +198,15 @@ class AppState:
                         hierarchy=hierarchy,
                     )
                     self.transfer_matchers[user_id] = matcher
-                    logger.info("Created per-user transfer matcher for user=%s", user_id)
+                    logger.info(
+                        "Created per-user transfer matcher for user=%s", user_id
+                    )
                 else:
                     return None
             except Exception as e:
-                logger.warning("Failed to create per-user transfer matcher for %s: %s", user_id, e)
+                logger.warning(
+                    "Failed to create per-user transfer matcher for %s: %s", user_id, e
+                )
                 return None
 
         return self.transfer_matchers[user_id]

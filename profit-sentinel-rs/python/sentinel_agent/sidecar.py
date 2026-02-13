@@ -171,6 +171,20 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     counterfactual_engine = CounterfactualEngine()
     logger.info("Engine 3 (counterfactual world model) initialized")
 
+    # Singleton Supabase client (shared across all auth checks)
+    supabase_client = None
+    if settings.supabase_url and settings.supabase_service_key:
+        try:
+            from supabase import create_client
+
+            supabase_client = create_client(
+                settings.supabase_url,
+                settings.supabase_service_key,
+            )
+            logger.info("Singleton Supabase client initialized")
+        except Exception as e:
+            logger.warning("Failed to create Supabase client (non-fatal): %s", e)
+
     # Shared state for all route modules
     state = AppState(
         settings=settings,
@@ -182,6 +196,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         world_model=world_model,
         transfer_matcher=transfer_matcher,
         counterfactual_engine=counterfactual_engine,
+        supabase_client=supabase_client,
     )
 
     # -----------------------------------------------------------------
@@ -215,12 +230,14 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
         "https://profit-sentinel.vercel.app",
     ]
     if settings.sidecar_dev_mode:
-        origins.extend([
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:5173",
-        ])
+        origins.extend(
+            [
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:5173",
+            ]
+        )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,

@@ -179,12 +179,19 @@ def make_get_user_context(settings):
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
             try:
-                from supabase import create_client
+                # Use singleton Supabase client from AppState if available,
+                # otherwise fall back to creating one (shouldn't happen in prod)
+                supabase = None
+                sentinel_state = getattr(request.app, "extra", {}).get("sentinel_state")
+                if sentinel_state is not None:
+                    supabase = getattr(sentinel_state, "supabase_client", None)
+                if supabase is None:
+                    from supabase import create_client
 
-                supabase = create_client(
-                    settings.supabase_url,
-                    settings.supabase_service_key,
-                )
+                    supabase = create_client(
+                        settings.supabase_url,
+                        settings.supabase_service_key,
+                    )
                 user_response = supabase.auth.get_user(token)
 
                 if user_response and user_response.user:
