@@ -27,6 +27,7 @@ import {
   type PosConnection,
   type PosSystemType,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 const STATUS_COLORS: Record<string, string> = {
   connected: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
@@ -227,11 +228,7 @@ export default function PosPage() {
         </div>
 
         {/* Error */}
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 text-red-400 text-sm">
-            {error}
-          </div>
-        )}
+        <ApiErrorBanner error={error} onRetry={loadData} />
 
         {/* Create connection */}
         <div className="mb-8">

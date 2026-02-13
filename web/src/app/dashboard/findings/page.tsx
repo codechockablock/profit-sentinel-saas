@@ -20,6 +20,7 @@ import {
   type FindingsResponse,
   type Finding,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 // ─── Tier severity colors ────────────────────────────────────
 // green → yellow → orange → red → darkred (escalating severity)
@@ -214,21 +215,10 @@ export default function FindingsPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-8">
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 text-red-400">
-          <p className="font-medium">Failed to load findings</p>
-          <p className="text-sm mt-1">{error}</p>
-        </div>
-      </div>
-    );
-  }
+  if (!data && !error) return null;
 
-  if (!data) return null;
-
-  const activeFindings = data.findings.filter((f) => !f.acknowledged);
-  const acknowledgedFindings = data.findings.filter((f) => f.acknowledged);
+  const activeFindings = data?.findings.filter((f) => !f.acknowledged) ?? [];
+  const acknowledgedFindings = data?.findings.filter((f) => f.acknowledged) ?? [];
   const totalImpact = activeFindings.reduce((s, f) => s + f.dollar_impact, 0);
 
   return (
@@ -254,88 +244,95 @@ export default function FindingsPage() {
         </button>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Active Findings</div>
-          <div className="text-2xl font-bold text-white">{activeFindings.length}</div>
-        </div>
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Total Impact</div>
-          <div className="text-2xl font-bold text-amber-400">{formatDollar(totalImpact)}</div>
-        </div>
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Acknowledged</div>
-          <div className="text-2xl font-bold text-slate-400">{acknowledgedFindings.length}</div>
-        </div>
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Smart Analysis</div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                data.engine2_status === "active"
-                  ? "bg-emerald-400"
-                  : data.engine2_status === "warming_up"
-                  ? "bg-yellow-400"
-                  : "bg-slate-600"
-              }`}
-            />
-            <span className="text-sm text-slate-300 capitalize">
-              {data.engine2_status === "not_initialized" ? "Not ready" : data.engine2_status.replace("_", " ")}
-            </span>
+      {/* Error */}
+      <ApiErrorBanner error={error} onRetry={load} />
+
+      {/* Summary + Content — only when data loaded successfully */}
+      {data && !error && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Active Findings</div>
+              <div className="text-2xl font-bold text-white">{activeFindings.length}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Total Impact</div>
+              <div className="text-2xl font-bold text-amber-400">{formatDollar(totalImpact)}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Acknowledged</div>
+              <div className="text-2xl font-bold text-slate-400">{acknowledgedFindings.length}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Smart Analysis</div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    data.engine2_status === "active"
+                      ? "bg-emerald-400"
+                      : data.engine2_status === "warming_up"
+                      ? "bg-yellow-400"
+                      : "bg-slate-600"
+                  }`}
+                />
+                <span className="text-sm text-slate-300 capitalize">
+                  {data.engine2_status === "not_initialized" ? "Not ready" : data.engine2_status.replace("_", " ")}
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Active findings */}
-      {activeFindings.length > 0 ? (
-        <div className="space-y-3 mb-8">
-          {activeFindings.map((finding) => (
-            <FindingCard
-              key={finding.id}
-              finding={finding}
-              onAcknowledge={handleAcknowledge}
-              onRestore={handleRestore}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-16 mb-8">
-          <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-          <p className="text-white font-medium">No active findings</p>
-          <p className="text-sm text-slate-400 mt-1">
-            All findings have been reviewed or no issues detected.
-          </p>
-        </div>
-      )}
-
-      {/* Acknowledged findings (collapsed section) */}
-      {acknowledgedFindings.length > 0 && (
-        <div className="border-t border-slate-700/50 pt-6">
-          <button
-            onClick={() => setShowAcknowledged(!showAcknowledged)}
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-4"
-          >
-            {showAcknowledged ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <span className="font-medium">
-              Acknowledged ({acknowledgedFindings.length})
-            </span>
-          </button>
-
-          {showAcknowledged && (
-            <div className="space-y-2">
-              {acknowledgedFindings.map((finding) => (
-                <div key={finding.id} className="opacity-60 hover:opacity-100 transition-opacity">
-                  <FindingCard
-                    finding={finding}
-                    onAcknowledge={handleAcknowledge}
-                    onRestore={handleRestore}
-                  />
-                </div>
+          {/* Active findings */}
+          {activeFindings.length > 0 ? (
+            <div className="space-y-3 mb-8">
+              {activeFindings.map((finding) => (
+                <FindingCard
+                  key={finding.id}
+                  finding={finding}
+                  onAcknowledge={handleAcknowledge}
+                  onRestore={handleRestore}
+                />
               ))}
             </div>
+          ) : (
+            <div className="text-center py-16 mb-8">
+              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+              <p className="text-white font-medium">No active findings</p>
+              <p className="text-sm text-slate-400 mt-1">
+                All findings have been reviewed or no issues detected.
+              </p>
+            </div>
           )}
-        </div>
+
+          {/* Acknowledged findings (collapsed section) */}
+          {acknowledgedFindings.length > 0 && (
+            <div className="border-t border-slate-700/50 pt-6">
+              <button
+                onClick={() => setShowAcknowledged(!showAcknowledged)}
+                className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-4"
+              >
+                {showAcknowledged ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <span className="font-medium">
+                  Acknowledged ({acknowledgedFindings.length})
+                </span>
+              </button>
+
+              {showAcknowledged && (
+                <div className="space-y-2">
+                  {acknowledgedFindings.map((finding) => (
+                    <div key={finding.id} className="opacity-60 hover:opacity-100 transition-opacity">
+                      <FindingCard
+                        finding={finding}
+                        onAcknowledge={handleAcknowledge}
+                        onRestore={handleRestore}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

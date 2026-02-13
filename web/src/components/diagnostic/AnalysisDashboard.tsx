@@ -39,7 +39,10 @@ import {
 import { LEAK_METADATA, getSeverityBadge, scoreToRiskLabel, formatDollarImpact } from "@/lib/leak-metadata";
 import { buildAttributions, type ColumnAttribution } from "@/lib/column-attribution";
 import { AttributionTooltip } from "@/components/ui/AttributionTooltip";
+import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
+import { robustSignOut } from "@/lib/auth-helpers";
+import { saveAnalysisSynopsis } from "@/lib/api";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 
@@ -107,6 +110,11 @@ export default function AnalysisDashboard() {
   const [reportSent, setReportSent] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
 
+  // Save to dashboard state
+  const [savingToDashboard, setSavingToDashboard] = useState(false);
+  const [savedToDashboard, setSavedToDashboard] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   // Initialize auth state and listen for changes
   useEffect(() => {
     const supabase = getSupabase();
@@ -135,10 +143,9 @@ export default function AnalysisDashboard() {
   }, [isAuthenticated]);
 
   const handleSignOut = async () => {
-    const supabase = getSupabase();
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
+    await robustSignOut();
+    setIsAuthenticated(false);
+    setUserEmail(null);
   };
 
   const openSignUpModal = () => {
@@ -306,6 +313,43 @@ export default function AnalysisDashboard() {
     });
   };
 
+  const handleSaveToDashboard = async () => {
+    if (!results || !file) return;
+    setSavingToDashboard(true);
+    setSaveError(null);
+
+    try {
+      // Build detection counts from leaks
+      const detectionCounts: Record<string, number> = {};
+      for (const [key, data] of Object.entries(results.leaks)) {
+        detectionCounts[key] = data.count;
+      }
+
+      // Compute a simple hash from the file name + size
+      const fileHash = `${file.name}-${file.size}-${Date.now()}`;
+
+      const res = await saveAnalysisSynopsis({
+        file_hash: fileHash,
+        file_row_count: results.summary.total_rows_analyzed,
+        detection_counts: detectionCounts,
+        total_impact_estimate_low: results.summary.estimated_impact.low_estimate,
+        total_impact_estimate_high: results.summary.estimated_impact.high_estimate,
+        processing_time_seconds: results.summary.analysis_time_seconds,
+        engine_version: "sidecar",
+      });
+
+      if (res.success) {
+        setSavedToDashboard(true);
+      } else {
+        setSaveError(res.error || "Failed to save analysis");
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save analysis");
+    } finally {
+      setSavingToDashboard(false);
+    }
+  };
+
   const resetDashboard = () => {
     setStage("upload");
     setFile(null);
@@ -319,6 +363,9 @@ export default function AnalysisDashboard() {
     setReportSending(false);
     setReportSent(false);
     setReportError(null);
+    setSavingToDashboard(false);
+    setSavedToDashboard(false);
+    setSaveError(null);
     // Reset turnstile
     if (turnstileRef.current) {
       turnstileRef.current.reset();
@@ -455,6 +502,12 @@ export default function AnalysisDashboard() {
                   size: "compact",
                 }}
               />
+            </div>
+          )}
+
+          {isAuthenticated && (
+            <div className="mt-6 text-center text-sm text-emerald-400/80">
+              Results will be saved to your dashboard
             </div>
           )}
 
@@ -783,6 +836,62 @@ export default function AnalysisDashboard() {
               </details>
             )}
           </div>
+
+          {/* Save to Dashboard / Guest CTA */}
+          {isAuthenticated ? (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 mb-8">
+              {savedToDashboard ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="text-emerald-400" size={20} />
+                    <span className="text-emerald-300 font-medium">Analysis saved to your dashboard</span>
+                  </div>
+                  <Link
+                    href="/dashboard/history"
+                    className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
+                  >
+                    View in Dashboard
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-medium">Save this analysis to your dashboard</p>
+                    <p className="text-sm text-slate-400 mt-1">Track your inventory health over time and compare reports</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {saveError && <span className="text-sm text-red-400">{saveError}</span>}
+                    <button
+                      onClick={handleSaveToDashboard}
+                      disabled={savingToDashboard}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      {savingToDashboard ? (
+                        <><Loader2 size={16} className="animate-spin" /> Saving...</>
+                      ) : (
+                        "Save to Dashboard"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-gradient-to-r from-violet-500/10 to-emerald-500/10 border border-violet-500/30 rounded-xl p-5 mb-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white font-medium">Want to keep this analysis?</p>
+                  <p className="text-sm text-slate-400 mt-1">Create a free account to save analyses, track trends, and unlock full features</p>
+                </div>
+                <button
+                  onClick={openSignUpModal}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors whitespace-nowrap"
+                >
+                  Sign Up to Save
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Negative Inventory Audit Alert */}
           {summary.estimated_impact.negative_inventory_alert?.requires_audit && (() => {

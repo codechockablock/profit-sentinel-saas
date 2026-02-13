@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Phone,
@@ -18,6 +18,7 @@ import {
   type VendorCallResponse,
   type Issue,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 function formatDollar(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -50,22 +51,24 @@ export default function VendorPrepPage() {
     })();
   }, []);
 
-  // Load call prep when issue selected
-  useEffect(() => {
+  // Load call prep
+  const loadCallPrep = useCallback(async () => {
     if (!selectedIssueId) return;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetchVendorCallPrep(selectedIssueId);
-        setCallPrep(res);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchVendorCallPrep(selectedIssueId);
+      setCallPrep(res);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, [selectedIssueId]);
+
+  useEffect(() => {
+    loadCallPrep();
+  }, [loadCallPrep]);
 
   // Auto-select from URL param
   useEffect(() => {
@@ -104,12 +107,7 @@ export default function VendorPrepPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-          <AlertCircle size={16} className="inline mr-2" />
-          {error}
-        </div>
-      )}
+      <ApiErrorBanner error={error} onRetry={loadCallPrep} />
 
       {/* Loading */}
       {loading && (

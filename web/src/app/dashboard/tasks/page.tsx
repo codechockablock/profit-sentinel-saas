@@ -23,6 +23,7 @@ import {
   type TaskStatus,
   type Issue,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -181,11 +182,7 @@ export default function TasksPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-          {error}
-        </div>
-      )}
+      <ApiErrorBanner error={error} onRetry={loadTasks} />
 
       {/* Loading */}
       {loading && !taskList && (

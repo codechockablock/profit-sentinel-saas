@@ -17,6 +17,7 @@ import {
   type TransfersResponse,
   type TransferRecommendation,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -150,20 +151,7 @@ export default function TransfersPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-8">
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 text-red-400">
-          <p className="font-medium">Failed to load transfer recommendations</p>
-          <p className="text-sm mt-1">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
-  const recs = data.recommendations;
+  const recs = data?.recommendations ?? [];
   const totalBenefit = recs.reduce((s, r) => s + r.net_benefit, 0);
   const totalClearance = recs.reduce((s, r) => s + r.clearance_recovery, 0);
   const totalTransfer = recs.reduce((s, r) => s + r.transfer_recovery, 0);
@@ -191,58 +179,66 @@ export default function TransfersPage() {
         </button>
       </div>
 
-      {/* Empty state — single store or not ready */}
-      {recs.length === 0 ? (
-        <div className="text-center py-16">
-          <Store className="w-12 h-12 text-slate-500 mx-auto mb-4" />
-          <p className="text-white font-medium">
-            {data.engine2_status === "not_initialized" || data.engine2_status === "error"
-              ? "Transfer matching is warming up"
-              : "No transfer opportunities right now"}
-          </p>
-          <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
-            {data.message ||
-              "Transfer recommendations appear when you have multiple stores in your network and dead stock that could sell better elsewhere."}
-          </p>
-        </div>
-      ) : (
+      {/* Error */}
+      <ApiErrorBanner error={error} onRetry={load} />
+
+      {/* Content */}
+      {data && !error && (
         <>
-          {/* Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-              <div className="text-xs text-slate-400 mb-1">Recommendations</div>
-              <div className="text-2xl font-bold text-white">{recs.length}</div>
+          {/* Empty state — single store or not ready */}
+          {recs.length === 0 ? (
+            <div className="text-center py-16">
+              <Store className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+              <p className="text-white font-medium">
+                {data.engine2_status === "not_initialized" || data.engine2_status === "error"
+                  ? "Transfer matching is warming up"
+                  : "No transfer opportunities right now"}
+              </p>
+              <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
+                {data.message ||
+                  "Transfer recommendations appear when you have multiple stores in your network and dead stock that could sell better elsewhere."}
+              </p>
             </div>
-            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-              <div className="text-xs text-slate-400 mb-1">Total Net Benefit</div>
-              <div className="text-2xl font-bold text-emerald-400">{formatDollar(totalBenefit)}</div>
-            </div>
-            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-              <div className="text-xs text-slate-400 mb-1">Clearance Recovery</div>
-              <div className="text-2xl font-bold text-orange-400">{formatDollar(totalClearance)}</div>
-            </div>
-            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-              <div className="text-xs text-slate-400 mb-1">Transfer Recovery</div>
-              <div className="text-2xl font-bold text-emerald-400">{formatDollar(totalTransfer)}</div>
-            </div>
-          </div>
+          ) : (
+            <>
+              {/* Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+                  <div className="text-xs text-slate-400 mb-1">Recommendations</div>
+                  <div className="text-2xl font-bold text-white">{recs.length}</div>
+                </div>
+                <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+                  <div className="text-xs text-slate-400 mb-1">Total Net Benefit</div>
+                  <div className="text-2xl font-bold text-emerald-400">{formatDollar(totalBenefit)}</div>
+                </div>
+                <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+                  <div className="text-xs text-slate-400 mb-1">Clearance Recovery</div>
+                  <div className="text-2xl font-bold text-orange-400">{formatDollar(totalClearance)}</div>
+                </div>
+                <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+                  <div className="text-xs text-slate-400 mb-1">Transfer Recovery</div>
+                  <div className="text-2xl font-bold text-emerald-400">{formatDollar(totalTransfer)}</div>
+                </div>
+              </div>
 
-          {/* Benefit comparison banner */}
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 flex items-start gap-3">
-            <DollarSign className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-            <div className="text-sm text-slate-300">
-              Transferring instead of marking down saves{" "}
-              <span className="text-emerald-400 font-semibold">{formatDollar(totalBenefit)}</span>{" "}
-              compared to clearance pricing across {recs.length} items.
-            </div>
-          </div>
+              {/* Benefit comparison banner */}
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 flex items-start gap-3">
+                <DollarSign className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="text-sm text-slate-300">
+                  Transferring instead of marking down saves{" "}
+                  <span className="text-emerald-400 font-semibold">{formatDollar(totalBenefit)}</span>{" "}
+                  compared to clearance pricing across {recs.length} items.
+                </div>
+              </div>
 
-          {/* Recommendation list */}
-          <div className="space-y-3">
-            {recs.map((rec, i) => (
-              <TransferCard key={`transfer-${i}`} rec={rec} />
-            ))}
-          </div>
+              {/* Recommendation list */}
+              <div className="space-y-3">
+                {recs.map((rec, i) => (
+                  <TransferCard key={`transfer-${i}`} rec={rec} />
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

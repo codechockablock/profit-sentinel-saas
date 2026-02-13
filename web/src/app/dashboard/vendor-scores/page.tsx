@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   BarChart3,
   AlertTriangle,
@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { fetchVendorScores, type VendorScoresResponse, type VendorScorecard } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 const DIMENSION_ICONS: Record<string, React.ElementType> = {
   quality: Shield,
@@ -126,33 +127,30 @@ export default function VendorScoresPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchVendorScores()
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+  const loadScores = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchVendorScores();
+      setData(res);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) {
+  useEffect(() => {
+    loadScores();
+  }, [loadScores]);
+
+  if (loading && !data) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="p-8">
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 text-red-400">
-          <p className="font-medium">Failed to load vendor scores</p>
-          <p className="text-sm mt-1">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) return null;
 
   return (
     <div className="p-6 md:p-8 max-w-5xl">
@@ -167,44 +165,52 @@ export default function VendorScoresPage() {
         </p>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Vendors Scored</div>
-          <div className="text-2xl font-bold text-white">{data.total_vendors_scored}</div>
-        </div>
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Average Score</div>
-          <div className="text-2xl font-bold text-white">{data.average_score.toFixed(0)}</div>
-        </div>
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">High Risk</div>
-          <div className="text-2xl font-bold text-red-400">{data.high_risk_vendors}</div>
-        </div>
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Quality Cost</div>
-          <div className="text-2xl font-bold text-amber-400">${data.total_quality_cost.toLocaleString()}</div>
-        </div>
-      </div>
+      {/* Error */}
+      <ApiErrorBanner error={error} onRetry={loadScores} />
 
-      {/* Top recommendation */}
-      {data.top_recommendation && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 flex items-start gap-3">
-          {data.high_risk_vendors > 0 ? (
-            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          ) : (
-            <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+      {/* Content */}
+      {data && !error && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Vendors Scored</div>
+              <div className="text-2xl font-bold text-white">{data.total_vendors_scored}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Average Score</div>
+              <div className="text-2xl font-bold text-white">{data.average_score.toFixed(0)}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">High Risk</div>
+              <div className="text-2xl font-bold text-red-400">{data.high_risk_vendors}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Quality Cost</div>
+              <div className="text-2xl font-bold text-amber-400">${data.total_quality_cost.toLocaleString()}</div>
+            </div>
+          </div>
+
+          {/* Top recommendation */}
+          {data.top_recommendation && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 flex items-start gap-3">
+              {data.high_risk_vendors > 0 ? (
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              ) : (
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              )}
+              <div className="text-sm text-slate-300">{data.top_recommendation}</div>
+            </div>
           )}
-          <div className="text-sm text-slate-300">{data.top_recommendation}</div>
-        </div>
-      )}
 
-      {/* Vendor cards */}
-      <div className="space-y-3">
-        {data.scorecards.map((card) => (
-          <VendorCard key={card.vendor_id} card={card} />
-        ))}
-      </div>
+          {/* Vendor cards */}
+          <div className="space-y-3">
+            {data.scorecards.map((card) => (
+              <VendorCard key={card.vendor_id} card={card} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -58,10 +58,11 @@ def create_health_router(state: AppState) -> APIRouter:
         supabase_probe = _check_supabase(state)
         engine2_ok = state.world_model is not None
 
-        # Critical = binary must be present.
-        # Supabase is informational — a DNS/connection error to a dev URL
-        # should not take down the health check.
-        all_ok = binary_found
+        # Critical dependencies: binary must be present AND Supabase must
+        # be reachable (when configured). A Supabase outage means all auth
+        # and persistence is broken — that's a degraded state.
+        supabase_healthy = supabase_probe["ok"]
+        all_ok = binary_found and supabase_healthy
         status = "ok" if all_ok else "degraded"
 
         payload = HealthResponse(

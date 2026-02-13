@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Brain,
@@ -20,6 +20,7 @@ import {
   type SignalContribution,
   type ProofNode,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 function formatDollar(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -58,21 +59,23 @@ export default function ExplainPage() {
   }, [issueParam]);
 
   // Load explanation
-  useEffect(() => {
+  const loadExplanation = useCallback(async () => {
     if (!selectedIssueId) return;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetchExplanation(selectedIssueId);
-        setExplanation(res);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchExplanation(selectedIssueId);
+      setExplanation(res);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, [selectedIssueId]);
+
+  useEffect(() => {
+    loadExplanation();
+  }, [loadExplanation]);
 
   const tree = explanation?.proof_tree;
 
@@ -108,12 +111,7 @@ export default function ExplainPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-          <AlertCircle size={16} className="inline mr-2" />
-          {error}
-        </div>
-      )}
+      <ApiErrorBanner error={error} onRetry={loadExplanation} />
 
       {/* Loading */}
       {loading && (

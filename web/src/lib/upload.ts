@@ -178,30 +178,25 @@ export async function presignUpload(
   };
 }
 
-/** Step 1b: Get file size limit for current user */
+/** Step 1b: Get file size limit for current user.
+ *
+ * Determines the limit client-side based on auth state to avoid
+ * hitting POST /uploads/presign which gets rate-limited (429).
+ */
 export async function getFileSizeLimit(): Promise<number> {
   try {
-    const formData = new FormData();
-    formData.append("filenames", "probe.csv");
-
-    const authHeaders = await getHeaders();
-    const apiBase = getApiBaseUrl();
-    const endpoint = `${apiBase}/uploads/presign`;
-
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: authHeaders,
-      body: formData,
-    });
-
-    if (res.ok) {
-      const data: PresignResponse = await res.json();
-      return data.limits.max_file_size_mb;
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
+    if (supabase) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        return 50; // Authenticated: 50MB
+      }
     }
   } catch {
     // Fall through to default
   }
-  return 10; // Default to anonymous limit
+  return 10; // Guest: 10MB
 }
 
 /** Step 2: Upload file to S3 via presigned URL */

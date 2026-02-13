@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   TrendingUp,
   AlertCircle,
@@ -19,6 +19,7 @@ import {
   type CoopAlert,
   type VendorRebateStatus,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 function formatDollar(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -64,21 +65,23 @@ export default function CoopPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load co-op report
-  useEffect(() => {
+  const loadReport = useCallback(async () => {
     if (!selectedStore) return;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetchCoopReport(selectedStore);
-        setReport(res);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchCoopReport(selectedStore);
+      setReport(res);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, [selectedStore]);
+
+  useEffect(() => {
+    loadReport();
+  }, [loadReport]);
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl">
@@ -106,7 +109,7 @@ export default function CoopPage() {
             ))}
           </select>
           <button
-            onClick={() => selectedStore && setSelectedStore(selectedStore + " ")}
+            onClick={loadReport}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
           >
@@ -116,11 +119,7 @@ export default function CoopPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-          {error}
-        </div>
-      )}
+      <ApiErrorBanner error={error} onRetry={loadReport} />
 
       {/* Loading */}
       {loading && (

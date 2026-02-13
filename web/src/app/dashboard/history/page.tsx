@@ -26,6 +26,7 @@ import {
   type AnalysisListItem,
   type CompareResponse,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -213,15 +214,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 flex items-center gap-3">
-          <AlertTriangle className="text-red-400" size={18} />
-          <span className="text-red-300 text-sm">{error}</span>
-          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-300" aria-label="Dismiss error">
-            <X size={16} />
-          </button>
-        </div>
-      )}
+      <ApiErrorBanner error={error} onRetry={loadAnalyses} />
 
       {/* Compare bar */}
       {compareMode && (

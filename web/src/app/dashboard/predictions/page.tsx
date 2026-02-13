@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   AlertTriangle,
   TrendingDown,
@@ -14,6 +14,7 @@ import {
   Eye,
 } from "lucide-react";
 import { fetchPredictions, type PredictiveReportResponse, type InventoryPrediction } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 const SEVERITY_CONFIG = {
   critical: { color: "text-red-400 bg-red-500/10 border-red-500/30", icon: ShieldAlert },
@@ -93,33 +94,30 @@ export default function PredictionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchPredictions()
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+  const loadPredictions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchPredictions();
+      setData(res);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) {
+  useEffect(() => {
+    loadPredictions();
+  }, [loadPredictions]);
+
+  if (loading && !data) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="p-8">
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 text-red-400">
-          <p className="font-medium">Failed to load predictions</p>
-          <p className="text-sm mt-1">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) return null;
 
   return (
     <div className="p-6 md:p-8 max-w-5xl">
@@ -134,84 +132,92 @@ export default function PredictionsPage() {
         </p>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Total Predictions</div>
-          <div className="text-2xl font-bold text-white">{data.total_predictions}</div>
-        </div>
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Critical Alerts</div>
-          <div className="text-2xl font-bold text-red-400">{data.critical_alerts}</div>
-        </div>
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Revenue at Risk</div>
-          <div className="text-2xl font-bold text-amber-400">${(data.total_revenue_at_risk ?? 0).toLocaleString()}</div>
-        </div>
-        <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
-          <div className="text-xs text-slate-400 mb-1">Carrying Cost</div>
-          <div className="text-2xl font-bold text-orange-400">${(data.total_carrying_cost_at_risk ?? 0).toLocaleString()}</div>
-        </div>
-      </div>
+      {/* Error */}
+      <ApiErrorBanner error={error} onRetry={loadPredictions} />
 
-      {/* Top recommendation */}
-      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 flex items-start gap-3">
-        <Zap className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-        <div className="text-sm text-slate-300">{data.top_recommendation}</div>
-      </div>
-
-      {/* Stockout predictions */}
-      {data.stockout_predictions.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Package size={18} className="text-red-400" />
-            Stockout Predictions ({data.stockout_predictions.length})
-          </h2>
-          <div className="space-y-3">
-            {data.stockout_predictions.map((pred, i) => (
-              <PredictionCard key={`stockout-${i}`} prediction={pred} />
-            ))}
+      {/* Content */}
+      {data && !error && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Total Predictions</div>
+              <div className="text-2xl font-bold text-white">{data.total_predictions}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Critical Alerts</div>
+              <div className="text-2xl font-bold text-red-400">{data.critical_alerts}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Revenue at Risk</div>
+              <div className="text-2xl font-bold text-amber-400">${(data.total_revenue_at_risk ?? 0).toLocaleString()}</div>
+            </div>
+            <div className="bg-white/5 rounded-xl border border-slate-700 p-4">
+              <div className="text-xs text-slate-400 mb-1">Carrying Cost</div>
+              <div className="text-2xl font-bold text-orange-400">${(data.total_carrying_cost_at_risk ?? 0).toLocaleString()}</div>
+            </div>
           </div>
-        </section>
-      )}
 
-      {/* Overstock predictions */}
-      {data.overstock_predictions.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <TrendingDown size={18} className="text-amber-400" />
-            Overstock Predictions ({data.overstock_predictions.length})
-          </h2>
-          <div className="space-y-3">
-            {data.overstock_predictions.map((pred, i) => (
-              <PredictionCard key={`overstock-${i}`} prediction={pred} />
-            ))}
+          {/* Top recommendation */}
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 flex items-start gap-3">
+            <Zap className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="text-sm text-slate-300">{data.top_recommendation}</div>
           </div>
-        </section>
-      )}
 
-      {/* Velocity alerts */}
-      {data.velocity_alerts.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Zap size={18} className="text-emerald-400" />
-            Velocity Change Alerts ({data.velocity_alerts.length})
-          </h2>
-          <div className="space-y-3">
-            {data.velocity_alerts.map((pred, i) => (
-              <PredictionCard key={`velocity-${i}`} prediction={pred} />
-            ))}
-          </div>
-        </section>
-      )}
+          {/* Stockout predictions */}
+          {data.stockout_predictions.length > 0 && (
+            <section className="mb-8">
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Package size={18} className="text-red-400" />
+                Stockout Predictions ({data.stockout_predictions.length})
+              </h2>
+              <div className="space-y-3">
+                {data.stockout_predictions.map((pred, i) => (
+                  <PredictionCard key={`stockout-${i}`} prediction={pred} />
+                ))}
+              </div>
+            </section>
+          )}
 
-      {/* Empty state */}
-      {data.total_predictions === 0 && (
-        <div className="text-center py-16">
-          <DollarSign className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-          <p className="text-white font-medium">Inventory levels are healthy</p>
-          <p className="text-sm text-slate-400 mt-1">No stockout or overstock predictions at this time.</p>
-        </div>
+          {/* Overstock predictions */}
+          {data.overstock_predictions.length > 0 && (
+            <section className="mb-8">
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <TrendingDown size={18} className="text-amber-400" />
+                Overstock Predictions ({data.overstock_predictions.length})
+              </h2>
+              <div className="space-y-3">
+                {data.overstock_predictions.map((pred, i) => (
+                  <PredictionCard key={`overstock-${i}`} prediction={pred} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Velocity alerts */}
+          {data.velocity_alerts.length > 0 && (
+            <section className="mb-8">
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Zap size={18} className="text-emerald-400" />
+                Velocity Change Alerts ({data.velocity_alerts.length})
+              </h2>
+              <div className="space-y-3">
+                {data.velocity_alerts.map((pred, i) => (
+                  <PredictionCard key={`velocity-${i}`} prediction={pred} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Empty state */}
+          {data.total_predictions === 0 && (
+            <div className="text-center py-16">
+              <DollarSign className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+              <p className="text-white font-medium">Inventory levels are healthy</p>
+              <p className="text-sm text-slate-400 mt-1">No stockout or overstock predictions at this time.</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

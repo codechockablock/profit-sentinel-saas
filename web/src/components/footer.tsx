@@ -67,6 +67,13 @@ export function Footer() {
             >
               Contact
             </Link>
+            <Link
+              href="/repair"
+              className="text-slate-400 hover:text-emerald-400 transition"
+            >
+              Repair Assistant
+              <span className="ml-1 text-[10px] text-emerald-400/70">(Beta)</span>
+            </Link>
           </div>
 
           {/* Social & Copyright */}

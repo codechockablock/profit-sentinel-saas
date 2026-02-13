@@ -23,21 +23,59 @@ import {
 } from "lucide-react";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { AuthModal } from "@/components/auth/AuthModal";
+import { UserMenu } from "@/components/auth/UserMenu";
 
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Morning Digest", icon: LayoutDashboard, description: "Daily issue overview" },
-  { href: "/dashboard/tasks", label: "Tasks", icon: ClipboardList, description: "Delegated action items" },
-  { href: "/dashboard/vendor", label: "Vendor Prep", icon: Phone, description: "Call talking points" },
-  { href: "/dashboard/coop", label: "Co-op Intel", icon: TrendingUp, description: "Rebate & patronage" },
-  { href: "/dashboard/explain", label: "Explain", icon: Brain, description: "Symbolic reasoning" },
-  { href: "/dashboard/diagnostic", label: "Diagnostic", icon: Stethoscope, description: "Shrinkage wizard" },
-  { href: "/dashboard/history", label: "History", icon: History, description: "Track & compare" },
-  { href: "/dashboard/vendor-scores", label: "Vendor Scores", icon: BarChart3, description: "Performance scoring" },
-  { href: "/dashboard/findings", label: "Findings", icon: Search, description: "Ranked by impact" },
-  { href: "/dashboard/predictions", label: "Predictions", icon: AlertTriangle, description: "Inventory forecasts" },
-  { href: "/dashboard/transfers", label: "Transfers", icon: Truck, description: "Cross-store moves" },
-  { href: "/dashboard/api-keys", label: "API Keys", icon: Key, description: "Enterprise access" },
-  { href: "/dashboard/pos", label: "POS Connect", icon: Plug, description: "System integrations" },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  description: string;
+}
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    title: "OVERVIEW",
+    items: [
+      { href: "/dashboard", label: "Morning Digest", icon: LayoutDashboard, description: "Daily issue overview" },
+    ],
+  },
+  {
+    title: "ANALYSIS",
+    items: [
+      { href: "/dashboard/history", label: "History", icon: History, description: "Track & compare" },
+      { href: "/dashboard/findings", label: "Findings", icon: Search, description: "Ranked by impact" },
+      { href: "/dashboard/predictions", label: "Predictions", icon: AlertTriangle, description: "Inventory forecasts" },
+    ],
+  },
+  {
+    title: "ACTION",
+    items: [
+      { href: "/dashboard/tasks", label: "Tasks", icon: ClipboardList, description: "Delegated action items" },
+      { href: "/dashboard/vendor", label: "Vendor Prep", icon: Phone, description: "Call talking points" },
+      { href: "/dashboard/transfers", label: "Transfers", icon: Truck, description: "Cross-store moves" },
+    ],
+  },
+  {
+    title: "INTELLIGENCE",
+    items: [
+      { href: "/dashboard/coop", label: "Co-op Intel", icon: TrendingUp, description: "Rebate & patronage" },
+      { href: "/dashboard/vendor-scores", label: "Vendor Scores", icon: BarChart3, description: "Performance scoring" },
+      { href: "/dashboard/explain", label: "Explain", icon: Brain, description: "Symbolic reasoning" },
+      { href: "/dashboard/diagnostic", label: "Diagnostic", icon: Stethoscope, description: "Shrinkage wizard" },
+    ],
+  },
+  {
+    title: "SETTINGS",
+    items: [
+      { href: "/dashboard/api-keys", label: "API Keys", icon: Key, description: "Enterprise access" },
+      { href: "/dashboard/pos", label: "POS Connect", icon: Plug, description: "System integrations" },
+    ],
+  },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -133,39 +171,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
 
-        {/* Nav items */}
-        <nav className="flex-1 px-2 space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const isActive =
-              item.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(item.href);
+        {/* Nav sections */}
+        <nav className="flex-1 px-2 space-y-4 overflow-y-auto">
+          {NAV_SECTIONS.map((section, idx) => (
+            <div key={section.title}>
+              {idx > 0 && <div className="border-t border-slate-700/30 mb-2" />}
+              {!collapsed && (
+                <div className="px-3 pt-1 pb-1.5 text-[10px] font-semibold text-slate-500 tracking-wider">
+                  {section.title}
+                </div>
+              )}
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const isActive =
+                    item.href === "/dashboard"
+                      ? pathname === "/dashboard"
+                      : pathname.startsWith(item.href);
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                    : "text-slate-400 hover:text-white hover:bg-slate-700/50 border border-transparent"
-                }`}
-                title={collapsed ? item.label : undefined}
-              >
-                <item.icon size={18} className="shrink-0" />
-                {!collapsed && (
-                  <div className="min-w-0">
-                    <div className="truncate">{item.label}</div>
-                    <div className="text-[10px] text-slate-500 truncate">{item.description}</div>
-                  </div>
-                )}
-              </Link>
-            );
-          })}
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                          : "text-slate-400 hover:text-white hover:bg-slate-700/50 border border-transparent"
+                      }`}
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <item.icon size={18} className="shrink-0" />
+                      {!collapsed && (
+                        <div className="min-w-0">
+                          <div className="truncate">{item.label}</div>
+                          <div className="text-[10px] text-slate-500 truncate">{item.description}</div>
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        {/* Back to analyze */}
-        <div className="p-3 border-t border-slate-700/50">
+        {/* User menu + Back to analyze */}
+        <div className="p-3 border-t border-slate-700/50 space-y-2">
+          <UserMenu compact collapsed={collapsed} />
           <Link
             href="/analyze"
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 transition-colors"

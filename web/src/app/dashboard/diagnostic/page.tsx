@@ -21,6 +21,7 @@ import {
   type DiagnosticQuestion,
   type DiagnosticReport,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 function formatDollar(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -151,12 +152,7 @@ export default function DiagnosticPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-          <AlertCircle size={16} className="inline mr-2" />
-          {error}
-        </div>
-      )}
+      <ApiErrorBanner error={error} onRetry={() => setError(null)} />
 
       {/* ─── Upload Stage ─── */}
       {stage === "upload" && (

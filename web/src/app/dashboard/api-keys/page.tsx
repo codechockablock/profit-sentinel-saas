@@ -23,6 +23,7 @@ import {
   type ApiKeyUsageStats,
   type ApiTier,
 } from "@/lib/sentinel-api";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 
 const TIER_COLORS: Record<string, string> = {
   free: "text-slate-400 bg-slate-500/10 border-slate-500/30",
@@ -198,74 +199,72 @@ export default function ApiKeysPage() {
         </p>
       </div>
 
-      {/* Create key section */}
-      <div className="bg-white/5 rounded-xl border border-slate-700 p-5 mb-8">
-        <h2 className="text-sm font-semibold text-white mb-4">Create New Key</h2>
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Name</label>
-            <input
-              type="text"
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
-              placeholder="My Integration"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Tier</label>
-            <select
-              value={newKeyTier}
-              onChange={(e) => setNewKeyTier(e.target.value as ApiTier)}
-              className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
-            >
-              <option value="free">Free (10/hr)</option>
-              <option value="pro">Pro (100/hr)</option>
-              <option value="enterprise">Enterprise (1,000/hr)</option>
-            </select>
-          </div>
-          <button
-            onClick={handleCreate}
-            disabled={creating}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition disabled:opacity-50"
-          >
-            {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-            Create Key
-          </button>
-        </div>
-
-        {/* New key display */}
-        {newKey && (
-          <div className="mt-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Shield size={16} className="text-amber-400" />
-              <span className="text-sm font-medium text-amber-400">Save this key — it won&apos;t be shown again</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-sm text-white bg-slate-800 px-3 py-2 rounded font-mono overflow-x-auto">
-                {showKey ? newKey : newKey.slice(0, 12) + "..."}
-              </code>
-              <button
-                onClick={() => setShowKey(!showKey)}
-                className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/50 transition"
-              >
-                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-              <button
-                onClick={handleCopy}
-                className="p-2 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-emerald-500/10 transition"
-              >
-                {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Error */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 text-red-400 text-sm">
-          {error}
+      <ApiErrorBanner error={error} onRetry={loadKeys} />
+
+      {/* Create key section — hidden when there's an error */}
+      {!error && (
+        <div className="bg-white/5 rounded-xl border border-slate-700 p-5 mb-8">
+          <h2 className="text-sm font-semibold text-white mb-4">Create New Key</h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Name</label>
+              <input
+                type="text"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                placeholder="My Integration"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Tier</label>
+              <select
+                value={newKeyTier}
+                onChange={(e) => setNewKeyTier(e.target.value as ApiTier)}
+                className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+              >
+                <option value="free">Free (10/hr)</option>
+                <option value="pro">Pro (100/hr)</option>
+                <option value="enterprise">Enterprise (1,000/hr)</option>
+              </select>
+            </div>
+            <button
+              onClick={handleCreate}
+              disabled={creating}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition disabled:opacity-50"
+            >
+              {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              Create Key
+            </button>
+          </div>
+
+          {/* New key display */}
+          {newKey && (
+            <div className="mt-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield size={16} className="text-amber-400" />
+                <span className="text-sm font-medium text-amber-400">Save this key — it won&apos;t be shown again</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-sm text-white bg-slate-800 px-3 py-2 rounded font-mono overflow-x-auto">
+                  {showKey ? newKey : newKey.slice(0, 12) + "..."}
+                </code>
+                <button
+                  onClick={() => setShowKey(!showKey)}
+                  className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/50 transition"
+                >
+                  {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="p-2 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-emerald-500/10 transition"
+                >
+                  {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

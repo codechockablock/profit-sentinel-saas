@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Mail, CheckCircle } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Mail } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 
 interface AuthModalProps {
@@ -9,6 +10,8 @@ interface AuthModalProps {
   onClose: () => void;
   onSuccess: () => void;
   defaultMode?: "login" | "signup";
+  /** Skip automatic redirect after login (caller handles it) */
+  skipRedirect?: boolean;
 }
 
 export function AuthModal({
@@ -16,6 +19,7 @@ export function AuthModal({
   onClose,
   onSuccess,
   defaultMode = "login",
+  skipRedirect = false,
 }: AuthModalProps) {
   const [mode, setMode] = useState<"login" | "signup">(defaultMode);
   const [email, setEmail] = useState("");
@@ -23,6 +27,36 @@ export function AuthModal({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Reset mode to defaultMode every time the modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setMode(defaultMode);
+      setError(null);
+      setConfirmationSent(false);
+    }
+  }, [isOpen, defaultMode]);
+
+  const handlePostLoginRedirect = () => {
+    if (skipRedirect) return;
+
+    // If on a dashboard page (lock screen sign-in), just reload to show content
+    if (pathname?.startsWith("/dashboard")) {
+      router.refresh();
+      return;
+    }
+
+    // If on /analyze and explicitly signed in, go to dashboard
+    if (pathname === "/analyze" || pathname === "/diagnostic") {
+      router.push("/dashboard");
+      return;
+    }
+
+    // Default: go to dashboard
+    router.push("/dashboard");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,8 +77,6 @@ export function AuthModal({
           password,
         });
         if (error) {
-          // Supabase returns generic "Invalid login credentials" for both
-          // wrong password AND unconfirmed email. Provide a better hint.
           if (error.message === "Invalid login credentials") {
             throw new Error(
               "Invalid login credentials. If you just signed up, check your email to confirm your account first."
@@ -59,6 +91,7 @@ export function AuthModal({
         }
         onSuccess();
         onClose();
+        handlePostLoginRedirect();
       } else {
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -66,16 +99,14 @@ export function AuthModal({
         });
         if (error) throw error;
 
-        // Check if email confirmation is required.
-        // When confirmation is enabled, signUp returns a user but no session.
-        // When confirmation is disabled, signUp returns both user and session.
         if (data?.user && !data?.session) {
-          // Email confirmation required — show confirmation message
+          // Email confirmation required
           setConfirmationSent(true);
         } else if (data?.session) {
-          // No confirmation needed — user is immediately signed in
+          // No confirmation needed — signed in immediately
           onSuccess();
           onClose();
+          handlePostLoginRedirect();
         }
       }
     } catch (err: unknown) {

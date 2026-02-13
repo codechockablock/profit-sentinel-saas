@@ -23,6 +23,7 @@ import {
   Truck,
 } from "lucide-react";
 import Link from "next/link";
+import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 import {
   fetchDigest,
   fetchDashboardSummary,
@@ -125,8 +126,13 @@ export default function DigestPage() {
         </div>
       </div>
 
-      {/* Error / Onboarding */}
-      {error && !data && (
+      {/* Error */}
+      {error && (
+        <ApiErrorBanner error={error} onRetry={load} />
+      )}
+
+      {/* Onboarding — only when load succeeded but returned no data */}
+      {!loading && !error && !data && (
         <div className="mb-6 p-8 bg-slate-800/50 border border-slate-700/50 rounded-xl text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
             <Zap size={28} className="text-emerald-400" />
@@ -144,12 +150,6 @@ export default function DigestPage() {
           </Link>
         </div>
       )}
-      {error && data && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-          <AlertCircle size={16} className="inline mr-2" />
-          {error}
-        </div>
-      )}
 
       {/* Loading */}
       {loading && !data && (
@@ -162,7 +162,7 @@ export default function DigestPage() {
       )}
 
       {/* Data */}
-      {data && (
+      {data && !error && (
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
