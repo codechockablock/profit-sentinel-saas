@@ -243,10 +243,9 @@ class SupabaseStore(SubscriptionStore):
             if removed:
                 logger.info("SupabaseStore: subscription removed: %s", email)
             return removed
-        logger.error(
-            "SupabaseStore: remove failed (%s): %s", resp.status_code, resp.text
+        raise StorageError(
+            f"SupabaseStore: remove failed ({resp.status_code}): {resp.text}"
         )
-        return False
 
     def get(self, email: str) -> dict | None:
         resp = self._request("GET", params={"email": f"eq.{email}", "limit": "1"})
@@ -276,7 +275,9 @@ class SupabaseStore(SubscriptionStore):
         if resp.status_code == 200:
             rows = resp.json()
             return len(rows) > 0
-        return False
+        raise StorageError(
+            f"SupabaseStore: pause failed ({resp.status_code}): {resp.text}"
+        )
 
     def resume(self, email: str) -> bool:
         resp = self._request(
@@ -290,7 +291,9 @@ class SupabaseStore(SubscriptionStore):
         if resp.status_code == 200:
             rows = resp.json()
             return len(rows) > 0
-        return False
+        raise StorageError(
+            f"SupabaseStore: resume failed ({resp.status_code}): {resp.text}"
+        )
 
 
 # ---------------------------------------------------------------------------

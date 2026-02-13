@@ -401,12 +401,9 @@ class SupabaseAnalysisStore(AnalysisStore):
             if deleted:
                 logger.info("SupabaseAnalysisStore: deleted analysis %s", analysis_id)
             return deleted
-        logger.error(
-            "SupabaseAnalysisStore: delete failed (%s): %s",
-            resp.status_code,
-            resp.text,
+        raise StorageError(
+            f"SupabaseAnalysisStore: delete failed ({resp.status_code}): {resp.text}"
         )
-        return False
 
     def update_label(self, analysis_id: str, user_id: str, label: str) -> bool:
         resp = self._request(
@@ -420,7 +417,9 @@ class SupabaseAnalysisStore(AnalysisStore):
         if resp.status_code == 200:
             rows = resp.json()
             return len(rows) > 0
-        return False
+        raise StorageError(
+            f"SupabaseAnalysisStore: update_label failed ({resp.status_code}): {resp.text}"
+        )
 
     def count_for_user(self, user_id: str) -> int:
         resp = self._request(
