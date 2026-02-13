@@ -85,6 +85,42 @@ variable "extra_environment" {
   default = []
 }
 
+variable "desired_count" {
+  description = "Desired number of ECS tasks"
+  type        = number
+  default     = 1
+}
+
+variable "enable_autoscaling" {
+  description = "Enable ECS service autoscaling"
+  type        = bool
+  default     = false
+}
+
+variable "autoscaling_min_capacity" {
+  description = "Minimum number of ECS tasks when autoscaling is enabled"
+  type        = number
+  default     = 2
+}
+
+variable "autoscaling_max_capacity" {
+  description = "Maximum number of ECS tasks when autoscaling is enabled"
+  type        = number
+  default     = 4
+}
+
+variable "autoscaling_cpu_target" {
+  description = "Target CPU utilization percentage for autoscaling"
+  type        = number
+  default     = 70
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch log retention in days"
+  type        = number
+  default     = 30
+}
+
 resource "aws_ecs_cluster" "main" {
   name = "${var.name_prefix}-cluster"
 
@@ -99,7 +135,8 @@ resource "aws_ecs_cluster" "main" {
 }
 
 resource "aws_cloudwatch_log_group" "ecs" {
-  name = "/ecs/${var.name_prefix}"
+  name              = "/ecs/${var.name_prefix}"
+  retention_in_days = var.log_retention_days
 
   tags = {
     Name = "${var.name_prefix}-ecs-logs"
@@ -310,7 +347,7 @@ resource "aws_ecs_service" "api" {
   name            = "${var.name_prefix}-api-service"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 1
+  desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -332,10 +369,44 @@ resource "aws_ecs_service" "api" {
   depends_on = [var.alb_target_group_arn]
 }
 
+# Autoscaling
+resource "aws_appautoscaling_target" "ecs" {
+  count              = var.enable_autoscaling ? 1 : 0
+  max_capacity       = var.autoscaling_max_capacity
+  min_capacity       = var.autoscaling_min_capacity
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.api.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "cpu" {
+  count              = var.enable_autoscaling ? 1 : 0
+  name               = "${var.name_prefix}-cpu-scaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.ecs[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs[0].service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value = var.autoscaling_cpu_target
+  }
+}
+
 output "ecs_sg_id" {
   value = aws_security_group.ecs.id
 }
 
 output "cluster_id" {
   value = aws_ecs_cluster.main.id
+}
+
+output "service_name" {
+  value = aws_ecs_service.api.name
+}
+
+output "cluster_name" {
+  value = aws_ecs_cluster.main.name
 }

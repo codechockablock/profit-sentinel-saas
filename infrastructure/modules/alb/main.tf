@@ -20,6 +20,12 @@ variable "target_port" {
   default     = 8000
 }
 
+variable "enable_deletion_protection" {
+  description = "Enable deletion protection on the ALB"
+  type        = bool
+  default     = false
+}
+
 resource "aws_lb" "main" {
   name               = "${var.name_prefix}-alb"
   internal           = false
@@ -27,7 +33,7 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = var.public_subnets
 
-  enable_deletion_protection = false
+  enable_deletion_protection = var.enable_deletion_protection
 
   # Increased idle timeout to support long-running analysis requests (156k+ rows)
   # Default is 60s, increased to 300s (5 minutes) for heavy CSV processing

@@ -14,6 +14,12 @@ variable "ecs_sg_id" { # Allow access from ECS tasks
   type = string
 }
 
+variable "vpc_cidr" {
+  description = "VPC CIDR block for restricting egress traffic"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
 variable "deletion_protection" {
   description = "Enable deletion protection for the RDS cluster"
   type        = bool
@@ -46,10 +52,11 @@ resource "aws_security_group" "rds" {
   }
 
   egress {
+    description = "Allow responses to ECS within VPC"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {

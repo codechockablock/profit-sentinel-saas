@@ -5,17 +5,19 @@
 # Minimal compute: 1 vCPU / 4GB — sufficient for production traffic.
 
 module "vpc" {
-  source      = "../../modules/vpc"
-  name_prefix = "profitsentinel-prod"
+  source        = "../../modules/vpc"
+  name_prefix   = "profitsentinel-prod"
+  enable_ha_nat = true  # Multi-AZ NAT (~$32/mo per additional gateway)
 }
 
 module "alb" {
-  source          = "../../modules/alb"
-  name_prefix     = "profitsentinel-prod"
-  vpc_id          = module.vpc.vpc_id
-  public_subnets  = module.vpc.public_subnets
-  certificate_arn = var.acm_certificate_arn
-  target_port     = 8001
+  source                     = "../../modules/alb"
+  name_prefix                = "profitsentinel-prod"
+  vpc_id                     = module.vpc.vpc_id
+  public_subnets             = module.vpc.public_subnets
+  certificate_arn            = var.acm_certificate_arn
+  target_port                = 8001
+  enable_deletion_protection = true
 }
 
 module "ecs" {
@@ -37,6 +39,14 @@ module "ecs" {
   container_cpu    = "1024"  # 1 vCPU
   container_memory = "4096"  # 4GB
 
+  log_retention_days = 90
+
+  # Autoscaling: 2-4 tasks, scale on CPU > 70%
+  desired_count            = 2
+  enable_autoscaling       = true
+  autoscaling_min_capacity = 2
+  autoscaling_max_capacity = 4
+
   extra_environment = [
     {
       name  = "SIDECAR_DEV_MODE"
@@ -55,8 +65,40 @@ module "ecr" {
 }
 
 module "s3" {
-  source      = "../../modules/s3"
-  name_prefix = "profitsentinel-prod"
+  source                = "../../modules/s3"
+  name_prefix           = "profitsentinel-prod"
+  enable_access_logging = true
+  logging_bucket        = aws_s3_bucket.logs.id
+}
+
+resource "aws_s3_bucket" "logs" {
+  bucket = "profitsentinel-prod-access-logs"
+
+  tags = {
+    Name = "profitsentinel-prod-access-logs"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  rule {
+    id     = "expire-old-logs"
+    status = "Enabled"
+
+    expiration {
+      days = 90
+    }
+  }
 }
 
 module "waf" {
