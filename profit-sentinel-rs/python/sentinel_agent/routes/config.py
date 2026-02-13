@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, model_validator
 
 from ..dual_auth import UserContext
 
@@ -37,6 +38,55 @@ except ImportError:
 from .state import AppState
 
 logger = logging.getLogger("sentinel.routes.config")
+
+
+# ---------------------------------------------------------------------------
+# Pydantic request model for PUT /config
+# ---------------------------------------------------------------------------
+
+
+class ThresholdOverrides(BaseModel):
+    """Optional overrides for dead stock day thresholds."""
+
+    watchlist_days: int | None = Field(None, ge=1, le=3650)
+    attention_days: int | None = Field(None, ge=1, le=3650)
+    action_days: int | None = Field(None, ge=1, le=3650)
+    writeoff_days: int | None = Field(None, ge=1, le=3650)
+
+    @model_validator(mode="after")
+    def _validate_ordering(self) -> ThresholdOverrides:
+        """Ensure thresholds are in ascending order when all are provided."""
+        vals = [
+            ("watchlist_days", self.watchlist_days),
+            ("attention_days", self.attention_days),
+            ("action_days", self.action_days),
+            ("writeoff_days", self.writeoff_days),
+        ]
+        # Only validate ordering among explicitly provided values
+        provided = [(name, v) for name, v in vals if v is not None]
+        for i in range(1, len(provided)):
+            if provided[i][1] <= provided[i - 1][1]:
+                raise ValueError(
+                    f"{provided[i][0]} ({provided[i][1]}) must be greater "
+                    f"than {provided[i - 1][0]} ({provided[i - 1][1]})"
+                )
+        return self
+
+
+class ConfigOverrides(BaseModel):
+    """Override block within a config update request."""
+
+    global_thresholds: ThresholdOverrides | None = None
+    min_capital_threshold: float | None = Field(None, ge=0.0, le=1_000_000.0)
+    min_healthy_velocity: float | None = Field(None, ge=0.0, le=10_000.0)
+
+
+class ConfigUpdateRequest(BaseModel):
+    """Request body for PUT /api/v1/config."""
+
+    preset: str | None = None
+    overrides: ConfigOverrides | None = None
+
 
 # In-memory config store per user (production: Supabase user_preferences)
 _user_configs: dict[str, dict] = {}
@@ -85,21 +135,15 @@ def create_config_router(state: AppState, require_auth) -> APIRouter:
 
     @router.put("/config")
     async def update_config(
-        request: Request,
+        body: ConfigUpdateRequest,
         ctx: UserContext = Depends(require_auth),
     ) -> dict:
         """Save dead stock configuration.
 
         Accepts a preset name and/or manual overrides.
-
-        Request body:
-            preset: str (optional) — "hardware_store", "garden_center", etc.
-            overrides: dict (optional) — manual threshold overrides
+        Pydantic validates field bounds and threshold ordering.
         """
-        body = await request.json()
-
-        preset_name = body.get("preset")
-        overrides = body.get("overrides", {})
+        preset_name = body.preset
 
         # Start from preset or current defaults
         if preset_name:
@@ -114,23 +158,24 @@ def create_config_router(state: AppState, require_auth) -> APIRouter:
         else:
             config = DeadStockConfig()
 
-        # Apply overrides
-        if "global_thresholds" in overrides:
-            gt = overrides["global_thresholds"]
-            if "watchlist_days" in gt:
-                config.global_thresholds.watchlist_days = int(gt["watchlist_days"])
-            if "attention_days" in gt:
-                config.global_thresholds.attention_days = int(gt["attention_days"])
-            if "action_days" in gt:
-                config.global_thresholds.action_days = int(gt["action_days"])
-            if "writeoff_days" in gt:
-                config.global_thresholds.writeoff_days = int(gt["writeoff_days"])
+        # Apply overrides (already validated by Pydantic)
+        if body.overrides is not None:
+            gt = body.overrides.global_thresholds
+            if gt is not None:
+                if gt.watchlist_days is not None:
+                    config.global_thresholds.watchlist_days = gt.watchlist_days
+                if gt.attention_days is not None:
+                    config.global_thresholds.attention_days = gt.attention_days
+                if gt.action_days is not None:
+                    config.global_thresholds.action_days = gt.action_days
+                if gt.writeoff_days is not None:
+                    config.global_thresholds.writeoff_days = gt.writeoff_days
 
-        if "min_capital_threshold" in overrides:
-            config.min_capital_threshold = float(overrides["min_capital_threshold"])
+            if body.overrides.min_capital_threshold is not None:
+                config.min_capital_threshold = body.overrides.min_capital_threshold
 
-        if "min_healthy_velocity" in overrides:
-            config.min_healthy_velocity = float(overrides["min_healthy_velocity"])
+            if body.overrides.min_healthy_velocity is not None:
+                config.min_healthy_velocity = body.overrides.min_healthy_velocity
 
         # Validate
         errors = config.validate()
