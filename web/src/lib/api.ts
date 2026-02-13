@@ -96,9 +96,14 @@ export async function saveAnalysisSynopsis(
   }
 
   try {
-    const { data: result, error } = await supabase
+    // Get user_id if authenticated
+    const { data: { session } } = await supabase.auth.getSession()
+    const userId = session?.user?.id ?? null
+
+    const { error } = await supabase
       .from('analysis_synopses')
       .insert({
+        user_id: userId,
         email_signup_id: data.email_signup_id,
         file_hash: data.file_hash,
         file_row_count: data.file_row_count,
@@ -116,12 +121,10 @@ export async function saveAnalysisSynopsis(
         peak_memory_mb: data.peak_memory_mb,
         engine_version: data.engine_version,
       })
-      .select('id')
-      .single()
 
     if (error) throw error
 
-    return { success: true, id: result?.id }
+    return { success: true }
   } catch (err) {
     console.error('[API] Failed to save analysis synopsis:', err)
     return { success: false, error: (err as Error).message }

@@ -40,6 +40,7 @@ import { LEAK_METADATA, getSeverityBadge, scoreToRiskLabel, formatDollarImpact }
 import { buildAttributions, type ColumnAttribution } from "@/lib/column-attribution";
 import { AttributionTooltip } from "@/components/ui/AttributionTooltip";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import { robustSignOut } from "@/lib/auth-helpers";
 import { saveAnalysisSynopsis } from "@/lib/api";
@@ -79,6 +80,7 @@ const STANDARD_FIELDS = [
 const CRITICAL_FIELDS = ["sku", "quantity", "cost", "revenue"];
 
 export default function AnalysisDashboard() {
+  const router = useRouter();
   const [stage, setStage] = useState<Stage>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [s3Key, setS3Key] = useState<string | null>(null);
@@ -326,6 +328,27 @@ export default function AnalysisDashboard() {
         if (data.count > 0) expandSet.add(key);
       });
       setExpandedLeaks(expandSet);
+
+      // Authenticated dashboard user: auto-save and redirect back
+      if (fromDashboard && isAuthenticated && file) {
+        setProcessingMessage("Saving to dashboard...");
+        const detectionCounts: Record<string, number> = {};
+        for (const [key, data] of Object.entries(analysisResults.leaks)) {
+          detectionCounts[key] = data.count;
+        }
+        const fileHash = `${file.name}-${file.size}-${Date.now()}`;
+        await saveAnalysisSynopsis({
+          file_hash: fileHash,
+          file_row_count: analysisResults.summary.total_rows_analyzed,
+          detection_counts: detectionCounts,
+          total_impact_estimate_low: analysisResults.summary.estimated_impact.low_estimate,
+          total_impact_estimate_high: analysisResults.summary.estimated_impact.high_estimate,
+          processing_time_seconds: analysisResults.summary.analysis_time_seconds,
+          engine_version: "sidecar",
+        });
+        router.push("/dashboard");
+        return;
+      }
 
       setStage("results");
     } catch (err) {
@@ -777,12 +800,12 @@ export default function AnalysisDashboard() {
               <span className="font-semibold">Profit Sentinel</span>
             </div>
             <div className="flex items-center gap-3">
-              {fromDashboard && (
+              {isAuthenticated && (
                 <Link
                   href="/dashboard"
                   className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm hover:bg-slate-700 transition"
                 >
-                  Back to Dashboard
+                  Dashboard
                 </Link>
               )}
               <button
@@ -883,7 +906,7 @@ export default function AnalysisDashboard() {
             )}
           </div>
 
-          {/* Save to Dashboard / Guest CTA */}
+          {/* Save to Dashboard (direct /analyze visitors) or Guest Sign-Up CTA */}
           {isAuthenticated ? (
             <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 mb-8">
               {savedToDashboard ? (
@@ -892,22 +915,12 @@ export default function AnalysisDashboard() {
                     <CheckCircle className="text-emerald-400" size={20} />
                     <span className="text-emerald-300 font-medium">Analysis saved to your dashboard</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {fromDashboard && (
-                      <Link
-                        href="/dashboard"
-                        className="px-4 py-2 text-sm border border-slate-600 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-                      >
-                        Back to Dashboard
-                      </Link>
-                    )}
-                    <Link
-                      href="/dashboard/history"
-                      className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
-                    >
-                      View History
-                    </Link>
-                  </div>
+                  <Link
+                    href="/dashboard"
+                    className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
+                  >
+                    View Dashboard
+                  </Link>
                 </div>
               ) : (
                 <div className="flex items-center justify-between">
@@ -943,7 +956,7 @@ export default function AnalysisDashboard() {
                   onClick={openSignUpModal}
                   className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors whitespace-nowrap"
                 >
-                  Sign Up to Save
+                  Sign Up Free
                 </button>
               </div>
             </div>
