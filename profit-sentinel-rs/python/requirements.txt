@@ -1,0 +1,21 @@
+# Auto-generated from pyproject.toml — do not edit manually.
+# Regenerate with: pip-compile pyproject.toml -o requirements.txt
+#
+# Core
+pydantic==2.12.5
+
+# Sidecar (FastAPI server)
+anthropic==0.76.0
+boto3==1.42.32
+fastapi==0.128.0
+httpx==0.28.1
+numpy==2.4.1
+pandas==3.0.0
+pydantic-settings==2.12.0
+python-dotenv==1.2.1
+python-multipart==0.0.21
+supabase==2.27.2
+
+# Dev / test
+pytest==9.0.2
+pytest-asyncio==1.3.0
