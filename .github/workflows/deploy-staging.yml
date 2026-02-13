@@ -194,16 +194,13 @@ jobs:
           echo "::notice::ECS deployment initiated for staging cluster"
 
       - name: Wait for ECS deployment stability
-        env:
-          AWS_MAX_ATTEMPTS: 20
+        timeout-minutes: 15
         run: |
-          echo "Waiting for ECS service to stabilize (timeout: ~5 minutes)..."
+          echo "Waiting for ECS service to stabilize..."
           aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE || {
-              echo "::warning::Staging ECS stability timed out ($ECS_CLUSTER/$ECS_SERVICE, task-def rev ${{ steps.task-def.outputs.revision }})"
-              echo "::warning::Check ECS console: https://console.aws.amazon.com/ecs/v2/clusters/$ECS_CLUSTER/services/$ECS_SERVICE"
-            }
+            --services $ECS_SERVICE \
+            --no-paginate
 
   # ===========================================================================
   # STAGING HEALTH CHECKS

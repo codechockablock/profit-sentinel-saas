@@ -106,17 +106,34 @@ jobs:
           pytest python/tests/ -v --tb=short
 
   # ===========================================================================
+  # FRONTEND QUALITY GATES
+  # ===========================================================================
+  web-checks:
+    name: Frontend Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: cd web && npm ci
+      - run: cd web && npm run lint
+      - run: cd web && npm run typecheck
+      # - run: cd web && npm test  # uncomment when tests exist
+
+  # ===========================================================================
   # BACKEND DEPLOYMENT - Build once, deploy to dev + prod
   # ===========================================================================
   deploy-backend:
     name: Deploy Backend
     runs-on: ubuntu-latest
-    needs: [security-check, rust-tests, python-tests]
+    needs: [security-check, rust-tests, python-tests, web-checks]
     if: |
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event.inputs.deploy_backend == 'true')
     outputs:
       image_tag: ${{ steps.build.outputs.image_tag }}
+      prod_previous_revision: ${{ steps.prod-task-def.outputs.previous_revision }}
     steps:
       - uses: actions/checkout@v4
 
@@ -205,14 +222,13 @@ jobs:
             --output text
 
       - name: Wait for dev ECS stability
+        timeout-minutes: 15
         run: |
           echo "Waiting for dev service to stabilize..."
-          AWS_MAX_ATTEMPTS=20 aws ecs wait services-stable \
+          aws ecs wait services-stable \
             --cluster profitsentinel-dev-cluster \
-            --services profitsentinel-dev-api-service || {
-              echo "::warning::Dev ECS stability timed out (profitsentinel-dev-cluster/profitsentinel-dev-api-service, task-def rev ${{ steps.dev-task-def.outputs.revision }})"
-              echo "::warning::Check ECS console: https://console.aws.amazon.com/ecs/v2/clusters/profitsentinel-dev-cluster/services/profitsentinel-dev-api-service"
-            }
+            --services profitsentinel-dev-api-service \
+            --no-paginate
 
       # -----------------------------------------------------------------------
       # Deploy to PROD (api.profitsentinel.com points here)
@@ -263,15 +279,13 @@ jobs:
             --output text
 
       - name: Wait for prod ECS stability
+        timeout-minutes: 15
         run: |
           echo "Waiting for prod service to stabilize..."
-          AWS_MAX_ATTEMPTS=20 aws ecs wait services-stable \
+          aws ecs wait services-stable \
             --cluster profitsentinel-prod-cluster \
-            --services profitsentinel-prod-api-service || {
-              echo "::warning::Prod ECS stability timed out (profitsentinel-prod-cluster/profitsentinel-prod-api-service, task-def rev ${{ steps.prod-task-def.outputs.revision }})"
-              echo "::warning::Check ECS console: https://console.aws.amazon.com/ecs/v2/clusters/profitsentinel-prod-cluster/services/profitsentinel-prod-api-service"
-              echo "::warning::The health check job will verify whether the deployment actually succeeded"
-            }
+            --services profitsentinel-prod-api-service \
+            --no-paginate
 
   # ===========================================================================
   # NOTE: Frontend is deployed automatically by Vercel's Git integration.

@@ -272,15 +272,14 @@ jobs:
             echo "::notice::Engine 2 health check passed"
           fi
 
-      - name: Smoke test — sidecar pipeline endpoint
+      - name: Smoke test
         run: |
-          # Verify the Rust sidecar responds (returns 401 without auth, 405 without body — both prove it's alive)
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.profitsentinel.com/api/v1/analyze" --max-time 10 || echo "000")
-          if [ "$STATUS" = "000" ]; then
-            echo "::error::Smoke test FAILED: sidecar pipeline unreachable"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://api.profitsentinel.com/health)
+          if [ "$RESPONSE" != "200" ]; then
+            echo "::error::Smoke test failed: HTTP $RESPONSE"
             exit 1
           fi
-          echo "::notice::Sidecar pipeline reachable (HTTP $STATUS)"
+          echo "::notice::Smoke test passed (HTTP $RESPONSE)"
 
   # ===========================================================================
   # DEPLOYMENT SUMMARY

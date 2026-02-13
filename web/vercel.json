@@ -1,16 +1,37 @@
 {
+  "env": {
+    "NEXT_PUBLIC_API_URL": "@api-url"
+  },
   "rewrites": [
     {
       "source": "/api/diagnostic/:path*",
-      "destination": "https://api.profitsentinel.com/diagnostic/:path*"
+      "destination": "https://api.profitsentinel.com/diagnostic/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?:www\\.)?profitsentinel\\.com"
+        }
+      ]
     },
     {
       "source": "/api/premium/:path*",
-      "destination": "https://api.profitsentinel.com/premium/:path*"
+      "destination": "https://api.profitsentinel.com/premium/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?:www\\.)?profitsentinel\\.com"
+        }
+      ]
     },
     {
       "source": "/api/:path*",
-      "destination": "https://api.profitsentinel.com/:path*"
+      "destination": "https://api.profitsentinel.com/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?:www\\.)?profitsentinel\\.com"
+        }
+      ]
     }
   ]
 }
