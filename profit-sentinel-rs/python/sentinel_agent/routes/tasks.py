@@ -121,4 +121,18 @@ def create_tasks_router(state: AppState, require_auth) -> APIRouter:
         user_tasks[task_id] = task_resp
         return task_resp
 
+    @router.delete(
+        "/tasks/{task_id}",
+        status_code=204,
+    )
+    async def delete_task(
+        task_id: str,
+        ctx: UserContext = Depends(require_auth),
+    ) -> None:
+        """Delete a task (owner check: returns 404 if not yours)."""
+        user_tasks = _get_user_tasks(ctx.user_id)
+        if task_id not in user_tasks:
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+        del user_tasks[task_id]
+
     return router

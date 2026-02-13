@@ -229,6 +229,10 @@ export async function updateTaskStatus(
   });
 }
 
+export async function deleteTask(taskId: string): Promise<void> {
+  await apiFetch(`/tasks/${taskId}`, { method: 'DELETE' });
+}
+
 // ─── 3. Vendor Call Prep ─────────────────────────────────────
 
 export interface CallPrep {

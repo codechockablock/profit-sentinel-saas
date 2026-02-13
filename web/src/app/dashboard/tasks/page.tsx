@@ -18,6 +18,7 @@ import {
   fetchDigest,
   delegateIssue,
   updateTaskStatus,
+  deleteTask,
   type TaskListResponse,
   type TaskResponse,
   type TaskStatus,
@@ -132,9 +133,22 @@ export default function TasksPage() {
       await loadTasks();
     } catch (err) {
       const msg = (err as Error).message || "";
-      // Provide friendly error for CORS/network issues
       if (msg.includes("Failed to fetch") || msg.includes("CORS") || msg.includes("NetworkError")) {
         setError("Unable to update task status — the API server may be temporarily unavailable. Please try again later.");
+      } else {
+        setError(msg);
+      }
+    }
+  };
+
+  const handleDelete = async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+      await loadTasks();
+    } catch (err) {
+      const msg = (err as Error).message || "";
+      if (msg.includes("Failed to fetch") || msg.includes("CORS") || msg.includes("NetworkError")) {
+        setError("Unable to delete task — the API server may be temporarily unavailable. Please try again later.");
       } else {
         setError(msg);
       }
@@ -206,6 +220,7 @@ export default function TasksPage() {
               key={tr.task.task_id}
               tr={tr}
               onStatusUpdate={handleStatusUpdate}
+              onDelete={handleDelete}
             />
           ))}
 
@@ -289,12 +304,15 @@ export default function TasksPage() {
 function TaskCard({
   tr,
   onStatusUpdate,
+  onDelete,
 }: {
   tr: TaskResponse;
   onStatusUpdate: (id: string, status: TaskStatus) => void;
+  onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const status = STATUS_META[tr.status];
   const priorityCls = PRIORITY_COLORS[tr.task.priority] || PRIORITY_COLORS.low;
 
@@ -368,32 +386,64 @@ function TaskCard({
             </div>
           )}
 
-          {/* Status update */}
-          <div className="relative">
-            <button
-              onClick={() => setShowStatusMenu(!showStatusMenu)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 text-slate-300 text-xs rounded-lg hover:bg-slate-700 transition-colors"
-            >
-              Update Status
-              <ChevronDown size={12} />
-            </button>
-            {showStatusMenu && (
-              <div className="absolute bottom-full mb-1 left-0 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-xl z-10">
-                {(["open", "in_progress", "completed", "escalated"] as TaskStatus[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => {
-                      onStatusUpdate(tr.task.task_id, s);
-                      setShowStatusMenu(false);
-                    }}
-                    className={`block w-full text-left px-4 py-2 text-xs hover:bg-slate-700 transition-colors ${
-                      tr.status === s ? "text-emerald-400" : "text-slate-300"
-                    }`}
-                  >
-                    {STATUS_META[s].label}
-                  </button>
-                ))}
+          {/* Status update + Delete */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                onClick={() => setShowStatusMenu(!showStatusMenu)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 text-slate-300 text-xs rounded-lg hover:bg-slate-700 transition-colors"
+              >
+                Update Status
+                <ChevronDown size={12} />
+              </button>
+              {showStatusMenu && (
+                <div className="absolute bottom-full mb-1 left-0 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-xl z-10">
+                  {(["open", "in_progress", "completed", "escalated"] as TaskStatus[]).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        onStatusUpdate(tr.task.task_id, s);
+                        setShowStatusMenu(false);
+                      }}
+                      className={`block w-full text-left px-4 py-2 text-xs hover:bg-slate-700 transition-colors ${
+                        tr.status === s ? "text-emerald-400" : "text-slate-300"
+                      }`}
+                    >
+                      {STATUS_META[s].label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Delete */}
+            {confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-400">Delete this task?</span>
+                <button
+                  onClick={() => {
+                    onDelete(tr.task.task_id);
+                    setConfirmDelete(false);
+                  }}
+                  className="px-2.5 py-1 bg-red-500/20 border border-red-500/30 text-red-400 text-xs rounded-lg hover:bg-red-500/30 transition-colors"
+                >
+                  Yes, delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-2.5 py-1 bg-slate-700/50 text-slate-400 text-xs rounded-lg hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 text-xs rounded-lg hover:bg-red-500/10 hover:text-red-400 transition-colors"
+              >
+                <X size={12} />
+                Delete
+              </button>
             )}
           </div>
         </div>
