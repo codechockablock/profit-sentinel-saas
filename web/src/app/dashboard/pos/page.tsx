@@ -61,7 +61,7 @@ function ConnectionCard({
           </div>
           <div className="text-xs text-slate-400 mt-0.5">
             {conn.pos_system_display} &middot; Sync: {conn.sync_frequency}
-            {conn.items_synced > 0 && ` \u00b7 ${conn.items_synced} items`}
+            {conn.last_sync_rows > 0 && ` \u00b7 ${conn.last_sync_rows} rows`}
             {conn.last_sync_at && ` \u00b7 Last: ${new Date(conn.last_sync_at).toLocaleString()}`}
           </div>
         </div>

@@ -829,17 +829,18 @@ export interface PosConnection {
   location_id: string | null;
   last_sync_at: string | null;
   last_sync_status: string | null;
-  items_synced: number;
+  last_sync_rows: number;
   created_at: string;
 }
 
 export interface SyncResult {
   connection_id: string;
   success: boolean;
-  items_synced: number;
+  rows_synced: number;
   errors: string[];
-  started_at: string;
-  completed_at: string;
+  duration_seconds: number;
+  analysis_triggered: boolean;
+  analysis_id: string | null;
 }
 
 export interface PosConnectionRequest {
