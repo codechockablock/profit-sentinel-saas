@@ -92,6 +92,7 @@ export default function TasksPage() {
       (async () => {
         try {
           const digest = await fetchDigest(undefined, 20);
+          if (!digest) return;
           const issue = digest.digest.issues.find((i) => i.id === delegateIssueId);
           if (issue) {
             setDelegateIssueData(issue);

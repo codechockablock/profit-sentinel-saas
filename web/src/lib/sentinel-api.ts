@@ -129,10 +129,18 @@ export interface DigestResponse {
 export async function fetchDigest(
   stores?: string[],
   topK: number = 5
-): Promise<DigestResponse> {
+): Promise<DigestResponse | null> {
   const params = new URLSearchParams({ top_k: String(topK) });
   if (stores?.length) params.set('stores', stores.join(','));
-  return apiFetch(`/digest?${params}`);
+  try {
+    return await apiFetch<DigestResponse>(`/digest?${params}`);
+  } catch (err) {
+    const msg = (err as Error).message || '';
+    if (msg.startsWith('API 404:') && msg.includes('NO_DATA')) {
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function fetchStoreDigest(

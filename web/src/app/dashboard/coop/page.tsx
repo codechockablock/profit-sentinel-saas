@@ -51,6 +51,7 @@ export default function CoopPage() {
     (async () => {
       try {
         const digest = await fetchDigest(undefined, 20);
+        if (!digest) return;
         const stores = [...new Set(digest.digest.issues.map((i) => i.store_id))];
         setStoreIds(stores);
         if (stores.length > 0 && !selectedStore) {

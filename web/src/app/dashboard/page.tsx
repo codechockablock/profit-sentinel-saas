@@ -21,8 +21,10 @@ import {
   Bell,
   BellOff,
   Truck,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 import {
   fetchDigest,
@@ -68,11 +70,33 @@ function trendIcon(dir: string) {
 // ─── Component ───────────────────────────────────────────────
 
 export default function DigestPage() {
+  const router = useRouter();
   const [data, setData] = useState<DigestResponse | null>(null);
   const [dashData, setDashData] = useState<DashboardSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [topK, setTopK] = useState(10);
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  }, []);
+
+  const handleOnboardDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragActive(false);
+      router.push("/analyze");
+    },
+    [router]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,15 +130,17 @@ export default function DigestPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={topK}
-            onChange={(e) => setTopK(Number(e.target.value))}
-            className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
-          >
-            <option value={5}>Top 5</option>
-            <option value={10}>Top 10</option>
-            <option value={20}>Top 20</option>
-          </select>
+          {data && (
+            <select
+              value={topK}
+              onChange={(e) => setTopK(Number(e.target.value))}
+              className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
+            >
+              <option value={5}>Top 5</option>
+              <option value={10}>Top 10</option>
+              <option value={20}>Top 20</option>
+            </select>
+          )}
           <button
             onClick={load}
             disabled={loading}
@@ -133,21 +159,64 @@ export default function DigestPage() {
 
       {/* Onboarding — only when load succeeded but returned no data */}
       {!loading && !error && !data && (
-        <div className="mb-6 p-8 bg-slate-800/50 border border-slate-700/50 rounded-xl text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-            <Zap size={28} className="text-emerald-400" />
+        <div className="mb-6">
+          {/* Welcome hero */}
+          <div className="p-8 bg-slate-800/50 border border-slate-700/50 rounded-xl text-center mb-6">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+              <Zap size={28} className="text-emerald-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">
+              Welcome to Your Morning Digest
+            </h2>
+            <p className="text-slate-400 mb-8 max-w-lg mx-auto">
+              The Morning Digest surfaces your highest-priority inventory issues
+              each day. Upload an inventory file to get started.
+            </p>
+
+            {/* Upload drop zone */}
+            <div
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleOnboardDrop}
+              onClick={() => router.push("/analyze")}
+              className={`max-w-md mx-auto border-2 border-dashed rounded-2xl p-8 cursor-pointer transition-all ${
+                dragActive
+                  ? "border-emerald-500 bg-emerald-500/5"
+                  : "border-slate-700 hover:border-emerald-500/50 bg-slate-800/30"
+              }`}
+            >
+              <Upload className="w-10 h-10 mx-auto mb-3 text-slate-500" />
+              <p className="text-sm font-medium text-white mb-1">
+                Drop your CSV, XLS, or XLSX file here
+              </p>
+              <p className="text-xs text-slate-500">
+                or click to open the analyzer
+              </p>
+            </div>
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">No Data Yet</h2>
-          <p className="text-slate-400 mb-6 max-w-md mx-auto">
-            The Morning Digest shows priority issues across your stores. Upload an inventory file to get started.
-          </p>
-          <Link
-            href="/analyze"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition transform hover:scale-105 shadow-lg shadow-emerald-500/25"
-          >
-            <AlertCircle size={18} />
-            Analyze My Inventory
-          </Link>
+
+          {/* How it works */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <OnboardStepCard
+              step={1}
+              icon={<Upload size={20} />}
+              title="Upload"
+              description="Drop an inventory file (CSV or XLSX) for analysis"
+            />
+            <OnboardStepCard
+              step={2}
+              icon={<Zap size={20} />}
+              title="Analyze"
+              description="Our engine scans for 11 types of profit leaks in under 60 seconds"
+            />
+            <OnboardStepCard
+              step={3}
+              icon={<AlertCircle size={20} />}
+              title="Act"
+              description="Get prioritized issues with dollar impact and action items"
+            />
+          </div>
         </div>
       )}
 
@@ -509,6 +578,31 @@ function EmailDigestSection() {
 }
 
 // ─── Sub-components ──────────────────────────────────────────
+
+function OnboardStepCard({
+  step,
+  icon,
+  title,
+  description,
+}: {
+  step: number;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+      <div className="flex items-center gap-3 mb-2">
+        <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">
+          {step}
+        </span>
+        <span className="text-emerald-400">{icon}</span>
+      </div>
+      <p className="text-sm font-medium text-white">{title}</p>
+      <p className="text-xs text-slate-500 mt-1">{description}</p>
+    </div>
+  );
+}
 
 function SummaryCard({
   label,

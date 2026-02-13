@@ -42,6 +42,7 @@ export default function VendorPrepPage() {
     (async () => {
       try {
         const digest = await fetchDigest(undefined, 20);
+        if (!digest) return;
         setIssues(digest.digest.issues);
       } catch {
         // Silently fail
