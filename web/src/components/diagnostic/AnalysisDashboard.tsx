@@ -452,7 +452,7 @@ export default function AnalysisDashboard() {
                 }}
                 options={{
                   theme: "dark",
-                  size: "invisible",
+                  size: "normal",
                 }}
               />
             </div>
