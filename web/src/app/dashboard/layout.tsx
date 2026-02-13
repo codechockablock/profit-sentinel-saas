@@ -20,6 +20,7 @@ import {
   Lock,
   Search,
   Truck,
+  Inbox,
 } from "lucide-react";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -41,7 +42,8 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "OVERVIEW",
     items: [
-      { href: "/dashboard", label: "Morning Digest", icon: LayoutDashboard, description: "Daily issue overview" },
+      { href: "/dashboard", label: "Morning Digest", icon: LayoutDashboard, description: "Health & trends at a glance" },
+      { href: "/dashboard/operations", label: "Operations Hub", icon: Inbox, description: "Triage & act on findings" },
     ],
   },
   {
@@ -66,7 +68,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/dashboard/coop", label: "Co-op Intel", icon: TrendingUp, description: "Rebate & patronage" },
       { href: "/dashboard/vendor-scores", label: "Vendor Scores", icon: BarChart3, description: "Performance scoring" },
       { href: "/dashboard/explain", label: "Explain", icon: Brain, description: "Symbolic reasoning" },
-      { href: "/dashboard/diagnostic", label: "Diagnostic", icon: Stethoscope, description: "Shrinkage wizard" },
+      { href: "/dashboard/diagnostic", label: "Shrinkage Wizard", icon: Stethoscope, description: "Guided shrinkage analysis" },
     ],
   },
   {
