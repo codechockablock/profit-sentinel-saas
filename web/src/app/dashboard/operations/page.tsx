@@ -267,31 +267,34 @@ export default function OperationsHubPage() {
 
   // ─── Triage Filtering ──────────────────────────────────
 
-  const needsTriage = findings.filter((f) => {
+  // Active findings: everything NOT dismissed. Sorted by impact.
+  const activeFindings = findings
+    .filter((f) => {
+      const record = triageStore.records[f.id];
+      return (
+        (!record || record.status !== "dismissed") &&
+        f.acknowledged !== true
+      );
+    })
+    .sort((a, b) => b.dollar_impact - a.dollar_impact);
+
+  // Count untriaged (no action taken yet)
+  const untriagedCount = activeFindings.filter((f) => {
     const record = triageStore.records[f.id];
-    return (
-      (!record || record.status === "untriaged") && f.acknowledged !== true
-    );
-  });
-  // Sort by dollar_impact descending
-  needsTriage.sort((a, b) => b.dollar_impact - a.dollar_impact);
+    return !record || record.status === "untriaged";
+  }).length;
 
-  const taskCreated = findings.filter(
+  // In-progress summary counts
+  const taskCreatedCount = activeFindings.filter(
     (f) => triageStore.records[f.id]?.status === "task_created"
-  );
-  const vendorCall = findings.filter(
+  ).length;
+  const vendorCallCount = activeFindings.filter(
     (f) => triageStore.records[f.id]?.status === "vendor_call"
-  );
-  const investigating = findings.filter(
+  ).length;
+  const investigatingCount = activeFindings.filter(
     (f) => triageStore.records[f.id]?.status === "investigating"
-  );
-  const activeTasks = tasks.filter((t) => t.status !== "completed");
-
-  const hasInProgress =
-    taskCreated.length > 0 ||
-    vendorCall.length > 0 ||
-    investigating.length > 0 ||
-    activeTasks.length > 0;
+  ).length;
+  const activeTaskCount = tasks.filter((t) => t.status !== "completed").length;
 
   // Recently resolved: dismissed within the last 7 days
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -388,23 +391,78 @@ export default function OperationsHubPage() {
       {/* Content (shown when not loading or when we have data) */}
       {(!loading || findings.length > 0) && !error && (
         <>
-          {/* Section 1: Needs Triage */}
+          {/* Workflow Summary Bar */}
+          {(activeTaskCount > 0 || taskCreatedCount > 0 || vendorCallCount > 0 || investigatingCount > 0) && (
+            <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {activeTaskCount > 0 && (
+                <Link
+                  href="/dashboard/tasks"
+                  className="flex items-center gap-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2.5 hover:border-slate-600/50 transition-colors"
+                >
+                  <ClipboardList size={14} className="text-emerald-400" />
+                  <span className="text-xs text-slate-300">
+                    <strong className="text-white">{activeTaskCount}</strong> active task{activeTaskCount !== 1 ? "s" : ""}
+                  </span>
+                </Link>
+              )}
+              {taskCreatedCount > 0 && (
+                <Link
+                  href="/dashboard/tasks"
+                  className="flex items-center gap-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2.5 hover:border-slate-600/50 transition-colors"
+                >
+                  <ClipboardList size={14} className="text-emerald-400" />
+                  <span className="text-xs text-slate-300">
+                    <strong className="text-white">{taskCreatedCount}</strong> task{taskCreatedCount !== 1 ? "s" : ""} created
+                  </span>
+                </Link>
+              )}
+              {vendorCallCount > 0 && (
+                <Link
+                  href="/dashboard/vendor"
+                  className="flex items-center gap-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2.5 hover:border-slate-600/50 transition-colors"
+                >
+                  <Phone size={14} className="text-blue-400" />
+                  <span className="text-xs text-slate-300">
+                    <strong className="text-white">{vendorCallCount}</strong> vendor call{vendorCallCount !== 1 ? "s" : ""}
+                  </span>
+                </Link>
+              )}
+              {investigatingCount > 0 && (
+                <Link
+                  href="/dashboard/explain"
+                  className="flex items-center gap-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2.5 hover:border-slate-600/50 transition-colors"
+                >
+                  <Brain size={14} className="text-violet-400" />
+                  <span className="text-xs text-slate-300">
+                    <strong className="text-white">{investigatingCount}</strong> investigating
+                  </span>
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* Findings List */}
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              Needs Triage
-              <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-xs rounded-full border border-red-500/20">
-                {needsTriage.length}
+              Findings
+              <span className="px-2 py-0.5 bg-slate-500/10 text-slate-400 text-xs rounded-full border border-slate-500/20">
+                {activeFindings.length}
               </span>
+              {untriagedCount > 0 && (
+                <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-xs rounded-full border border-red-500/20">
+                  {untriagedCount} needs triage
+                </span>
+              )}
             </h2>
 
-            {needsTriage.length === 0 ? (
+            {activeFindings.length === 0 ? (
               <div className="text-center py-12 bg-slate-800/30 border border-slate-700/50 rounded-xl">
                 <CheckCircle
                   size={32}
                   className="mx-auto mb-3 text-emerald-400 opacity-60"
                 />
                 <p className="text-sm font-medium text-white">
-                  All caught up! No findings need triage.
+                  All caught up! No active findings.
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
                   Upload a new file to run another analysis
@@ -412,10 +470,11 @@ export default function OperationsHubPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {needsTriage.map((finding) => (
+                {activeFindings.map((finding) => (
                   <TriageFindingCard
                     key={finding.id}
                     finding={finding}
+                    triageStatus={triageStore.records[finding.id]?.status ?? null}
                     onTriage={updateTriage}
                   />
                 ))}
@@ -423,67 +482,7 @@ export default function OperationsHubPage() {
             )}
           </div>
 
-          {/* Section 2: In Progress */}
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              In Progress
-              <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-xs rounded-full border border-blue-500/20">
-                {taskCreated.length +
-                  vendorCall.length +
-                  investigating.length +
-                  activeTasks.length}
-              </span>
-            </h2>
-
-            {!hasInProgress ? (
-              <div className="text-center py-8 bg-slate-800/30 border border-slate-700/50 rounded-xl">
-                <p className="text-sm text-slate-400">
-                  No active work items. Triage findings above to get started.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {activeTasks.length > 0 && (
-                  <InProgressGroupCard
-                    icon={
-                      <ClipboardList size={18} className="text-emerald-400" />
-                    }
-                    label="Active Tasks"
-                    count={activeTasks.length}
-                    href="/dashboard/tasks"
-                  />
-                )}
-                {taskCreated.length > 0 && (
-                  <InProgressGroupCard
-                    icon={
-                      <ClipboardList size={18} className="text-emerald-400" />
-                    }
-                    label="Tasks to Create"
-                    count={taskCreated.length}
-                    href="/dashboard/tasks"
-                  />
-                )}
-                {vendorCall.length > 0 && (
-                  <InProgressGroupCard
-                    icon={<Phone size={18} className="text-blue-400" />}
-                    label="Vendor Calls to Prep"
-                    count={vendorCall.length}
-                    href="/dashboard/vendor"
-                  />
-                )}
-                {investigating.length > 0 && (
-                  <InProgressGroupCard
-                    icon={<Brain size={18} className="text-violet-400" />}
-                    label="Under Investigation"
-                    count={investigating.length}
-                    href="/dashboard/explain"
-                  />
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Section 3: Recently Resolved */}
+          {/* Recently Resolved */}
           <div className="mb-8">
             <details className="group">
               <summary className="cursor-pointer flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
@@ -505,21 +504,22 @@ export default function OperationsHubPage() {
                         key={finding.id}
                         className="flex items-center justify-between px-4 py-3 bg-slate-800/30 rounded-lg"
                       >
-                        <div>
+                        <div className="flex items-center gap-3">
                           <span className="text-sm text-slate-300">
                             {finding.title || formatFindingType(finding.type)}
                           </span>
                           {record && (
-                            <span className="text-xs text-slate-500 ml-2">
+                            <span className="text-xs text-slate-500">
                               {relativeTime(record.updatedAt)}
                             </span>
                           )}
                         </div>
-                        <span className="text-xs text-slate-500">
-                          {record
-                            ? triageStatusLabel(record.status)
-                            : "Dismissed"}
-                        </span>
+                        <button
+                          onClick={() => updateTriage(finding.id, "untriaged")}
+                          className="text-xs text-slate-500 hover:text-emerald-400 transition-colors"
+                        >
+                          Undo
+                        </button>
                       </div>
                     );
                   })
@@ -538,17 +538,43 @@ export default function OperationsHubPage() {
 
 // ─── Triage Finding Card ────────────────────────────────────
 
+const TRIAGE_STATUS_BADGES: Record<
+  string,
+  { label: string; className: string }
+> = {
+  task_created: {
+    label: "Task Created",
+    className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  },
+  vendor_call: {
+    label: "Vendor Call",
+    className: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  },
+  investigating: {
+    label: "Investigating",
+    className: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  },
+};
+
 function TriageFindingCard({
   finding,
+  triageStatus,
   onTriage,
 }: {
   finding: Finding;
+  triageStatus: TriageStatus | null;
   onTriage: (findingId: string, status: TriageStatus) => void;
 }) {
   const sev = severityColor(finding.severity);
+  const hasAction = triageStatus && triageStatus !== "untriaged";
+  const statusBadge = hasAction ? TRIAGE_STATUS_BADGES[triageStatus] : null;
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+    <div
+      className={`bg-slate-800/50 border rounded-xl p-4 ${
+        hasAction ? "border-slate-700/30" : "border-slate-700/50"
+      }`}
+    >
       <div className="flex items-start gap-3 mb-3">
         {/* Severity badge */}
         <span
@@ -556,6 +582,15 @@ function TriageFindingCard({
         >
           {finding.severity}
         </span>
+
+        {/* Status badge (if triaged) */}
+        {statusBadge && (
+          <span
+            className={`shrink-0 px-2 py-0.5 text-[10px] font-bold rounded border ${statusBadge.className}`}
+          >
+            {statusBadge.label}
+          </span>
+        )}
 
         {/* Title + Description */}
         <div className="flex-1 min-w-0">
@@ -577,36 +612,42 @@ function TriageFindingCard({
 
       {/* Action buttons */}
       <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => {
-            onTriage(finding.id, "task_created");
-            window.location.href = `/dashboard/tasks?delegate=${finding.id}`;
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-lg hover:bg-emerald-500/20 transition-colors"
+        <Link
+          href={`/dashboard/tasks?delegate=${finding.id}`}
+          onClick={() => onTriage(finding.id, "task_created")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${
+            triageStatus === "task_created"
+              ? "bg-emerald-500/20 border border-emerald-500/30 text-emerald-300"
+              : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20"
+          }`}
         >
           <ClipboardList size={12} />
-          Create Task
-        </button>
-        <button
-          onClick={() => {
-            onTriage(finding.id, "vendor_call");
-            window.location.href = `/dashboard/vendor?issue=${finding.id}`;
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs rounded-lg hover:bg-blue-500/20 transition-colors"
+          {triageStatus === "task_created" ? "View Task" : "Create Task"}
+        </Link>
+        <Link
+          href={`/dashboard/vendor?issue=${finding.id}`}
+          onClick={() => onTriage(finding.id, "vendor_call")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${
+            triageStatus === "vendor_call"
+              ? "bg-blue-500/20 border border-blue-500/30 text-blue-300"
+              : "bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20"
+          }`}
         >
           <Phone size={12} />
           Vendor Call
-        </button>
-        <button
-          onClick={() => {
-            onTriage(finding.id, "investigating");
-            window.location.href = `/dashboard/explain?issue=${finding.id}`;
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs rounded-lg hover:bg-violet-500/20 transition-colors"
+        </Link>
+        <Link
+          href={`/dashboard/explain?issue=${finding.id}`}
+          onClick={() => onTriage(finding.id, "investigating")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${
+            triageStatus === "investigating"
+              ? "bg-violet-500/20 border border-violet-500/30 text-violet-300"
+              : "bg-violet-500/10 border border-violet-500/20 text-violet-400 hover:bg-violet-500/20"
+          }`}
         >
           <Brain size={12} />
           Investigate
-        </button>
+        </Link>
         <button
           onClick={() => {
             onTriage(finding.id, "dismissed");
@@ -617,41 +658,19 @@ function TriageFindingCard({
           <X size={12} />
           Dismiss
         </button>
+        {hasAction && (
+          <button
+            onClick={() => onTriage(finding.id, "untriaged")}
+            className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors ml-1"
+          >
+            Reset
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── In Progress Group Card ─────────────────────────────────
-
-function InProgressGroupCard({
-  icon,
-  label,
-  count,
-  href,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  count: number;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center justify-between bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 hover:border-slate-600/50 transition-colors"
-    >
-      <div className="flex items-center gap-3">
-        {icon}
-        <div>
-          <p className="text-sm font-medium text-white">
-            {count} {label.toLowerCase()}
-          </p>
-        </div>
-      </div>
-      <ChevronRight size={16} className="text-slate-500" />
-    </Link>
-  );
-}
 
 // ─── Email Digest Section ───────────────────────────────────
 

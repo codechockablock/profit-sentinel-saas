@@ -131,7 +131,13 @@ export default function TasksPage() {
       await updateTaskStatus(taskId, newStatus);
       await loadTasks();
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message || "";
+      // Provide friendly error for CORS/network issues
+      if (msg.includes("Failed to fetch") || msg.includes("CORS") || msg.includes("NetworkError")) {
+        setError("Unable to update task status — the API server may be temporarily unavailable. Please try again later.");
+      } else {
+        setError(msg);
+      }
     }
   };
 
@@ -208,7 +214,7 @@ export default function TasksPage() {
               <ClipboardList size={32} className="mx-auto mb-3 opacity-50" />
               <p className="font-medium">No Tasks</p>
               <p className="text-sm mt-1">
-                Delegate issues from the Morning Digest to create tasks.
+                Create tasks from the Operations Hub to track and delegate work.
               </p>
             </div>
           )}
