@@ -42,6 +42,7 @@ from .routes.health import create_health_router
 from .routes.pos import create_pos_router
 from .routes.predictions import create_predictions_router
 from .routes.state import AppState
+from .routes.stores import create_stores_router
 from .routes.tasks import create_tasks_router
 from .routes.transfers import create_transfers_router
 from .routes.vendor import create_vendor_router
@@ -308,6 +309,7 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     app.include_router(create_dashboard_router(state, require_auth))
     app.include_router(create_config_router(state, require_auth))
     app.include_router(create_transfers_router(state, require_auth))
+    app.include_router(create_stores_router(state, require_auth))
     app.include_router(create_counterfactual_router(state, require_auth))
 
     # Legacy-compatible upload & analysis routes (production frontend)
