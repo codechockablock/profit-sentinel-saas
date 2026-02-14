@@ -52,7 +52,7 @@ resource "aws_lb_target_group" "api" {
   target_type = "ip"
 
   health_check {
-    path                = "/health"
+    path                = "/health/shallow"
     protocol            = "HTTP"
     matcher             = "200"
     interval            = 30
