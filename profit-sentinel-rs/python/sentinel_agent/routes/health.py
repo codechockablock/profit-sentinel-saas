@@ -26,7 +26,7 @@ def _check_supabase(state: AppState) -> dict:
     try:
         # Lightweight RPC — supabase-py client exposes .table().select()
         # Just verify we can reach the server with a trivial query.
-        client.table("digest_subscriptions").select("email").limit(1).execute()
+        client.table("user_profiles").select("id").limit(1).execute()
         return {"ok": True, "detail": "connected"}
     except Exception as e:
         logger.warning("Supabase health probe failed: %s", e)
