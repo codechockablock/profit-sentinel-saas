@@ -93,6 +93,7 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
             "dollar_impact", pattern="^(dollar_impact|priority|date)$"
         ),
         department: str | None = Query(None),
+        store_id: str | None = Query(None, description="Filter by store ID"),
         ctx: UserContext = Depends(require_auth),
     ) -> dict:
         """List findings with pagination, filtering, and sort.
@@ -112,6 +113,9 @@ def create_findings_router(state: AppState, require_auth) -> APIRouter:
             if entry.is_expired:
                 continue
             for issue in entry.digest.issues:
+                # Filter by store_id if specified
+                if store_id and getattr(issue, "store_id", None) != store_id:
+                    continue
                 # Derive severity from priority_score
                 if issue.priority_score >= 8.0:
                     severity = "critical"

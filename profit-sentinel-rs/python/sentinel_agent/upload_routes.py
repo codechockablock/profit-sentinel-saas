@@ -218,6 +218,7 @@ def create_upload_router(
     async def presign_upload(
         request: Request,
         filenames: list[str] = Form(...),
+        store_id: str = Form(default=""),
         cf_turnstile_response: str = Form(default=""),
         ctx: UserContext = Depends(get_user_context),
     ):
@@ -227,9 +228,21 @@ def create_upload_router(
         Authenticated:   uploads/{user_id}/{uuid}/{filename}
 
         Rate limited to 20 requests/hour per user.
+
+        Args:
+            store_id: Optional store UUID. If provided and user is authenticated,
+                      verifies that the store belongs to the user.
         """
         # Per-user presign rate limit
         await _check_presign_rate_limit(ctx.user_id)
+
+        # Verify store ownership if store_id is provided
+        if store_id and ctx.is_authenticated and app_state is not None:
+            _store_store = getattr(app_state, "store_store", None)
+            if _store_store is not None:
+                store = _store_store.get(store_id, ctx.user_id)
+                if not store:
+                    raise HTTPException(404, "Store not found")
 
         # Captcha verification for anonymous users only
         if not ctx.is_authenticated and settings.turnstile_secret_key:
@@ -245,17 +258,23 @@ def create_upload_router(
                     detail="Captcha verification failed. Please try again.",
                 )
 
+        # Build S3 prefix — include store_id for organization
+        s3_prefix = ctx.s3_prefix
+        if store_id and ctx.is_authenticated:
+            s3_prefix = f"{ctx.s3_prefix}{store_id}/"
+
         try:
             s3_client = get_s3_client()
             result = generate_upload_urls(
                 s3_client,
                 settings.s3_bucket_name,
                 filenames,
-                ctx.s3_prefix,
+                s3_prefix,
                 max_file_size_mb=ctx.max_file_size_mb,
             )
             logger.info(
                 f"Generated {len(result['presigned_urls'])} presigned URLs for {ctx!r}"
+                + (f" store={store_id}" if store_id else "")
             )
             return result
         except ValueError as e:
@@ -320,6 +339,7 @@ def create_upload_router(
         request: Request,
         key: str = Form(...),
         mapping: str = Form(...),
+        store_id: str = Form(default=""),
         background_tasks: BackgroundTasks = BackgroundTasks(),
         ctx: UserContext = Depends(get_user_context),
     ) -> dict:
@@ -327,9 +347,22 @@ def create_upload_router(
 
         Rate-limited: 5/hour anonymous, 100/hour authenticated.
         Anonymous results include an upgrade_prompt.
+
+        Args:
+            store_id: Optional store UUID. If provided, analysis results are
+                      tagged to this store and store metadata is updated.
         """
         # Rate limit check
         await check_rate_limit(ctx)
+
+        # Verify store ownership if store_id is provided
+        resolved_store_id = store_id or ""
+        if resolved_store_id and ctx.is_authenticated and app_state is not None:
+            _store_store = getattr(app_state, "store_store", None)
+            if _store_store is not None:
+                store = _store_store.get(resolved_store_id, ctx.user_id)
+                if not store:
+                    raise HTTPException(404, "Store not found")
 
         # Parse mapping
         try:
@@ -431,6 +464,10 @@ def create_upload_router(
             result["supported_pos_systems"] = SUPPORTED_POS_SYSTEMS
             result["is_authenticated"] = ctx.is_authenticated
 
+            # Tag result with store_id for downstream pipeline
+            if resolved_store_id:
+                result["store_id"] = resolved_store_id
+
             # Upgrade prompt for anonymous users
             if not ctx.is_authenticated:
                 result["upgrade_prompt"] = build_upgrade_prompt()
@@ -511,6 +548,29 @@ def create_upload_router(
                         f"Transfer matcher population failed (non-fatal): {e}"
                     )
 
+            # Update store metadata after analysis
+            if resolved_store_id and ctx.is_authenticated and app_state is not None:
+                try:
+                    _store_store = getattr(app_state, "store_store", None)
+                    if _store_store is not None:
+                        from datetime import UTC, datetime
+
+                        _store_store.update_metadata(
+                            resolved_store_id,
+                            ctx.user_id,
+                            {
+                                "last_upload_at": datetime.now(UTC).isoformat(),
+                                "item_count": result.get("summary", {}).get(
+                                    "total_rows_analyzed", 0
+                                ),
+                                "total_impact": result.get("summary", {})
+                                .get("estimated_impact", {})
+                                .get("high_estimate", 0),
+                            },
+                        )
+                except Exception as e:
+                    logger.warning("Store metadata update failed (non-fatal): %s", e)
+
             # Engine 1→3: enrich findings with counterfactuals
             if app_state is not None and app_state.counterfactual_engine is not None:
                 try:
@@ -529,7 +589,8 @@ def create_upload_router(
                 try:
                     from .routes.state import DigestCacheEntry
 
-                    cache_key = f":{settings.sentinel_top_k}"
+                    store_cache_part = resolved_store_id or ""
+                    cache_key = f"{store_cache_part}:{settings.sentinel_top_k}"
                     if ctx.user_id not in app_state.digest_cache:
                         app_state.digest_cache[ctx.user_id] = {}
                     app_state.digest_cache[ctx.user_id][cache_key] = DigestCacheEntry(

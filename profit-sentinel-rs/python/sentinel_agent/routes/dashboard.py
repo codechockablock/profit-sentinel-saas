@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from ..dual_auth import UserContext
 from .state import AppState
@@ -27,9 +27,14 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
 
     @router.get("/dashboard")
     async def dashboard_summary(
+        store_id: str | None = Query(default=None, description="Filter by store ID"),
         ctx: UserContext = Depends(require_auth),
     ) -> dict:
         """Pre-computed dashboard summary.
+
+        Args:
+            store_id: Optional store UUID. When provided, returns data for
+                      that store only. When omitted, aggregates across all stores.
 
         Returns:
             recovery_total: Total potential recovery across all active findings
@@ -48,6 +53,9 @@ def create_dashboard_router(state: AppState, require_auth) -> APIRouter:
             if entry.is_expired:
                 continue
             for issue in entry.digest.issues:
+                # Filter by store_id if specified
+                if store_id and getattr(issue, "store_id", None) != store_id:
+                    continue
                 all_issues.append(issue)
 
         # Compute recovery total
