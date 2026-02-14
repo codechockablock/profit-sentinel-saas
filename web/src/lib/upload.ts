@@ -140,9 +140,13 @@ async function getHeaders(): Promise<HeadersInit> {
 export async function presignUpload(
   filename: string,
   turnstileToken: string = "",
+  storeId: string = "",
 ): Promise<PresignResult> {
   const formData = new FormData();
   formData.append("filenames", filename);
+  if (storeId) {
+    formData.append("store_id", storeId);
+  }
   if (turnstileToken) {
     formData.append("cf_turnstile_response", turnstileToken);
   }
@@ -256,11 +260,15 @@ export async function suggestMapping(
 /** Step 4: Run analysis - uses direct API to avoid proxy timeouts */
 export async function runAnalysis(
   key: string,
-  mapping: Record<string, string>
+  mapping: Record<string, string>,
+  storeId: string = "",
 ): Promise<AnalysisResult> {
   const formData = new FormData();
   formData.append("key", key);
   formData.append("mapping", JSON.stringify(mapping));
+  if (storeId) {
+    formData.append("store_id", storeId);
+  }
 
   const authHeaders = await getHeaders();
   const apiBase = getApiBaseUrl();

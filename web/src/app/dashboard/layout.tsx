@@ -21,6 +21,7 @@ import {
   Search,
   Truck,
   Inbox,
+  Store,
 } from "lucide-react";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -43,6 +44,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: "OVERVIEW",
     items: [
       { href: "/dashboard", label: "Morning Digest", icon: LayoutDashboard, description: "Health & trends at a glance" },
+      { href: "/dashboard/stores", label: "Stores", icon: Store, description: "Manage store locations" },
       { href: "/dashboard/operations", label: "Operations Hub", icon: Inbox, description: "Triage & act on findings" },
     ],
   },

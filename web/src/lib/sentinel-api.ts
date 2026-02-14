@@ -935,6 +935,7 @@ export async function fetchFindings(params?: {
   status?: 'active' | 'acknowledged' | 'all';
   sort_by?: 'dollar_impact' | 'priority' | 'date';
   department?: string;
+  store_id?: string;
 }): Promise<FindingsResponse> {
   const qs = new URLSearchParams();
   if (params?.page) qs.set('page', String(params.page));
@@ -942,6 +943,7 @@ export async function fetchFindings(params?: {
   if (params?.status) qs.set('status', params.status);
   if (params?.sort_by) qs.set('sort_by', params.sort_by);
   if (params?.department) qs.set('department', params.department);
+  if (params?.store_id) qs.set('store_id', params.store_id);
   const q = qs.toString();
   return apiFetch(`/findings${q ? `?${q}` : ''}`);
 }
@@ -1029,6 +1031,58 @@ export interface DashboardSummaryResponse {
   };
 }
 
-export async function fetchDashboardSummary(): Promise<DashboardSummaryResponse> {
-  return apiFetch('/dashboard');
+export async function fetchDashboardSummary(storeId?: string): Promise<DashboardSummaryResponse> {
+  const params = new URLSearchParams();
+  if (storeId) params.set('store_id', storeId);
+  const qs = params.toString();
+  return apiFetch(`/dashboard${qs ? `?${qs}` : ''}`);
+}
+
+// ---------------------------------------------------------------------------
+// Store Management
+// ---------------------------------------------------------------------------
+
+export interface Store {
+  id: string;
+  user_id: string;
+  name: string;
+  address: string;
+  created_at: string;
+  updated_at: string;
+  last_upload_at: string | null;
+  item_count: number;
+  total_impact: number;
+}
+
+export interface StoresResponse {
+  stores: Store[];
+  total: number;
+}
+
+export async function fetchStores(): Promise<StoresResponse> {
+  return apiFetch('/stores');
+}
+
+export async function fetchStore(storeId: string): Promise<Store> {
+  return apiFetch(`/stores/${storeId}`);
+}
+
+export async function createStore(name: string, address?: string): Promise<Store> {
+  return apiFetch('/stores', {
+    method: 'POST',
+    body: JSON.stringify({ name, address: address || '' }),
+  });
+}
+
+export async function updateStore(storeId: string, updates: { name?: string; address?: string }): Promise<Store> {
+  return apiFetch(`/stores/${storeId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteStore(storeId: string): Promise<{ message: string }> {
+  return apiFetch(`/stores/${storeId}`, {
+    method: 'DELETE',
+  });
 }

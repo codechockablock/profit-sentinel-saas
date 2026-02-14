@@ -144,6 +144,14 @@ const ALLOWED_EXT = [".csv", ".xls", ".xlsx"];
 export default function OperationsHubPage() {
   const router = useRouter();
 
+  // Store context from URL params (e.g. from Stores page)
+  const [storeId, setStoreId] = useState<string>("");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sid = params.get("store_id");
+    if (sid) setStoreId(sid);
+  }, []);
+
   // Data state
   const [findings, setFindings] = useState<Finding[]>([]);
   const [tasks, setTasks] = useState<TaskListResponse["tasks"]>([]);
@@ -233,17 +241,18 @@ export default function OperationsHubPage() {
       setUploading(true);
       setUploadError(null);
       try {
-        const presign = await presignUpload(file.name);
+        const presign = await presignUpload(file.name, "", storeId);
         await uploadToS3(presign, file);
+        const storeParam = storeId ? `&store_id=${encodeURIComponent(storeId)}` : "";
         router.push(
-          `/analyze?s3Key=${encodeURIComponent(presign.key)}&filename=${encodeURIComponent(file.name)}&from=dashboard`
+          `/analyze?s3Key=${encodeURIComponent(presign.key)}&filename=${encodeURIComponent(file.name)}&from=dashboard${storeParam}`
         );
       } catch (err) {
         setUploadError(err instanceof Error ? err.message : "Upload failed");
         setUploading(false);
       }
     },
-    [router]
+    [router, storeId]
   );
 
   const handleDrop = useCallback(

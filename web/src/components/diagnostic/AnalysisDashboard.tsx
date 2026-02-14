@@ -106,6 +106,9 @@ export default function AnalysisDashboard() {
   const [authModalMode, setAuthModalMode] = useState<"login" | "signup">("signup");
   const [maxFileSizeMb, setMaxFileSizeMb] = useState(10); // Default to anonymous limit
 
+  // Store context — passed via URL param (e.g. from Stores page)
+  const [storeId, setStoreId] = useState<string>("");
+
   // Email report state
   const [reportEmail, setReportEmail] = useState("");
   const [reportSending, setReportSending] = useState(false);
@@ -151,6 +154,10 @@ export default function AnalysisDashboard() {
     const paramKey = params.get("s3Key");
     const paramFilename = params.get("filename");
     const paramFrom = params.get("from");
+    const paramStoreId = params.get("store_id");
+
+    // Capture store_id from URL (e.g. from Stores page "Upload Data" button)
+    if (paramStoreId) setStoreId(paramStoreId);
 
     if (!paramKey || !paramFilename || stage !== "upload") return;
 
@@ -248,7 +255,7 @@ export default function AnalysisDashboard() {
     try {
       // Step 1: Get presigned URL
       setProcessingMessage("Preparing upload...");
-      const presignResult = await presignUpload(selectedFile.name, turnstileToken);
+      const presignResult = await presignUpload(selectedFile.name, turnstileToken, storeId);
 
       // Step 2: Upload to S3
       setProcessingMessage("Uploading file...");
@@ -319,7 +326,7 @@ export default function AnalysisDashboard() {
       await new Promise((r) => setTimeout(r, 500));
 
       setProcessingMessage("Calculating impact...");
-      const analysisResults = await runAnalysis(s3Key, confirmedMapping);
+      const analysisResults = await runAnalysis(s3Key, confirmedMapping, storeId);
       setResults(analysisResults);
 
       // Auto-expand leaks with items
