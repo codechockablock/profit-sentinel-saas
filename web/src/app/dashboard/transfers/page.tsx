@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import {
   fetchTransfers,
+  fetchStores,
   type TransfersResponse,
   type TransferRecommendation,
 } from "@/lib/sentinel-api";
@@ -35,8 +36,16 @@ const MATCH_CONFIG: Record<string, { label: string; color: string }> = {
 
 // ─── Transfer Card ───────────────────────────────────────────
 
-function TransferCard({ rec }: { rec: TransferRecommendation }) {
+function TransferCard({
+  rec,
+  storeNames,
+}: {
+  rec: TransferRecommendation;
+  storeNames: Record<string, string>;
+}) {
   const match = MATCH_CONFIG[rec.match_level] || MATCH_CONFIG.category;
+  const sourceName = storeNames[rec.source_store] || rec.source_store;
+  const destName = storeNames[rec.dest_store] || rec.dest_store;
 
   return (
     <div className="bg-white/5 rounded-xl border border-slate-700 p-5 hover:bg-white/[0.07] transition">
@@ -57,7 +66,7 @@ function TransferCard({ rec }: { rec: TransferRecommendation }) {
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 min-w-0 bg-slate-800/50 rounded-lg p-3">
           <div className="text-[10px] text-slate-500 mb-1">From</div>
-          <div className="text-sm font-medium text-white truncate">{rec.source_store}</div>
+          <div className="text-sm font-medium text-white truncate">{sourceName}</div>
           <div className="text-xs text-slate-400 truncate mt-0.5">
             {rec.source_description}
           </div>
@@ -68,7 +77,7 @@ function TransferCard({ rec }: { rec: TransferRecommendation }) {
 
         <div className="flex-1 min-w-0 bg-slate-800/50 rounded-lg p-3">
           <div className="text-[10px] text-slate-500 mb-1">To</div>
-          <div className="text-sm font-medium text-white truncate">{rec.dest_store}</div>
+          <div className="text-sm font-medium text-white truncate">{destName}</div>
           <div className="text-xs text-slate-400 truncate mt-0.5">
             {rec.dest_description}
           </div>
@@ -125,6 +134,20 @@ export default function TransfersPage() {
   const [data, setData] = useState<TransfersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [storeNames, setStoreNames] = useState<Record<string, string>>({});
+
+  // Load store names for display
+  useEffect(() => {
+    fetchStores()
+      .then((res) => {
+        const names: Record<string, string> = {};
+        for (const s of res.stores) {
+          names[s.id] = s.name;
+        }
+        setStoreNames(names);
+      })
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -234,7 +257,7 @@ export default function TransfersPage() {
               {/* Recommendation list */}
               <div className="space-y-3">
                 {recs.map((rec, i) => (
-                  <TransferCard key={`transfer-${i}`} rec={rec} />
+                  <TransferCard key={`transfer-${i}`} rec={rec} storeNames={storeNames} />
                 ))}
               </div>
             </>

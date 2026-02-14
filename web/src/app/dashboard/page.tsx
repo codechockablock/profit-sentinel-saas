@@ -27,10 +27,12 @@ import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 import {
   fetchDashboardSummary,
   fetchFindings,
+  fetchStores,
   listAnalyses,
   type DashboardSummaryResponse,
   type Finding,
   type AnalysisListItem,
+  type Store,
 } from "@/lib/sentinel-api";
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -155,16 +157,36 @@ export default function MorningDigestPage() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
 
+  // Store filtering
+  const [stores, setStores] = useState<Store[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>("");
+
+  // Read store_id from URL params on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sid = params.get("store_id");
+    if (sid) setSelectedStoreId(sid);
+  }, []);
+
+  // Load stores list
+  useEffect(() => {
+    fetchStores()
+      .then((res) => setStores(res.stores))
+      .catch(() => {});
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const storeFilter = selectedStoreId || undefined;
       const [summaryRes, findingsRes, analysesRes] = await Promise.all([
-        fetchDashboardSummary().catch(() => null),
+        fetchDashboardSummary(storeFilter).catch(() => null),
         fetchFindings({
           status: "active",
           sort_by: "dollar_impact",
           page_size: 5,
+          store_id: storeFilter,
         }).catch(() => null),
         listAnalyses(10).catch(() => null),
       ]);
@@ -176,7 +198,7 @@ export default function MorningDigestPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedStoreId]);
 
   useEffect(() => {
     load();
@@ -195,14 +217,29 @@ export default function MorningDigestPage() {
             Your inventory health at a glance
           </p>
         </div>
-        <button
-          onClick={load}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Store selector — only shown for multi-store users */}
+          {stores.length > 1 && (
+            <select
+              value={selectedStoreId}
+              onChange={(e) => setSelectedStoreId(e.target.value)}
+              className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+            >
+              <option value="">All Stores</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={load}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Error */}
