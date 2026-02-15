@@ -81,7 +81,8 @@ export default function EagleEyePage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<EagleEyeResponse | null>(null);
   const [briefing, setBriefing] = useState<AgentBriefing | null>(null);
-  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [briefingLoading, setBriefingLoading] = useState(true);
+  const [actionsLoading, setActionsLoading] = useState(true);
   const [pendingActions, setPendingActions] = useState<ActionItem[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -92,35 +93,28 @@ export default function EagleEyePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setBriefingLoading(true);
+    setActionsLoading(true);
     setError(null);
-    try {
-      const [eagleRes, briefingRes, actionsRes] = await Promise.allSettled([
-        fetchEagleEye(),
-        fetchBriefing(),
-        fetchActions({ status: "pending", limit: 10 }),
-      ]);
 
-      if (eagleRes.status === "fulfilled") {
-        setData(eagleRes.value);
-        if (!eagleRes.value.org) {
-          setShowSetup(true);
-        }
-      } else {
-        setError((eagleRes.reason as Error).message);
-      }
+    // Fire all 3 independently — render each section as it arrives
+    fetchEagleEye()
+      .then((res) => {
+        setData(res);
+        if (!res.org) setShowSetup(true);
+      })
+      .catch((err) => setError((err as Error).message))
+      .finally(() => setLoading(false));
 
-      if (briefingRes.status === "fulfilled") {
-        setBriefing(briefingRes.value);
-      }
+    fetchBriefing()
+      .then((res) => setBriefing(res))
+      .catch(() => {}) // briefing is non-critical
+      .finally(() => setBriefingLoading(false));
 
-      if (actionsRes.status === "fulfilled") {
-        setPendingActions(actionsRes.value.actions);
-      }
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    fetchActions({ status: "pending", limit: 10 })
+      .then((res) => setPendingActions(res.actions))
+      .catch(() => {})
+      .finally(() => setActionsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -272,12 +266,13 @@ export default function EagleEyePage() {
           />
 
           {/* Action Queue */}
-          {pendingActions.length > 0 && (
+          {(pendingActions.length > 0 || actionsLoading) && (
             <ActionQueueSection
               actions={pendingActions}
               loadingId={actionLoading}
               onApprove={handleApprove}
               onDefer={handleDefer}
+              loading={actionsLoading}
             />
           )}
 
@@ -414,9 +409,12 @@ function BriefingSection({
       </div>
 
       {loading && !briefing ? (
-        <div className="flex items-center gap-3 py-4">
-          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-slate-400">Generating briefing...</span>
+        <div className="space-y-3 py-2 animate-pulse">
+          <div className="h-4 bg-slate-700/40 rounded w-5/6" />
+          <div className="h-4 bg-slate-700/30 rounded w-full" />
+          <div className="h-4 bg-slate-700/30 rounded w-4/6" />
+          <div className="h-4 bg-slate-700/20 rounded w-3/4 mt-2" />
+          <div className="h-4 bg-slate-700/20 rounded w-5/6" />
         </div>
       ) : briefing?.briefing ? (
         <div className="prose prose-sm prose-invert max-w-none">
@@ -450,17 +448,19 @@ function ActionQueueSection({
   loadingId,
   onApprove,
   onDefer,
+  loading,
 }: {
   actions: ActionItem[];
   loadingId: string | null;
   onApprove: (id: string) => void;
   onDefer: (id: string) => void;
+  loading?: boolean;
 }) {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
-          Action Queue ({actions.length} pending)
+          Action Queue{!loading && ` (${actions.length} pending)`}
         </h2>
         <Link
           href="/dashboard/tasks"
@@ -469,6 +469,16 @@ function ActionQueueSection({
           View All
         </Link>
       </div>
+      {loading && actions.length === 0 ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 animate-pulse">
+              <div className="h-4 bg-slate-700/50 rounded w-3/4 mb-2" />
+              <div className="h-3 bg-slate-700/30 rounded w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="space-y-2">
         {actions.slice(0, 5).map((action) => (
           <div
@@ -519,6 +529,7 @@ function ActionQueueSection({
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
