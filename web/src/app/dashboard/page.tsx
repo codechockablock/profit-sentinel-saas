@@ -2,38 +2,39 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Zap,
+  Eye,
   RefreshCw,
-  CheckCircle,
-  BarChart3,
-  FileSpreadsheet,
-  DollarSign,
-  Calendar,
+  Check,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  AlertTriangle,
+  TrendingDown,
+  TrendingUp,
+  Minus,
   ArrowRight,
+  Building2,
+  DollarSign,
+  Package,
+  Zap,
+  Bot,
 } from "lucide-react";
 import Link from "next/link";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import { ApiErrorBanner } from "@/components/dashboard/ApiErrorBanner";
 import {
-  fetchDashboardSummary,
-  fetchFindings,
-  fetchStores,
-  listAnalyses,
-  type DashboardSummaryResponse,
-  type Finding,
-  type AnalysisListItem,
-  type Store,
-} from "@/lib/sentinel-api";
+  fetchEagleEye,
+  fetchBriefing,
+  refreshBriefing,
+  approveAction,
+  deferAction,
+  fetchActions,
+  createOrg,
+  type EagleEyeResponse,
+  type AgentBriefing,
+  type StoreSummary,
+  type RegionSummary,
+  type ActionItem,
+} from "@/lib/eagle-eye-api";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -43,636 +44,608 @@ function formatDollar(amount: number): string {
   return `$${amount.toFixed(0)}`;
 }
 
-function severityColor(severity: string): {
-  bg: string;
-  text: string;
-  border: string;
-} {
-  switch (severity) {
+function formatTrend(trend: number): string {
+  if (trend === 0) return "flat";
+  return `${trend > 0 ? "+" : ""}${(trend * 100).toFixed(0)}%`;
+}
+
+function statusColor(status: string): { dot: string; border: string; bg: string } {
+  switch (status) {
+    case "healthy":
+      return { dot: "bg-emerald-400", border: "border-emerald-500/30", bg: "bg-emerald-500/5" };
+    case "attention":
+      return { dot: "bg-yellow-400", border: "border-yellow-500/30", bg: "bg-yellow-500/5" };
     case "critical":
-      return {
-        bg: "bg-red-500/10",
-        text: "text-red-400",
-        border: "border-red-500/30",
-      };
-    case "high":
-      return {
-        bg: "bg-orange-500/10",
-        text: "text-orange-400",
-        border: "border-orange-500/30",
-      };
-    case "medium":
-      return {
-        bg: "bg-yellow-500/10",
-        text: "text-yellow-400",
-        border: "border-yellow-500/30",
-      };
-    case "low":
-      return {
-        bg: "bg-blue-500/10",
-        text: "text-blue-400",
-        border: "border-blue-500/30",
-      };
-    case "info":
+      return { dot: "bg-red-400", border: "border-red-500/30", bg: "bg-red-500/5" };
     default:
-      return {
-        bg: "bg-emerald-500/10",
-        text: "text-emerald-400",
-        border: "border-emerald-500/30",
-      };
+      return { dot: "bg-slate-400", border: "border-slate-700/50", bg: "bg-slate-800/50" };
   }
 }
 
-function computeHealthScore(
-  findings: Finding[],
-  summary: DashboardSummaryResponse | null,
-  analyses: AnalysisListItem[]
-): number {
-  let score = 100;
-
-  // Deduct for active findings by severity
-  const severityDeductions: Record<string, number> = {
-    critical: 10,
-    high: 6,
-    medium: 3,
-    low: 1,
-    info: 0,
-  };
-  let findingDeduction = 0;
-  for (const f of findings) {
-    findingDeduction += severityDeductions[f.severity] ?? 0;
+function actionTypeIcon(type: string): string {
+  switch (type) {
+    case "transfer": return "🔄";
+    case "clearance": return "🏷️";
+    case "reorder": return "📦";
+    case "price_adjustment": return "💰";
+    case "vendor_contact": return "📞";
+    case "threshold_change": return "⚙️";
+    default: return "📋";
   }
-  score -= Math.min(50, findingDeduction);
-
-  // Deduct for department health
-  if (summary?.department_status) {
-    for (const dept of Object.values(summary.department_status)) {
-      if (dept.status === "red") score -= 7;
-      else if (dept.status === "yellow") score -= 3;
-    }
-  }
-
-  // Deduct for stale data
-  if (analyses.length === 0) {
-    score -= 15;
-  } else if (analyses[0]?.created_at) {
-    const latestDate = new Date(analyses[0].created_at);
-    const daysSince =
-      (Date.now() - latestDate.getTime()) / (1000 * 60 * 60 * 24);
-    if (daysSince > 7) score -= 15;
-    else if (daysSince > 3) score -= 8;
-    else if (daysSince > 1) score -= 3;
-  }
-
-  // Bonus for recovery progress
-  if (summary?.recovery_total) {
-    score += Math.min(10, Math.round(summary.recovery_total / 1000));
-  }
-
-  // Clamp to 0-100
-  return Math.max(0, Math.min(100, score));
-}
-
-type TrendDir = "up" | "down" | "flat";
-
-function computeTrend(analyses: AnalysisListItem[]): TrendDir {
-  if (analyses.length < 2) return "flat";
-  const current = analyses[0]?.total_impact_estimate_high ?? 0;
-  const previous = analyses[1]?.total_impact_estimate_high ?? 0;
-  if (previous === 0) return "flat";
-  // Lower impact = improving (up), higher = worsening (down)
-  if (current < previous * 0.9) return "up";
-  if (current > previous * 1.1) return "down";
-  return "flat";
 }
 
 // ─── Main Page ────────────────────────────────────────────────
 
-export default function MorningDigestPage() {
+export default function EagleEyePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<DashboardSummaryResponse | null>(
-    null
-  );
-  const [findings, setFindings] = useState<Finding[]>([]);
-  const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
+  const [data, setData] = useState<EagleEyeResponse | null>(null);
+  const [briefing, setBriefing] = useState<AgentBriefing | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [pendingActions, setPendingActions] = useState<ActionItem[]>([]);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Store filtering
-  const [stores, setStores] = useState<Store[]>([]);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>("");
-
-  // Read store_id from URL params on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const sid = params.get("store_id");
-    if (sid) setSelectedStoreId(sid);
-  }, []);
-
-  // Load stores list
-  useEffect(() => {
-    fetchStores()
-      .then((res) => setStores(res.stores))
-      .catch(() => {});
-  }, []);
+  // Setup state
+  const [showSetup, setShowSetup] = useState(false);
+  const [orgName, setOrgName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const storeFilter = selectedStoreId || undefined;
-      const [summaryRes, findingsRes, analysesRes] = await Promise.all([
-        fetchDashboardSummary(storeFilter).catch(() => null),
-        fetchFindings({
-          status: "active",
-          sort_by: "dollar_impact",
-          page_size: 5,
-          store_id: storeFilter,
-        }).catch(() => null),
-        listAnalyses(10).catch(() => null),
+      const [eagleRes, briefingRes, actionsRes] = await Promise.allSettled([
+        fetchEagleEye(),
+        fetchBriefing(),
+        fetchActions({ status: "pending", limit: 10 }),
       ]);
-      setSummary(summaryRes);
-      setFindings(findingsRes?.findings ?? []);
-      setAnalyses(analysesRes?.analyses ?? []);
+
+      if (eagleRes.status === "fulfilled") {
+        setData(eagleRes.value);
+        if (!eagleRes.value.org) {
+          setShowSetup(true);
+        }
+      } else {
+        setError((eagleRes.reason as Error).message);
+      }
+
+      if (briefingRes.status === "fulfilled") {
+        setBriefing(briefingRes.value);
+      }
+
+      if (actionsRes.status === "fulfilled") {
+        setPendingActions(actionsRes.value.actions);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [selectedStoreId]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const hasAnyData =
-    summary !== null || analyses.length > 0 || findings.length > 0;
+  const handleRefreshBriefing = async () => {
+    setBriefingLoading(true);
+    try {
+      const result = await refreshBriefing();
+      setBriefing(result);
+      // Refresh actions since briefing may have created new ones
+      const actionsRes = await fetchActions({ status: "pending", limit: 10 });
+      setPendingActions(actionsRes.actions);
+    } catch (err) {
+      // Silently fail — briefing is non-critical
+    } finally {
+      setBriefingLoading(false);
+    }
+  };
+
+  const handleApprove = async (actionId: string) => {
+    setActionLoading(actionId);
+    try {
+      await approveAction(actionId);
+      setPendingActions((prev) => prev.filter((a) => a.id !== actionId));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDefer = async (actionId: string) => {
+    setActionLoading(actionId);
+    try {
+      await deferAction(actionId);
+      setPendingActions((prev) => prev.filter((a) => a.id !== actionId));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCreateOrg = async () => {
+    if (!orgName.trim()) return;
+    setCreating(true);
+    try {
+      await createOrg(orgName.trim());
+      setShowSetup(false);
+      load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // Setup screen
+  if (showSetup && !loading) {
+    return (
+      <div className="p-6 lg:p-8 max-w-2xl mx-auto">
+        <div className="p-8 bg-slate-800/50 border border-slate-700/50 rounded-xl text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+            <Building2 size={28} className="text-emerald-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">
+            Welcome to Profit Sentinel
+          </h2>
+          <p className="text-slate-400 mb-6">
+            Set up your organization to get started with the executive dashboard.
+          </p>
+          <div className="max-w-sm mx-auto space-y-4">
+            <input
+              type="text"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              placeholder="Your business name"
+              className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+              onKeyDown={(e) => e.key === "Enter" && handleCreateOrg()}
+            />
+            <button
+              onClick={handleCreateOrg}
+              disabled={creating || !orgName.trim()}
+              className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors"
+            >
+              {creating ? "Creating..." : "Create Organization"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Morning Digest</h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Your inventory health at a glance
-          </p>
-        </div>
         <div className="flex items-center gap-3">
-          {/* Store selector — only shown for multi-store users */}
-          {stores.length > 1 && (
-            <select
-              value={selectedStoreId}
-              onChange={(e) => setSelectedStoreId(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
-            >
-              <option value="">All Stores</option>
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={load}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Error */}
-      {error && <ApiErrorBanner error={error} onRetry={load} />}
-
-      {/* Loading */}
-      {loading && !summary && analyses.length === 0 && (
-        <div className="flex items-center justify-center py-24">
-          <div className="text-center">
-            <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-slate-400 text-sm">
-              Loading your morning digest...
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+            <Eye size={20} className="text-emerald-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              {data?.org?.name || "Eagle\u2019s Eye"}
+            </h1>
+            <p className="text-sm text-slate-400">
+              {data?.org
+                ? `${data.org.total_stores} stores \u2022 ${formatDollar(data.org.total_exposure)} total exposure`
+                : "Executive network view"}
             </p>
           </div>
         </div>
-      )}
+        <button
+          onClick={load}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </div>
 
-      {/* Full empty state */}
-      {!loading && !error && !hasAnyData && (
-        <div className="p-8 bg-slate-800/50 border border-slate-700/50 rounded-xl text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-            <Zap size={28} className="text-emerald-400" />
+      {error && <ApiErrorBanner error={error} onRetry={load} />}
+
+      {/* Loading */}
+      {loading && !data && (
+        <div className="flex items-center justify-center py-24">
+          <div className="text-center">
+            <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-slate-400 text-sm">Loading executive view...</p>
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">
-            Welcome to Morning Digest
-          </h2>
-          <p className="text-slate-400 mb-6 max-w-lg mx-auto">
-            Upload an inventory file to see your health score, top priorities,
-            and trends.
-          </p>
-          <Link
-            href="/dashboard/operations"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors"
-          >
-            Get Started — Upload Your Inventory File
-            <ArrowRight size={16} />
-          </Link>
         </div>
       )}
 
-      {/* Data sections */}
-      {hasAnyData && (
+      {data?.org && (
         <>
-          {/* Row 1: Health Score + Top Priority */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <HealthScoreGauge
-              findings={findings}
-              summary={summary}
-              analyses={analyses}
+          {/* Agent Briefing */}
+          <BriefingSection
+            briefing={briefing}
+            loading={briefingLoading}
+            onRefresh={handleRefreshBriefing}
+          />
+
+          {/* Action Queue */}
+          {pendingActions.length > 0 && (
+            <ActionQueueSection
+              actions={pendingActions}
+              loadingId={actionLoading}
+              onApprove={handleApprove}
+              onDefer={handleDefer}
             />
-            <div className="lg:col-span-2">
-              <TopPriorityCard finding={findings[0] ?? null} />
+          )}
+
+          {/* Network Summary Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <SummaryCard
+              label="Total Exposure"
+              value={formatDollar(data.org.total_exposure)}
+              trend={data.org.exposure_trend}
+              icon={<DollarSign size={16} />}
+            />
+            <SummaryCard
+              label="Total Stores"
+              value={String(data.org.total_stores)}
+              icon={<Package size={16} />}
+            />
+            <SummaryCard
+              label="Pending Actions"
+              value={String(data.org.total_pending_actions)}
+              icon={<Clock size={16} />}
+            />
+            <SummaryCard
+              label="Completed (30d)"
+              value={String(data.org.total_completed_actions_30d)}
+              icon={<Check size={16} />}
+            />
+          </div>
+
+          {/* Regions & Stores */}
+          <div className="space-y-4 mb-6">
+            {data.regions.map((region) => (
+              <RegionSection key={region.id} region={region} />
+            ))}
+
+            {data.unassigned_stores.length > 0 && (
+              <RegionSection
+                region={{
+                  id: "unassigned",
+                  name: "Unassigned Stores",
+                  store_count: data.unassigned_stores.length,
+                  total_exposure: data.unassigned_stores.reduce(
+                    (sum, s) => sum + s.total_impact,
+                    0
+                  ),
+                  exposure_trend: 0,
+                  pending_actions: data.unassigned_stores.reduce(
+                    (sum, s) => sum + s.pending_actions,
+                    0
+                  ),
+                  stores: data.unassigned_stores,
+                }}
+              />
+            )}
+          </div>
+
+          {/* Network Alerts */}
+          {data.network_alerts.length > 0 && (
+            <div className="mb-6">
+              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                Network Alerts
+              </h2>
+              <div className="space-y-2">
+                {data.network_alerts.map((alert, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 px-4 py-3 bg-red-500/5 border border-red-500/20 rounded-lg"
+                  >
+                    <AlertTriangle size={16} className="text-red-400 shrink-0" />
+                    <span className="text-sm text-white flex-1">
+                      {alert.description}
+                    </span>
+                    <span className="text-sm font-medium text-red-400">
+                      {formatDollar(alert.total_impact)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Row 2: Trend Snapshot */}
-          <div className="mb-6">
-            <TrendSnapshot analyses={analyses} />
-          </div>
-
-          {/* Row 3: Quick Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <QuickStatTile
-              label="SKUs Analyzed"
-              value={
-                analyses[0]?.file_row_count
-                  ? analyses[0].file_row_count.toLocaleString()
-                  : "\u2014"
-              }
-              icon={<FileSpreadsheet size={18} />}
-              href="/dashboard/history"
-            />
-            <QuickStatTile
-              label="Active Findings"
-              value={
-                summary?.finding_count != null
-                  ? String(summary.finding_count)
-                  : "\u2014"
-              }
-              icon={<AlertTriangle size={18} />}
-              href="/dashboard/operations"
-            />
-            <QuickStatTile
-              label="Recoverable Profit"
-              value={
-                summary?.recovery_total != null
-                  ? formatDollar(summary.recovery_total)
-                  : "\u2014"
-              }
-              icon={<DollarSign size={18} />}
-              href="/dashboard/findings"
-            />
-            <QuickStatTile
-              label="Days Since Analysis"
-              value={(() => {
-                if (!analyses[0]?.created_at) return "\u2014";
-                const days = Math.floor(
-                  (Date.now() - new Date(analyses[0].created_at).getTime()) /
-                    (1000 * 60 * 60 * 24)
-                );
-                return String(days);
-              })()}
-              icon={<Calendar size={18} />}
-              href="/dashboard/operations"
-              valueColor={(() => {
-                if (!analyses[0]?.created_at) return undefined;
-                const days = Math.floor(
-                  (Date.now() - new Date(analyses[0].created_at).getTime()) /
-                    (1000 * 60 * 60 * 24)
-                );
-                if (days <= 1) return "text-emerald-400";
-                if (days <= 3) return "text-yellow-400";
-                return "text-red-400";
-              })()}
-            />
-          </div>
+          {/* Empty state — no stores with data */}
+          {data.org.total_stores === 0 && (
+            <div className="p-8 bg-slate-800/50 border border-slate-700/50 rounded-xl text-center">
+              <Zap size={32} className="text-emerald-400 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-white mb-2">
+                Add Your First Store
+              </h3>
+              <p className="text-slate-400 mb-4">
+                Create stores and upload inventory data to see your executive view.
+              </p>
+              <Link
+                href="/dashboard/stores"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors"
+              >
+                Manage Stores
+                <ArrowRight size={16} />
+              </Link>
+            </div>
+          )}
         </>
       )}
     </div>
   );
 }
 
-// ─── Health Score Gauge ──────────────────────────────────────
+// ─── Briefing Section ──────────────────────────────────────────
 
-function HealthScoreGauge({
-  findings,
-  summary,
-  analyses,
+function BriefingSection({
+  briefing,
+  loading,
+  onRefresh,
 }: {
-  findings: Finding[];
-  summary: DashboardSummaryResponse | null;
-  analyses: AnalysisListItem[];
+  briefing: AgentBriefing | null;
+  loading: boolean;
+  onRefresh: () => void;
 }) {
-  const hasData = summary !== null || analyses.length > 0;
-  const score = hasData
-    ? computeHealthScore(findings, summary, analyses)
-    : null;
-  const trend = computeTrend(analyses);
-
-  // SVG gauge config
-  const radius = 70;
-  const circumference = 2 * Math.PI * radius;
-  const progress = score != null ? score / 100 : 0;
-  const dashOffset = circumference - progress * circumference;
-
-  // Color based on score
-  let strokeColor = "stroke-slate-600";
-  let textColor = "text-slate-500";
-  let bgRingColor = "stroke-slate-800";
-
-  if (score != null) {
-    if (score >= 80) {
-      strokeColor = "stroke-emerald-500";
-      textColor = "text-emerald-400";
-      bgRingColor = "stroke-emerald-500/10";
-    } else if (score >= 60) {
-      strokeColor = "stroke-yellow-500";
-      textColor = "text-yellow-400";
-      bgRingColor = "stroke-yellow-500/10";
-    } else if (score >= 40) {
-      strokeColor = "stroke-orange-500";
-      textColor = "text-orange-400";
-      bgRingColor = "stroke-orange-500/10";
-    } else {
-      strokeColor = "stroke-red-500";
-      textColor = "text-red-400";
-      bgRingColor = "stroke-red-500/10";
-    }
-  }
-
   return (
-    <Link
-      href="/dashboard/operations"
-      className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 flex flex-col items-center justify-center hover:border-slate-600/50 transition-colors group"
-    >
-      <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-4">
-        Health Score
-      </p>
-
-      <div className="relative w-[180px] h-[180px]">
-        <svg
-          className="w-full h-full -rotate-90"
-          viewBox="0 0 180 180"
-        >
-          {/* Background ring */}
-          <circle
-            cx="90"
-            cy="90"
-            r={radius}
-            fill="none"
-            strokeWidth="10"
-            className={bgRingColor}
-          />
-          {/* Progress ring */}
-          {score != null && (
-            <circle
-              cx="90"
-              cy="90"
-              r={radius}
-              fill="none"
-              strokeWidth="10"
-              strokeLinecap="round"
-              className={strokeColor}
-              strokeDasharray={circumference}
-              strokeDashoffset={dashOffset}
-              style={{
-                transition: "stroke-dashoffset 0.8s ease-out",
-              }}
-            />
-          )}
-        </svg>
-
-        {/* Center text */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-4xl font-bold ${textColor}`}>
-            {score != null ? score : "\u2014"}
-          </span>
-          {score != null && (
-            <span className="text-xs text-slate-500 mt-1">/ 100</span>
-          )}
+    <div className="mb-6 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Bot size={18} className="text-emerald-400" />
+          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+            Agent Briefing
+          </h2>
         </div>
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 rounded-lg transition-colors disabled:opacity-50"
+        >
+          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
       </div>
 
-      {/* Trend indicator */}
-      {score != null ? (
-        <div className="flex items-center gap-1.5 mt-4">
-          {trend === "up" && (
-            <>
-              <TrendingUp size={14} className="text-emerald-400" />
-              <span className="text-xs text-emerald-400">Improving</span>
-            </>
-          )}
-          {trend === "down" && (
-            <>
-              <TrendingDown size={14} className="text-red-400" />
-              <span className="text-xs text-red-400">Worsening</span>
-            </>
-          )}
-          {trend === "flat" && (
-            <>
-              <Minus size={14} className="text-slate-500" />
-              <span className="text-xs text-slate-500">Stable</span>
-            </>
+      {loading && !briefing ? (
+        <div className="flex items-center gap-3 py-4">
+          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-slate-400">Generating briefing...</span>
+        </div>
+      ) : briefing?.briefing ? (
+        <div className="prose prose-sm prose-invert max-w-none">
+          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+            {briefing.briefing}
+          </p>
+          {briefing.generated_at && (
+            <p className="text-xs text-slate-600 mt-3">
+              Generated{" "}
+              {new Date(briefing.generated_at).toLocaleString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              })}
+            </p>
           )}
         </div>
       ) : (
-        <p className="text-xs text-slate-500 mt-4 text-center">
-          Run your first analysis to see your health score
+        <p className="text-sm text-slate-500 py-2">
+          No briefing available. Click refresh to generate one.
         </p>
       )}
-    </Link>
+    </div>
   );
 }
 
-// ─── Top Priority Card ──────────────────────────────────────
+// ─── Action Queue Section ────────────────────────────────────
 
-function TopPriorityCard({ finding }: { finding: Finding | null }) {
-  if (!finding) {
-    return (
-      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-6 flex items-center gap-4 h-full">
-        <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
-          <CheckCircle size={24} className="text-emerald-400" />
-        </div>
-        <div>
-          <p className="text-lg font-bold text-white">No Active Findings</p>
-          <p className="text-sm text-slate-400 mt-1">
-            Your inventory looks healthy
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const sc = severityColor(finding.severity);
-
+function ActionQueueSection({
+  actions,
+  loadingId,
+  onApprove,
+  onDefer,
+}: {
+  actions: ActionItem[];
+  loadingId: string | null;
+  onApprove: (id: string) => void;
+  onDefer: (id: string) => void;
+}) {
   return (
-    <div
-      className={`${sc.bg} border ${sc.border} rounded-xl p-6 h-full flex flex-col justify-between`}
-    >
-      <div>
-        {/* Severity badge + title */}
-        <div className="flex items-center gap-3 mb-3">
-          <span
-            className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded ${sc.bg} ${sc.text} border ${sc.border}`}
-          >
-            {finding.severity}
-          </span>
-          <span className="text-xs text-slate-500">Top Priority</span>
-        </div>
-
-        <h3 className="text-lg font-bold text-white mb-1">
-          {finding.title ||
-            finding.type.replace(/([A-Z])/g, " $1").trim()}
-        </h3>
-
-        <p className="text-sm text-slate-400 line-clamp-2 mb-3">
-          {finding.description}
-        </p>
-
-        {/* Recommended action tip */}
-        {finding.recommended_action && (
-          <div className="bg-slate-900/40 rounded-lg px-3 py-2 mb-4">
-            <p className="text-[10px] text-slate-500 uppercase font-medium mb-0.5">
-              Recommended Action
-            </p>
-            <p className="text-xs text-slate-300 line-clamp-2">
-              {finding.recommended_action}
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between mt-2">
-        <span className="text-2xl font-bold text-white">
-          {formatDollar(finding.dollar_impact)}
-        </span>
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+          Action Queue ({actions.length} pending)
+        </h2>
         <Link
-          href="/dashboard/operations"
-          className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors"
+          href="/dashboard/tasks"
+          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
         >
-          Take Action
-          <ArrowRight size={14} />
+          View All
         </Link>
+      </div>
+      <div className="space-y-2">
+        {actions.slice(0, 5).map((action) => (
+          <div
+            key={action.id}
+            className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex items-start gap-3"
+          >
+            <span className="text-lg mt-0.5">
+              {actionTypeIcon(action.action_type)}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {action.description}
+              </p>
+              {action.reasoning && (
+                <p className="text-xs text-slate-400 mt-1 line-clamp-1">
+                  {action.reasoning}
+                </p>
+              )}
+              <div className="flex items-center gap-3 mt-2">
+                {action.financial_impact > 0 && (
+                  <span className="text-xs font-medium text-emerald-400">
+                    {formatDollar(action.financial_impact)}
+                  </span>
+                )}
+                {action.confidence > 0 && (
+                  <span className="text-xs text-slate-500">
+                    {Math.round(action.confidence * 100)}% confidence
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => onApprove(action.id)}
+                disabled={loadingId === action.id}
+                className="px-3 py-1.5 text-xs font-medium bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg transition-colors"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => onDefer(action.id)}
+                disabled={loadingId === action.id}
+                className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ─── Trend Snapshot ─────────────────────────────────────────
+// ─── Summary Card ────────────────────────────────────────────
 
-function TrendSnapshot({ analyses }: { analyses: AnalysisListItem[] }) {
-  const chartData = analyses
-    .slice()
-    .reverse()
-    .map((a) => ({
-      date: a.created_at
-        ? new Date(a.created_at).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          })
-        : "?",
-      impact: a.total_impact_estimate_high ?? 0,
-    }));
-
-  if (analyses.length < 2) {
-    return (
-      <Link
-        href="/dashboard/history"
-        className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-slate-600/50 transition-colors"
-      >
-        <BarChart3 size={32} className="text-slate-600 mb-3" />
-        <p className="text-sm font-medium text-slate-400">
-          Run 2+ analyses to see trends
-        </p>
-        <p className="text-xs text-slate-600 mt-1">
-          Each analysis adds a data point to your trend chart
-        </p>
-      </Link>
-    );
-  }
-
-  return (
-    <Link
-      href="/dashboard/history"
-      className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 hover:border-slate-600/50 transition-colors block"
-    >
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">
-          Impact Trend
-        </p>
-        <span className="text-xs text-slate-600">
-          {analyses.length} analyses
-        </span>
-      </div>
-      <ResponsiveContainer width="100%" height={160}>
-        <BarChart data={chartData}>
-          <XAxis
-            dataKey="date"
-            tick={{ fill: "#64748b", fontSize: 10 }}
-            axisLine={false}
-            tickLine={false}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "#1e293b",
-              border: "1px solid #334155",
-              borderRadius: "8px",
-              color: "#e2e8f0",
-              fontSize: "12px",
-            }}
-            labelStyle={{ color: "#94a3b8" }}
-            formatter={(value: unknown) => [formatDollar(Number(value)), "Impact"]}
-          />
-          <Bar
-            dataKey="impact"
-            fill="#10b981"
-            radius={[4, 4, 0, 0]}
-          />
-        </BarChart>
-      </ResponsiveContainer>
-    </Link>
-  );
-}
-
-// ─── Quick Stat Tile ────────────────────────────────────────
-
-function QuickStatTile({
+function SummaryCard({
   label,
   value,
+  trend,
   icon,
-  href,
-  valueColor,
 }: {
   label: string;
   value: string;
+  trend?: number;
   icon: React.ReactNode;
-  href: string;
-  valueColor?: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600/50 transition-colors group"
-    >
-      <div className="text-slate-500 mb-2 group-hover:text-slate-400 transition-colors">
-        {icon}
+    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+      <div className="text-slate-500 mb-2">{icon}</div>
+      <p className="text-2xl font-bold text-white">{value}</p>
+      <div className="flex items-center gap-2 mt-1">
+        <p className="text-xs text-slate-500">{label}</p>
+        {trend !== undefined && trend !== 0 && (
+          <span
+            className={`flex items-center gap-0.5 text-xs ${
+              trend < 0 ? "text-emerald-400" : "text-red-400"
+            }`}
+          >
+            {trend < 0 ? (
+              <TrendingDown size={10} />
+            ) : (
+              <TrendingUp size={10} />
+            )}
+            {formatTrend(trend)}
+          </span>
+        )}
       </div>
-      <p
-        className={`text-2xl font-bold ${valueColor ?? "text-white"}`}
+    </div>
+  );
+}
+
+// ─── Region Section (collapsible) ──────────────────────────
+
+function RegionSection({ region }: { region: RegionSummary }) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div className="bg-slate-800/30 border border-slate-700/30 rounded-xl overflow-hidden">
+      {/* Region header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-700/20 transition-colors"
       >
-        {value}
+        <div className="flex items-center gap-3">
+          {expanded ? (
+            <ChevronDown size={16} className="text-slate-500" />
+          ) : (
+            <ChevronRight size={16} className="text-slate-500" />
+          )}
+          <h3 className="text-sm font-semibold text-white">
+            {region.name}
+          </h3>
+          <span className="text-xs text-slate-500">
+            {region.store_count} store{region.store_count !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-medium text-white">
+            {formatDollar(region.total_exposure)}
+          </span>
+          {region.exposure_trend !== 0 && (
+            <span
+              className={`flex items-center gap-0.5 text-xs ${
+                region.exposure_trend < 0 ? "text-emerald-400" : "text-red-400"
+              }`}
+            >
+              {region.exposure_trend < 0 ? (
+                <TrendingDown size={10} />
+              ) : (
+                <TrendingUp size={10} />
+              )}
+              {formatTrend(region.exposure_trend)}
+            </span>
+          )}
+          {region.pending_actions > 0 && (
+            <span className="text-xs text-yellow-400">
+              {region.pending_actions} pending
+            </span>
+          )}
+        </div>
+      </button>
+
+      {/* Store cards grid */}
+      {expanded && (
+        <div className="px-5 pb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {region.stores.map((store) => (
+            <StoreCard key={store.id} store={store} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Store Card ──────────────────────────────────────────────
+
+function StoreCard({ store }: { store: StoreSummary }) {
+  const sc = statusColor(store.status);
+
+  return (
+    <Link
+      href={`/dashboard/stores/${store.id}`}
+      className={`${sc.bg} border ${sc.border} rounded-lg p-3 hover:brightness-110 transition-all block`}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-2 h-2 rounded-full ${sc.dot}`} />
+        <p className="text-xs font-medium text-white truncate">{store.name}</p>
+      </div>
+      <p className="text-lg font-bold text-white">
+        {formatDollar(store.total_impact)}
       </p>
-      <p className="text-xs text-slate-500 mt-1">{label}</p>
+      {store.top_issue && (
+        <p className="text-[10px] text-slate-400 mt-1 truncate">
+          {store.top_issue}
+        </p>
+      )}
+      {store.pending_actions > 0 && (
+        <p className="text-[10px] text-yellow-400 mt-0.5">
+          {store.pending_actions} pending
+        </p>
+      )}
     </Link>
   );
 }

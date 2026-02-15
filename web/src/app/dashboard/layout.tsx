@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
+  Eye,
   ClipboardList,
   Phone,
   TrendingUp,
@@ -43,7 +43,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "OVERVIEW",
     items: [
-      { href: "/dashboard", label: "Morning Digest", icon: LayoutDashboard, description: "Health & trends at a glance" },
+      { href: "/dashboard", label: "Eagle's Eye", icon: Eye, description: "Executive network view" },
       { href: "/dashboard/stores", label: "Stores", icon: Store, description: "Manage store locations" },
       { href: "/dashboard/operations", label: "Operations Hub", icon: Inbox, description: "Triage & act on findings" },
     ],

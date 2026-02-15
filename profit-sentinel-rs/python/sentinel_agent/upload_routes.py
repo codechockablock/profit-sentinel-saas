@@ -191,6 +191,21 @@ def _validate_and_apply_mapping(
     return df, warnings
 
 
+def _extract_leak_count(leaks: dict, leak_key: str) -> int:
+    """Count items for a leak type from analysis result."""
+    leak_data = leaks.get(leak_key, {})
+    return int(leak_data.get("count", 0))
+
+
+def _extract_leak_impact(leaks: dict, leak_key: str) -> float:
+    """Sum dollar_impact for a leak type from analysis result."""
+    leak_data = leaks.get(leak_key, {})
+    items = leak_data.get("items", [])
+    if not items:
+        return float(leak_data.get("total_impact", 0))
+    return sum(float(item.get("dollar_impact", 0)) for item in items)
+
+
 def create_upload_router(
     settings: SidecarSettings,
     engine: SentinelEngine | None,
@@ -238,11 +253,14 @@ def create_upload_router(
 
         # Verify store ownership if store_id is provided
         if store_id and ctx.is_authenticated and app_state is not None:
-            _store_store = getattr(app_state, "store_store", None)
-            if _store_store is not None:
-                store = _store_store.get(store_id, ctx.user_id)
-                if not store:
-                    raise HTTPException(404, "Store not found")
+            _org_store = getattr(app_state, "org_store", None)
+            _org_store_store = getattr(app_state, "org_store_store", None)
+            if _org_store is not None and _org_store_store is not None:
+                _presign_org = _org_store.get_for_user(ctx.user_id)
+                if _presign_org:
+                    _presign_store = _org_store_store.get(store_id, _presign_org["id"])
+                    if not _presign_store:
+                        raise HTTPException(404, "Store not found")
 
         # Captcha verification for anonymous users only
         if not ctx.is_authenticated and settings.turnstile_secret_key:
@@ -358,11 +376,16 @@ def create_upload_router(
         # Verify store ownership if store_id is provided
         resolved_store_id = store_id or ""
         if resolved_store_id and ctx.is_authenticated and app_state is not None:
-            _store_store = getattr(app_state, "store_store", None)
-            if _store_store is not None:
-                store = _store_store.get(resolved_store_id, ctx.user_id)
-                if not store:
-                    raise HTTPException(404, "Store not found")
+            _org_store = getattr(app_state, "org_store", None)
+            _org_store_store = getattr(app_state, "org_store_store", None)
+            if _org_store is not None and _org_store_store is not None:
+                _analyze_org = _org_store.get_for_user(ctx.user_id)
+                if _analyze_org:
+                    _analyze_store = _org_store_store.get(
+                        resolved_store_id, _analyze_org["id"]
+                    )
+                    if not _analyze_store:
+                        raise HTTPException(404, "Store not found")
 
         # Parse mapping
         try:
@@ -548,28 +571,96 @@ def create_upload_router(
                         f"Transfer matcher population failed (non-fatal): {e}"
                     )
 
-            # Update store metadata after analysis
+            # Update store metadata after analysis (org-scoped)
             if resolved_store_id and ctx.is_authenticated and app_state is not None:
                 try:
-                    _store_store = getattr(app_state, "store_store", None)
-                    if _store_store is not None:
-                        from datetime import UTC, datetime
+                    _org_store = getattr(app_state, "org_store", None)
+                    _org_store_store = getattr(app_state, "org_store_store", None)
+                    if _org_store is not None and _org_store_store is not None:
+                        _meta_org = _org_store.get_for_user(ctx.user_id)
+                        if _meta_org:
+                            from datetime import UTC, datetime
 
-                        _store_store.update_metadata(
-                            resolved_store_id,
-                            ctx.user_id,
-                            {
-                                "last_upload_at": datetime.now(UTC).isoformat(),
-                                "item_count": result.get("summary", {}).get(
-                                    "total_rows_analyzed", 0
-                                ),
-                                "total_impact": result.get("summary", {})
-                                .get("estimated_impact", {})
-                                .get("high_estimate", 0),
-                            },
-                        )
+                            _org_store_store.update_metadata(
+                                resolved_store_id,
+                                _meta_org["id"],
+                                {
+                                    "last_upload_at": datetime.now(UTC).isoformat(),
+                                    "item_count": result.get("summary", {}).get(
+                                        "total_rows_analyzed", 0
+                                    ),
+                                    "total_impact": result.get("summary", {})
+                                    .get("estimated_impact", {})
+                                    .get("high_estimate", 0),
+                                },
+                            )
                 except Exception as e:
                     logger.warning("Store metadata update failed (non-fatal): %s", e)
+
+            # Engine 1→Snapshots: create store snapshot for eagle-eye dashboard
+            if resolved_store_id and ctx.is_authenticated and app_state is not None:
+                try:
+                    _snapshot_store = getattr(app_state, "snapshot_store", None)
+                    _org_store = getattr(app_state, "org_store", None)
+                    if _snapshot_store is not None and _org_store is not None:
+                        org = _org_store.get_for_user(ctx.user_id)
+                        if org:
+                            from datetime import UTC, datetime
+
+                            summary = result.get("summary", {})
+                            leaks = result.get("leaks", {})
+                            impact = summary.get("estimated_impact", {})
+
+                            snapshot_data = {
+                                "store_id": resolved_store_id,
+                                "org_id": org["id"],
+                                "snapshot_at": datetime.now(UTC).isoformat(),
+                                "item_count": summary.get("total_rows_analyzed", 0),
+                                "flagged_count": summary.get("total_items_flagged", 0),
+                                "total_impact_low": float(
+                                    impact.get("low_estimate", 0)
+                                ),
+                                "total_impact_high": float(
+                                    impact.get("high_estimate", 0)
+                                ),
+                                "dead_stock_count": _extract_leak_count(
+                                    leaks, "dead_stock"
+                                ),
+                                "dead_stock_capital": _extract_leak_impact(
+                                    leaks, "dead_stock"
+                                ),
+                                "margin_erosion_count": _extract_leak_count(
+                                    leaks, "margin_erosion"
+                                ),
+                                "margin_erosion_impact": _extract_leak_impact(
+                                    leaks, "margin_erosion"
+                                ),
+                                "shrinkage_count": _extract_leak_count(
+                                    leaks, "shrinkage"
+                                ),
+                                "shrinkage_impact": _extract_leak_impact(
+                                    leaks, "shrinkage"
+                                ),
+                                "stockout_risk_count": _extract_leak_count(
+                                    leaks, "stockout_risk"
+                                ),
+                                "overstock_count": _extract_leak_count(
+                                    leaks, "overstock"
+                                ),
+                            }
+                            _snapshot_store.create(snapshot_data)
+                            logger.info(
+                                "Store snapshot created for store=%s org=%s "
+                                "(items=%d, flagged=%d, impact=$%.0f)",
+                                resolved_store_id,
+                                org["id"],
+                                snapshot_data["item_count"],
+                                snapshot_data["flagged_count"],
+                                snapshot_data["total_impact_high"],
+                            )
+                except Exception as e:
+                    # Snapshot creation failure must NOT block the analysis response
+                    logger.warning("Store snapshot creation failed (non-fatal): %s", e)
 
             # Engine 1→3: enrich findings with counterfactuals
             if app_state is not None and app_state.counterfactual_engine is not None:

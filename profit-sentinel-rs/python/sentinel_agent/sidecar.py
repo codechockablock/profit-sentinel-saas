@@ -29,6 +29,8 @@ from .digest_scheduler import DigestScheduler, init_subscription_store
 from .dual_auth import make_get_user_context, make_require_auth
 from .engine import PipelineError, SentinelEngine
 from .pos_integrations import init_pos_store
+from .routes.actions import create_actions_router
+from .routes.agent_briefing import create_briefing_router
 from .routes.analyses import create_analyses_router
 from .routes.api_keys import create_api_keys_router
 from .routes.config import create_config_router
@@ -36,13 +38,16 @@ from .routes.counterfactual import create_counterfactual_router
 from .routes.dashboard import create_dashboard_router
 from .routes.diagnostic import create_diagnostic_router
 from .routes.digest import create_digest_router
+from .routes.eagle_eye import create_eagle_eye_router
 from .routes.explain import create_explain_router
 from .routes.findings import create_findings_router
 from .routes.health import create_health_router
+from .routes.org_stores import create_org_stores_router
+from .routes.organizations import create_org_router
 from .routes.pos import create_pos_router
 from .routes.predictions import create_predictions_router
+from .routes.regions import create_regions_router
 from .routes.state import AppState
-from .routes.stores import create_stores_router
 from .routes.tasks import create_tasks_router
 from .routes.transfers import create_transfers_router
 from .routes.vendor import create_vendor_router
@@ -309,7 +314,12 @@ def create_app(settings: SidecarSettings | None = None) -> FastAPI:
     app.include_router(create_dashboard_router(state, require_auth))
     app.include_router(create_config_router(state, require_auth))
     app.include_router(create_transfers_router(state, require_auth))
-    app.include_router(create_stores_router(state, require_auth))
+    app.include_router(create_org_router(state, require_auth))
+    app.include_router(create_regions_router(state, require_auth))
+    app.include_router(create_org_stores_router(state, require_auth))
+    app.include_router(create_eagle_eye_router(state, require_auth))
+    app.include_router(create_briefing_router(state, require_auth))
+    app.include_router(create_actions_router(state, require_auth))
     app.include_router(create_counterfactual_router(state, require_auth))
 
     # Legacy-compatible upload & analysis routes (production frontend)

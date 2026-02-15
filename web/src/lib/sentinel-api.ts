@@ -12,7 +12,7 @@ import { getAuthHeaders } from './supabase';
 
 const BASE = () => `${getApiUrl()}/api/v1`;
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
   const res = await fetch(`${BASE()}${path}`, {
     ...init,
