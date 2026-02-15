@@ -34,11 +34,18 @@ def create_briefing_router(state: AppState, require_auth) -> APIRouter:
     state.briefing_generator = generator  # type: ignore[attr-defined]
 
     def _generate_briefing(ctx: UserContext, force: bool = False) -> dict:
-        """Core briefing logic — shared by GET and POST."""
-        # Build eagle-eye data for context
-        business_data = build_eagle_eye_data(state, ctx.user_id)
+        """Core briefing logic — shared by GET and POST.
 
-        if not business_data.get("org"):
+        Fast path: return ANY non-expired cached briefing without rebuilding
+        eagle-eye data.  Only fetch business data when we need to generate.
+        """
+        # Resolve org quickly (single DB lookup)
+        org_store = getattr(state, "org_store", None)
+        if not org_store:
+            raise HTTPException(500, "Organization service not initialized")
+
+        org = org_store.get_for_user(ctx.user_id)
+        if not org:
             return {
                 "briefing": (
                     "Welcome to Profit Sentinel. Set up your organization and "
@@ -49,29 +56,29 @@ def create_briefing_router(state: AppState, require_auth) -> APIRouter:
                 "expires_at": None,
             }
 
-        org = business_data["org"]
         org_id = org["id"]
         org_name = org["name"]
 
+        # Fast path: return any non-expired cached briefing (skip data hash)
+        if not force:
+            cached = generator.get_cached(org_id, ctx.user_id)
+            if cached:
+                logger.info(
+                    "Returning cached briefing for user=%s org=%s (fast path)",
+                    ctx.user_id,
+                    org_id,
+                )
+                return cached
+
+        # Slow path: build full data context and generate
+        business_data = build_eagle_eye_data(state, ctx.user_id)
+
         # Determine user role
-        org_store = getattr(state, "org_store", None)
         role = "owner"
         if org_store:
             user_role = org_store.get_user_role(ctx.user_id, org_id)
             if user_role:
                 role = user_role
-
-        # Check cache (unless forced refresh)
-        data_hash = generator.compute_data_hash(business_data)
-        if not force:
-            cached = generator.get_cached(org_id, ctx.user_id, data_hash)
-            if cached:
-                logger.info(
-                    "Returning cached briefing for user=%s org=%s",
-                    ctx.user_id,
-                    org_id,
-                )
-                return cached
 
         # Generate new briefing
         logger.info(
