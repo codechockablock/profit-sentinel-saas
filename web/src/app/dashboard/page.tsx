@@ -246,12 +246,31 @@ export default function EagleEyePage() {
 
       {error && <ApiErrorBanner error={error} onRetry={load} />}
 
-      {/* Loading */}
+      {/* Skeleton loading state */}
       {loading && !data && (
-        <div className="flex items-center justify-center py-24">
-          <div className="text-center">
-            <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-slate-400 text-sm">Loading executive view...</p>
+        <div className="animate-pulse">
+          {/* Briefing skeleton */}
+          <div className="mb-6 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-5 h-5 bg-slate-700/50 rounded" />
+              <div className="h-4 bg-slate-700/50 rounded w-32" />
+            </div>
+            <div className="space-y-3">
+              <div className="h-4 bg-slate-700/40 rounded w-5/6" />
+              <div className="h-4 bg-slate-700/30 rounded w-full" />
+              <div className="h-4 bg-slate-700/30 rounded w-4/6" />
+              <div className="h-4 bg-slate-700/20 rounded w-3/4" />
+            </div>
+          </div>
+          {/* Summary cards skeleton */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+                <div className="w-4 h-4 bg-slate-700/40 rounded mb-2" />
+                <div className="h-7 bg-slate-700/40 rounded w-16 mb-1" />
+                <div className="h-3 bg-slate-700/20 rounded w-24" />
+              </div>
+            ))}
           </div>
         </div>
       )}
