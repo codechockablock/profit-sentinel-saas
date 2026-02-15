@@ -194,6 +194,11 @@ export default function EagleEyePage() {
           <p className="text-slate-400 mb-6">
             Set up your organization to get started with the executive dashboard.
           </p>
+          {error && (
+            <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400 text-left">
+              {error}
+            </div>
+          )}
           <div className="max-w-sm mx-auto space-y-4">
             <input
               type="text"

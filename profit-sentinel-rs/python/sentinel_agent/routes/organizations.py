@@ -111,7 +111,13 @@ class OrgStore:
                 logger.error(
                     "OrgStore.create failed (%s): %s", resp.status_code, resp.text
                 )
-                raise HTTPException(502, "Failed to create organization")
+                detail = "Failed to create organization"
+                if resp.status_code == 404 or "does not exist" in resp.text:
+                    detail = (
+                        "Organization tables not found. "
+                        "Please run the Eagle's Eye SQL migration (011_eagle_eye_schema.sql) in Supabase."
+                    )
+                raise HTTPException(502, detail)
 
             rows = resp.json()
             org = rows[0] if rows else {}
