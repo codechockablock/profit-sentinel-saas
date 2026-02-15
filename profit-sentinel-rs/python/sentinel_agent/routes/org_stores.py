@@ -108,6 +108,41 @@ class OrgStoreStore:
 
     # -- Public API --
 
+    def _reactivate_inactive(self, org_id: str, name: str) -> dict | None:
+        """Try to find an inactive store with this name and reactivate it."""
+        if self._use_supabase:
+            resp = self._request(
+                "GET",
+                params={
+                    "org_id": f"eq.{org_id}",
+                    "name": f"eq.{name}",
+                    "status": "eq.inactive",
+                    "limit": "1",
+                },
+            )
+            if resp.status_code == 200:
+                rows = resp.json()
+                if rows:
+                    reactivated = self.update(
+                        rows[0]["id"], org_id, {"status": "active"}
+                    )
+                    if reactivated:
+                        logger.info(
+                            "Reactivated inactive store '%s' in org %s", name, org_id
+                        )
+                        return reactivated
+        else:
+            for rec in self._memory.values():
+                if (
+                    rec["org_id"] == org_id
+                    and rec["name"] == name
+                    and rec.get("status") == "inactive"
+                ):
+                    rec["status"] = "active"
+                    rec["updated_at"] = datetime.now(UTC).isoformat()
+                    return rec
+        return None
+
     def create(
         self,
         org_id: str,
@@ -131,6 +166,10 @@ class OrgStoreStore:
                 rows = resp.json()
                 return rows[0] if rows else {}
             if resp.status_code == 409 or "duplicate" in resp.text.lower():
+                # Check if an inactive store with this name exists and reactivate it
+                reactivated = self._reactivate_inactive(org_id, name)
+                if reactivated:
+                    return reactivated
                 raise HTTPException(409, f"A store named '{name}' already exists")
             logger.error(
                 "OrgStoreStore.create failed (%s): %s", resp.status_code, resp.text
@@ -141,6 +180,10 @@ class OrgStoreStore:
 
             for rec in self._memory.values():
                 if rec["org_id"] == org_id and rec["name"] == name:
+                    if rec.get("status") == "inactive":
+                        rec["status"] = "active"
+                        rec["updated_at"] = datetime.now(UTC).isoformat()
+                        return rec
                     raise HTTPException(409, f"A store named '{name}' already exists")
             store_id = str(uuid.uuid4())
             now = datetime.now(UTC).isoformat()

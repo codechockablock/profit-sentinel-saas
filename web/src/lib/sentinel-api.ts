@@ -1044,7 +1044,8 @@ export async function fetchDashboardSummary(storeId?: string): Promise<Dashboard
 
 export interface Store {
   id: string;
-  user_id: string;
+  user_id?: string;
+  org_id?: string;
   name: string;
   address: string;
   created_at: string;
@@ -1052,6 +1053,7 @@ export interface Store {
   last_upload_at: string | null;
   item_count: number;
   total_impact: number;
+  status?: string;
 }
 
 export interface StoresResponse {
